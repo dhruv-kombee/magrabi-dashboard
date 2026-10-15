@@ -23,6 +23,7 @@ Desktop.ini
 node_modules/
 dist/
 build/
+**/backend/static/
 coverage/
 *.log
 
