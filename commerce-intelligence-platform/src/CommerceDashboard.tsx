@@ -24,6 +24,7 @@ import {
   sum,
 } from './fixtures'
 import styles from './CommerceDashboard.module.css'
+import { CustomDatePicker } from './CustomDatePicker'
 
 const sectionConfig: Array<{ key: SectionKey; label: string; title: string; subtitle: string }> = [
   {
@@ -605,26 +606,22 @@ export function CommerceDashboard() {
                   <option value="KW">Kuwait</option>
                 </select>
               </div>
-              <div>
-                <label htmlFor="start">From · inclusive</label>
-                <input
-                  type="datetime-local"
-                  id="start"
-                  value={formStart}
-                  onChange={(e) => setFormStart(e.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor="end">To · exclusive</label>
-                <input
-                  type="datetime-local"
-                  id="end"
-                  value={formEnd}
-                  onChange={(e) => setFormEnd(e.target.value)}
-                  required
-                />
-              </div>
+              <CustomDatePicker
+                id="start"
+                label="From · inclusive"
+                value={formStart}
+                onChange={setFormStart}
+                align="left"
+                presetType="start"
+              />
+              <CustomDatePicker
+                id="end"
+                label="To · exclusive"
+                value={formEnd}
+                onChange={setFormEnd}
+                align="right"
+                presetType="end"
+              />
               <div>
                 <label htmlFor="timezone">Reporting timezone</label>
                 <select
