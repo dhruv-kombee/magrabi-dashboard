@@ -622,6 +622,15 @@ export function CommerceDashboard() {
                     </div>
                   </div>
                   <div className={`${styles.card} ${styles.metric}`}>
+                    <div className={styles.metriclabel}>Received in OMS</div>
+                    <div className={styles.metricvalue}>
+                      {fmt(currentAgg.orders - Math.floor(currentAgg.orders * 0.02))}
+                    </div>
+                    <div className={styles.metricfoot}>
+                      {fmt(Math.floor(currentAgg.orders * 0.02))} sample handoff exceptions · reconcile IDs
+                    </div>
+                  </div>
+                  <div className={`${styles.card} ${styles.metric}`}>
                     <div className={styles.metriclabel}>Payment success</div>
                     <div className={styles.metricvalue}>{pct(currentAgg.success, currentAgg.attempts)}</div>
                     <div className={styles.metricfoot}>Online attempts · cash excluded</div>
@@ -632,15 +641,6 @@ export function CommerceDashboard() {
                       {pct(currentAgg.orders, currentAgg.steps[0])}
                     </div>
                     <div className={styles.metricfoot}>Demo confirmed / add-to-cart cohort</div>
-                  </div>
-                  <div className={`${styles.card} ${styles.metric}`}>
-                    <div className={styles.metriclabel}>Received in OMS</div>
-                    <div className={styles.metricvalue}>
-                      {fmt(currentAgg.orders - Math.floor(currentAgg.orders * 0.02))}
-                    </div>
-                    <div className={styles.metricfoot}>
-                      {fmt(Math.floor(currentAgg.orders * 0.02))} sample handoff exceptions · reconcile IDs
-                    </div>
                   </div>
                 </div>
 
