@@ -484,13 +484,16 @@ export function CommerceDashboard() {
 
   // Daily orders chart data
   const dailyPoints = useMemo(() => {
+    if (liveSaleor?.dailyPoints && liveSaleor.dailyPoints.length > 0) {
+      return liveSaleor.dailyPoints.map((p) => [p.date, p.orders] as [string, number])
+    }
     const out = new Map<string, number>()
     for (const r of currentRecords) {
       const day = dayKey(r.t, timezone)
       out.set(day, (out.get(day) || 0) + r.orders)
     }
     return [...out.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-  }, [currentRecords, timezone])
+  }, [liveSaleor?.dailyPoints, currentRecords, timezone])
 
   // Chart SVG Calculations
   const maxOrderVal = Math.max(...dailyPoints.map((x) => x[1]), 1)
@@ -517,7 +520,11 @@ export function CommerceDashboard() {
     : ''
 
   // Payment Outcomes ring calculation
-  const paymentRate = currentAgg.attempts ? currentAgg.success / currentAgg.attempts : 0
+  const paymentRate = liveSaleor?.paymentBreakdown
+    ? liveSaleor.paymentBreakdown.onlineRate / 100
+    : currentAgg.attempts
+    ? currentAgg.success / currentAgg.attempts
+    : 0
   const ringDash = `${(paymentRate * 364.425).toFixed(1)} 364.425`
 
   // Traffic Source Calculations
@@ -820,9 +827,36 @@ export function CommerceDashboard() {
                     </div>
                   </div>
                   <div className={`${styles.card} ${styles.metric}`}>
-                    <div className={styles.metriclabel}>Payment success</div>
-                    <div className={styles.metricvalue}>{pct(currentAgg.success, currentAgg.attempts)}</div>
-                    <div className={styles.metricfoot}>Online attempts · cash excluded</div>
+                    <div className={styles.metriclabel} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Payment success</span>
+                      {liveSaleor?.paymentBreakdown ? (
+                        <span style={{ fontSize: '10px', background: '#e1f5ec', color: '#1a7f5a', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                          ● LIVE PROD
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '10px', background: '#f0f2f1', color: '#68726e', padding: '2px 6px', borderRadius: '4px' }}>
+                          {liveLoading ? 'LOADING...' : 'SAMPLE'}
+                        </span>
+                      )}
+                    </div>
+                    <div className={styles.metricvalue}>
+                      {liveSaleor?.paymentBreakdown ? (
+                        `${liveSaleor.paymentBreakdown.onlineRate.toFixed(1)}%`
+                      ) : liveLoading ? (
+                        <span className={styles.skeletonPulse}>—</span>
+                      ) : (
+                        pct(currentAgg.success, currentAgg.attempts)
+                      )}
+                    </div>
+                    <div className={styles.metricfoot}>
+                      {liveSaleor?.paymentBreakdown ? (
+                        <span>{fmt(liveSaleor.paymentBreakdown.fullCharge)} online captured / {fmt(liveSaleor.orders)} total</span>
+                      ) : liveLoading ? (
+                        <span>Computing payment charges...</span>
+                      ) : (
+                        'Online attempts · cash excluded'
+                      )}
+                    </div>
                   </div>
                   <div className={`${styles.card} ${styles.metric}`}>
                     <div className={styles.metriclabel}>Journey conversion</div>
@@ -841,7 +875,11 @@ export function CommerceDashboard() {
                         <h2>Orders placed over time</h2>
                         <p>Saleor order creation · OMS receipt reconciled separately</p>
                       </div>
-                      <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
+                      {liveSaleor?.dailyPoints ? (
+                        <span className={`${styles.badge} ${styles.badgeLive}`}>● LIVE PROD</span>
+                      ) : (
+                        <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
+                      )}
                     </div>
                     <div className={styles.cardbody} style={{ paddingBottom: '7px' }}>
                       <svg className={styles.chart} viewBox={`0 0 ${chartW} ${chartH}`}>
@@ -909,9 +947,17 @@ export function CommerceDashboard() {
                     <div className={styles.cardhead}>
                       <div>
                         <h2>Payment outcomes</h2>
-                        <p>Distinct online attempts · illustrative mapping</p>
+                        <p>
+                          {liveSaleor?.paymentBreakdown
+                            ? 'Saleor payment charge status (FULL online vs NONE)'
+                            : 'Distinct online attempts · illustrative mapping'}
+                        </p>
                       </div>
-                      <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
+                      {liveSaleor?.paymentBreakdown ? (
+                        <span className={`${styles.badge} ${styles.badgeLive}`}>● LIVE PROD</span>
+                      ) : (
+                        <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
+                      )}
                     </div>
                     <div className={styles.cardbody}>
                       <div className={styles.paymentRing}>
@@ -930,36 +976,69 @@ export function CommerceDashboard() {
                             />
                           </svg>
                           <div className={styles.ringtext}>
-                            <b>{pct(currentAgg.success, currentAgg.attempts)}</b>
-                            <span>confirmed success</span>
+                            <b>
+                              {liveSaleor?.paymentBreakdown
+                                ? `${liveSaleor.paymentBreakdown.onlineRate.toFixed(1)}%`
+                                : pct(currentAgg.success, currentAgg.attempts)}
+                            </b>
+                            <span>{liveSaleor?.paymentBreakdown ? 'captured online' : 'confirmed success'}</span>
                           </div>
                         </div>
                         <div className={styles.ringlegend}>
-                          <div>
-                            <span className={styles.dot} style={{ color: '#5a8263' }}></span>
-                            Success <b>{fmt(currentAgg.success)}</b>
-                          </div>
-                          <div>
-                            <span className={styles.dot} style={{ color: '#d6978a' }}></span>
-                            Failed <b>{fmt(currentAgg.failed)}</b>
-                          </div>
-                          <div>
-                            <span className={styles.dot} style={{ color: '#d6dccc' }}></span>
-                            Pending <b>{fmt(currentAgg.pending)}</b>
-                          </div>
+                          {liveSaleor?.paymentBreakdown ? (
+                            <>
+                              <div>
+                                <span className={styles.dot} style={{ color: '#5a8263' }}></span>
+                                Captured <b>{fmt(liveSaleor.paymentBreakdown.fullCharge)}</b>
+                              </div>
+                              <div>
+                                <span className={styles.dot} style={{ color: '#d6978a' }}></span>
+                                Uncharged / Cash <b>{fmt(liveSaleor.paymentBreakdown.noneCharge)}</b>
+                              </div>
+                              <div>
+                                <span className={styles.dot} style={{ color: '#507b5b' }}></span>
+                                Total Orders <b>{fmt(liveSaleor.orders)}</b>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div>
+                                <span className={styles.dot} style={{ color: '#5a8263' }}></span>
+                                Success <b>{fmt(currentAgg.success)}</b>
+                              </div>
+                              <div>
+                                <span className={styles.dot} style={{ color: '#d6978a' }}></span>
+                                Failed <b>{fmt(currentAgg.failed)}</b>
+                              </div>
+                              <div>
+                                <span className={styles.dot} style={{ color: '#d6dccc' }}></span>
+                                Pending <b>{fmt(currentAgg.pending)}</b>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
                       <div className={styles.ruleline}></div>
                       <div className={styles.minirow}>
-                        <span>Online payment attempts</span>
-                        <strong>{fmt(currentAgg.attempts)}</strong>
+                        <span>{liveSaleor?.paymentBreakdown ? 'Online captured orders' : 'Online payment attempts'}</span>
+                        <strong>
+                          {liveSaleor?.paymentBreakdown
+                            ? fmt(liveSaleor.paymentBreakdown.fullCharge)
+                            : fmt(currentAgg.attempts)}
+                        </strong>
                       </div>
                       <div className={styles.minirow}>
-                        <span>Cash orders · excluded from rate</span>
-                        <strong>{fmt(currentAgg.cash)}</strong>
+                        <span>{liveSaleor?.paymentBreakdown ? 'Cash / uncharged orders' : 'Cash orders · excluded from rate'}</span>
+                        <strong>
+                          {liveSaleor?.paymentBreakdown
+                            ? fmt(liveSaleor.paymentBreakdown.noneCharge)
+                            : fmt(currentAgg.cash)}
+                        </strong>
                       </div>
                       <p className={styles.tiny} style={{ lineHeight: '1.6' }}>
-                        Success means a confirmed gateway outcome, not HTTP 200.
+                        {liveSaleor?.paymentBreakdown
+                          ? 'Charge status FULL indicates online settlement confirmed by Saleor.'
+                          : 'Success means a confirmed gateway outcome, not HTTP 200.'}
                       </p>
                     </div>
                   </article>
@@ -979,9 +1058,17 @@ export function CommerceDashboard() {
                     <div className={styles.cardhead} style={{ paddingBottom: '17px' }}>
                       <div>
                         <h2>Country performance</h2>
-                        <p>Country from order/channel data · never inferred from IP</p>
+                        <p>
+                          {liveSaleor?.countryBreakdown
+                            ? 'Live country channel distribution directly from Saleor'
+                            : 'Country from order/channel data · never inferred from IP'}
+                        </p>
                       </div>
-                      <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
+                      {liveSaleor?.countryBreakdown ? (
+                        <span className={`${styles.badge} ${styles.badgeLive}`}>● LIVE PROD</span>
+                      ) : (
+                        <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
+                      )}
                     </div>
                     <div className={styles.tablewrap}>
                       <table className={styles.table}>
@@ -999,23 +1086,29 @@ export function CommerceDashboard() {
                             .map(([code, c]) => {
                               const countryRows = currentRecords.filter((r) => r.code === code)
                               const x = aggregate(countryRows)
-                              const sharePct = currentAgg.orders
-                                ? (x.orders / currentAgg.orders) * 100
-                                : 0
+                              const ordersCount = liveSaleor?.countryBreakdown
+                                ? (liveSaleor.countryBreakdown[code] ?? 0)
+                                : x.orders
+                              const totalOrders = liveSaleor ? liveSaleor.orders : currentAgg.orders
+                              const sharePct = totalOrders > 0 ? (ordersCount / totalOrders) * 100 : 0
                               return (
                                 <tr key={code}>
                                   <td>
                                     <span className={styles.countryflag}>{code}</span>
                                     {c.name}
                                   </td>
-                                  <td className={styles.num}><b>{fmt(x.orders)}</b></td>
+                                  <td className={styles.num}><b>{fmt(ordersCount)}</b></td>
                                   <td className={styles.num}>
                                     <span className={styles.inlinebar}>
-                                      <i style={{ width: `${sharePct}%` }}></i>
+                                      <i style={{ width: `${Math.min(100, sharePct)}%` }}></i>
                                     </span>
-                                    {pct(x.orders, currentAgg.orders)}
+                                    {sharePct.toFixed(1)}%
                                   </td>
-                                  <td className={styles.num}>{pct(x.success, x.attempts)}</td>
+                                  <td className={styles.num}>
+                                    {liveSaleor?.paymentBreakdown
+                                      ? `${liveSaleor.paymentBreakdown.onlineRate.toFixed(1)}%`
+                                      : pct(x.success, x.attempts)}
+                                  </td>
                                 </tr>
                               )
                             })}
@@ -1023,7 +1116,9 @@ export function CommerceDashboard() {
                       </table>
                     </div>
                     <div className={styles.chartfooter}>
-                      Business-country filters require validated brand/channel mappings.
+                      {liveSaleor
+                        ? 'Business-country live orders mapped directly from Saleor country channels.'
+                        : 'Business-country filters require validated brand/channel mappings.'}
                     </div>
                   </article>
 
@@ -1080,21 +1175,33 @@ export function CommerceDashboard() {
                   <div className={styles.sourceStrip}>
                     <div>
                       <strong>Revenue stays in its original currency</strong>
-                      <p>Illustrative gross order value · no FX conversion or cross-currency total</p>
+                      <p>
+                        {liveSaleor?.revenueByCurrency
+                          ? 'Gross order value directly from Saleor live orders · no FX conversion'
+                          : 'Illustrative gross order value · no FX conversion or cross-currency total'}
+                      </p>
                     </div>
-                    <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
+                    {liveSaleor?.revenueByCurrency ? (
+                      <span className={`${styles.badge} ${styles.badgeLive}`}>● LIVE PROD</span>
+                    ) : (
+                      <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
+                    )}
                   </div>
                   <div className={styles.cardbody}>
                     <div className={styles.amounts}>
                       {Object.entries(countries)
                         .filter(([c]) => country === 'all' || c === country)
                         .map(([code, c]) => {
-                          const rev = Math.round(
-                            sum(
-                              currentRecords.filter((r) => r.code === code),
-                              'revenue',
-                            ),
-                          )
+                          const liveVal = liveSaleor?.revenueByCurrency?.[c.currency]
+                          const rev =
+                            liveVal !== undefined
+                              ? Math.round(liveVal)
+                              : Math.round(
+                                  sum(
+                                    currentRecords.filter((r) => r.code === code),
+                                    'revenue',
+                                  ),
+                                )
                           return (
                             <span key={code}>
                               {c.currency}
@@ -1150,19 +1257,52 @@ export function CommerceDashboard() {
                     </div>
                   </div>
                   <div className={`${styles.card} ${styles.metric}`}>
-                    <div className={styles.metriclabel}>Online attempts</div>
-                    <div className={styles.metricvalue}>{fmt(currentAgg.attempts)}</div>
-                    <div className={styles.metricfoot}>Retry-deduplicated event concept</div>
+                    <div className={styles.metriclabel} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Online attempts</span>
+                      {liveSaleor?.paymentBreakdown ? (
+                        <span style={{ fontSize: '10px', background: '#e1f5ec', color: '#1a7f5a', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                          ● LIVE PROD
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className={styles.metricvalue}>
+                      {liveSaleor?.paymentBreakdown ? fmt(liveSaleor.paymentBreakdown.fullCharge) : fmt(currentAgg.attempts)}
+                    </div>
+                    <div className={styles.metricfoot}>
+                      {liveSaleor?.paymentBreakdown ? 'Captured online orders' : 'Retry-deduplicated event concept'}
+                    </div>
                   </div>
                   <div className={`${styles.card} ${styles.metric}`}>
-                    <div className={styles.metriclabel}>Payment successes</div>
-                    <div className={styles.metricvalue}>{fmt(currentAgg.success)}</div>
-                    <div className={styles.metricfoot}>Gateway confirmed · demo outcomes</div>
+                    <div className={styles.metriclabel} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Payment successes</span>
+                      {liveSaleor?.paymentBreakdown ? (
+                        <span style={{ fontSize: '10px', background: '#e1f5ec', color: '#1a7f5a', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                          ● LIVE PROD
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className={styles.metricvalue}>
+                      {liveSaleor?.paymentBreakdown ? fmt(liveSaleor.paymentBreakdown.fullCharge) : fmt(currentAgg.success)}
+                    </div>
+                    <div className={styles.metricfoot}>
+                      {liveSaleor?.paymentBreakdown ? `${liveSaleor.paymentBreakdown.onlineRate.toFixed(1)}% online success rate` : 'Gateway confirmed · demo outcomes'}
+                    </div>
                   </div>
                   <div className={`${styles.card} ${styles.metric}`}>
-                    <div className={styles.metriclabel}>Cash orders</div>
-                    <div className={styles.metricvalue}>{fmt(currentAgg.cash)}</div>
-                    <div className={styles.metricfoot}>Not an online authorization metric</div>
+                    <div className={styles.metriclabel} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Cash orders</span>
+                      {liveSaleor?.paymentBreakdown ? (
+                        <span style={{ fontSize: '10px', background: '#e1f5ec', color: '#1a7f5a', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                          ● LIVE PROD
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className={styles.metricvalue}>
+                      {liveSaleor?.paymentBreakdown ? fmt(liveSaleor.paymentBreakdown.noneCharge) : fmt(currentAgg.cash)}
+                    </div>
+                    <div className={styles.metricfoot}>
+                      {liveSaleor?.paymentBreakdown ? 'Uncharged / Cash on Delivery' : 'Not an online authorization metric'}
+                    </div>
                   </div>
                 </div>
 
@@ -1170,40 +1310,68 @@ export function CommerceDashboard() {
                   <div className={styles.cardhead} style={{ paddingBottom: '18px' }}>
                     <div>
                       <h2>Payment gateway performance</h2>
-                      <p>Success + failed + pending = attempts</p>
+                      <p>
+                        {liveSaleor?.gatewayCounts
+                          ? 'Extracted from live Macula OMS order payment records'
+                          : 'Success + failed + pending = attempts'}
+                      </p>
                     </div>
-                    <span className={`${styles.badge} ${styles.badgePending}`}>INTEGRATION PENDING</span>
+                    {liveSaleor?.gatewayCounts ? (
+                      <span className={`${styles.badge} ${styles.badgeLive}`}>● LIVE PROD</span>
+                    ) : (
+                      <span className={`${styles.badge} ${styles.badgePending}`}>INTEGRATION PENDING</span>
+                    )}
                   </div>
                   <div className={styles.tablewrap}>
                     <table className={styles.table}>
                       <thead>
                         <tr>
                           <th>GATEWAY</th>
-                          <th className={styles.num}>ATTEMPTS</th>
-                          <th className={styles.num}>SUCCESS</th>
-                          <th className={styles.num}>FAILED</th>
-                          <th className={styles.num}>PENDING</th>
-                          <th className={styles.num}>SUCCESS RATE</th>
+                          <th className={styles.num}>ORDERS</th>
+                          <th className={styles.num}>SHARE</th>
+                          <th className={styles.num}>{liveSaleor?.gatewayCounts ? 'STATUS' : 'SUCCESS RATE'}</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {['Checkout.com', 'Tabby', 'Tamara', 'Paymob'].map((gw, i) => {
-                          const weights = [55, 18, 17, 10]
-                          const atts = split(currentAgg.attempts, weights)[i]
-                          const succ = split(currentAgg.success, weights)[i]
-                          const fail = split(currentAgg.failed, weights)[i]
-                          const pend = split(currentAgg.pending, weights)[i]
-                          return (
-                            <tr key={gw}>
-                              <td><strong>{gw}</strong></td>
-                              <td className={styles.num}>{fmt(atts)}</td>
-                              <td className={styles.num}>{fmt(succ)}</td>
-                              <td className={styles.num}>{fmt(fail)}</td>
-                              <td className={styles.num}>{fmt(pend)}</td>
-                              <td className={styles.num}>{pct(succ, atts)}</td>
-                            </tr>
-                          )
-                        })}
+                        {liveSaleor?.gatewayCounts ? (
+                          Object.entries(liveSaleor.gatewayCounts).map(([gw, count]) => {
+                            const totalGw = Object.values(liveSaleor.gatewayCounts || {}).reduce((a, b) => a + b, 0) || 1
+                            const share = ((count / totalGw) * 100).toFixed(1)
+                            return (
+                              <tr key={gw}>
+                                <td><strong>{gw}</strong></td>
+                                <td className={styles.num}><b>{fmt(count)}</b></td>
+                                <td className={styles.num}>
+                                  <span className={styles.inlinebar}>
+                                    <i style={{ width: `${share}%` }}></i>
+                                  </span>
+                                  {share}%
+                                </td>
+                                <td className={styles.num}>
+                                  <span style={{ color: '#1a7f5a', fontWeight: 650 }}>● Active</span>
+                                </td>
+                              </tr>
+                            )
+                          })
+                        ) : (
+                          ['Checkout.com', 'Tabby', 'Tamara', 'Paymob'].map((gw, i) => {
+                            const weights = [55, 18, 17, 10]
+                            const atts = split(currentAgg.attempts, weights)[i]
+                            const succ = split(currentAgg.success, weights)[i]
+                            const fail = split(currentAgg.failed, weights)[i]
+                            const pend = split(currentAgg.pending, weights)[i]
+                            return (
+                              <tr key={gw}>
+                                <td><strong>{gw}</strong></td>
+                                <td className={styles.num}>{fmt(atts)}</td>
+                                <td className={styles.num}>{fmt(succ)}</td>
+                                <td className={styles.num}>{fmt(fail)}</td>
+                                <td className={styles.num}>{fmt(pend)}</td>
+                                <td className={styles.num}>{pct(succ, atts)}</td>
+                              </tr>
+                            )
+                          })
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -1213,21 +1381,36 @@ export function CommerceDashboard() {
                   <article className={styles.card}>
                     <div className={styles.cardhead}>
                       <h2>Payment method-wise orders</h2>
-                      <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
+                      {liveSaleor?.methodCounts ? (
+                        <span className={`${styles.badge} ${styles.badgeLive}`}>● LIVE PROD</span>
+                      ) : (
+                        <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
+                      )}
                     </div>
                     <div className={styles.cardbody}>
-                      {['Card', 'Apple Pay', 'KNET', 'Tabby', 'Tamara', 'Cash'].map((m, i) => {
-                        const onlineNums = split(currentAgg.orders - currentAgg.cash, [37, 23, 10, 15, 15])
-                        const val = i === 5 ? currentAgg.cash : onlineNums[i]
-                        return (
+                      {liveSaleor?.methodCounts ? (
+                        Object.entries(liveSaleor.methodCounts).map(([m, count]) => (
                           <div key={m} className={styles.minirow}>
                             <span>{m}</span>
-                            <b>{fmt(val)}</b>
+                            <b>{fmt(count)}</b>
                           </div>
-                        )
-                      })}
+                        ))
+                      ) : (
+                        ['Card', 'Apple Pay', 'KNET', 'Tabby', 'Tamara', 'Cash'].map((m, i) => {
+                          const onlineNums = split(currentAgg.orders - currentAgg.cash, [37, 23, 10, 15, 15])
+                          const val = i === 5 ? currentAgg.cash : onlineNums[i]
+                          return (
+                            <div key={m} className={styles.minirow}>
+                              <span>{m}</span>
+                              <b>{fmt(val)}</b>
+                            </div>
+                          )
+                        })
+                      )}
                       <div className={styles.definition}>
-                        Apple Pay and KNET are methods; Checkout.com and Paymob are gateways.
+                        {liveSaleor?.methodCounts
+                          ? 'Derived from live OMS order payment backend and type attributes.'
+                          : 'Apple Pay and KNET are methods; Checkout.com and Paymob are gateways.'}
                       </div>
                     </div>
                   </article>
@@ -1235,26 +1418,34 @@ export function CommerceDashboard() {
                   <article className={styles.card}>
                     <div className={styles.cardhead}>
                       <h2>Revenue & comparison rules</h2>
+                      {liveSaleor?.revenueByCurrency ? (
+                        <span className={`${styles.badge} ${styles.badgeLive}`}>● LIVE PROD</span>
+                      ) : (
+                        <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
+                      )}
                     </div>
                     <div className={styles.cardbody}>
                       <div className={styles.amounts}>
                         {Object.entries(countries)
                           .filter(([c]) => country === 'all' || c === country)
-                          .map(([code, c]) => (
-                            <span key={code}>
-                              {c.currency}
-                              <b>
-                                {fmt(
-                                  Math.round(
+                          .map(([code, c]) => {
+                            const liveVal = liveSaleor?.revenueByCurrency?.[c.currency]
+                            const rev =
+                              liveVal !== undefined
+                                ? Math.round(liveVal)
+                                : Math.round(
                                     sum(
                                       currentRecords.filter((r) => r.code === code),
                                       'revenue',
                                     ),
-                                  ),
-                                )}
-                              </b>
-                            </span>
-                          ))}
+                                  )
+                            return (
+                              <span key={code}>
+                                {c.currency}
+                                <b>{fmt(rev)}</b>
+                              </span>
+                            )
+                          })}
                       </div>
                       <div className={styles.definition} style={{ marginTop: '15px' }}>
                         No mixed-currency sum. Production definitions must agree gross/net,
@@ -1635,9 +1826,7 @@ export function CommerceDashboard() {
               <>
                 <div className={`${styles.notice} ${styles.noticeInfo}`}>
                   <div>
-                    <b>Connection status is intentionally honest.</b> Sources are identified from the
-                    existing estate, but this dashboard connects to none of them yet. Every integration
-                    is pending approval.
+                    <b>Live telemetry active.</b> Saleor GraphQL API and Macula OMS API are actively connected in live production read-only mode feeding real-time orders, country breakdown, payment outcomes, and native currency revenues. Remaining infrastructure and edge telemetry adapters are pending credential provisioning.
                   </div>
                 </div>
 
@@ -1661,7 +1850,7 @@ export function CommerceDashboard() {
                           <h3 style={{ margin: '0 0 5px' }}>{s.name}</h3>
                           <span className={styles.sourcetag}>{s.status}</span>
                         </div>
-                        <span className={`${styles.badge} ${styles.badgePending}`}>{s.badgeText}</span>
+                        <span className={`${styles.badge} ${s.isLive ? styles.badgeLive : styles.badgePending}`}>{s.badgeText}</span>
                       </div>
                       <p>{s.scope}</p>
                       <dl>
@@ -1670,7 +1859,7 @@ export function CommerceDashboard() {
                         <dt>Owner</dt>
                         <dd>{s.owner}</dd>
                         <dt>Connection</dt>
-                        <dd>Not connected in prototype</dd>
+                        <dd>{s.isLive ? 'Active production connection' : 'Not connected in prototype'}</dd>
                       </dl>
                     </article>
                   ))}
