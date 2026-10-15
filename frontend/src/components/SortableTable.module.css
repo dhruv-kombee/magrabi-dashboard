@@ -1,0 +1,84 @@
+.tableWrap {
+  background: var(--magrabi-bg);
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  /* auto layout: every column sizes itself to its own widest cell content, uniformly down the
+     column -- what actually fixes the huge dead gap before Env/Started (fixed layout was letting
+     Branch, the one column with no explicit width, greedily claim ALL leftover space on a
+     full-width page instead of just sizing to its own longest value). The earlier switch to fixed
+     layout was to stop the action-button column wrapping mid-button; that's handled independently
+     now by .actionCell's flex-column stacking in MyDeploymentsTable, so auto no longer reintroduces
+     that problem. Column.width hints still apply here too -- auto treats them as a starting
+     suggestion, not a hard constraint, so a column can still grow past it if its content needs to. */
+  table-layout: auto;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--magrabi-border);
+  overflow-wrap: break-word;
+  /* Browsers default td to vertical-align: middle -- fine for single-line cells, but once a row's
+     tallest cell is the stacked action-button column (4 buttons tall), every shorter cell in that
+     row (Status, Approval, Env...) floats centered instead of lining up with the top of the
+     buttons, reading as uneven/random spacing across the row. Top-aligning everything makes every
+     column start at the same baseline regardless of how tall any one cell's content gets. */
+  vertical-align: top;
+}
+
+.truncateCell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* Safety net only, for pathologically long values (e.g. a long feature-branch name) -- normal
+     values never hit this cap and just size naturally under table-layout: auto. */
+  max-width: 420px;
+}
+
+.table th {
+  color: var(--magrabi-text-muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  background: var(--magrabi-bg-alt);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.table th:hover {
+  color: var(--magrabi-text);
+}
+
+/* inline-block keeps the SVG on the header's text baseline instead of sitting on the line box
+   bottom, which is what an inline SVG does by default and which visibly misaligned the caret. */
+.arrow {
+  color: var(--magrabi-red);
+  margin-left: 4px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:hover {
+  background: var(--row-hover);
+}
+
+.empty {
+  color: var(--magrabi-text-muted);
+  font-style: italic;
+  padding: 20px 14px;
+}

@@ -1,0 +1,20 @@
+.traffic { display: grid; gap: 1rem; }
+.traffic h2, .traffic h3 { margin: 0; }
+.traffic header p { margin: .4rem 0 0; color: var(--magrabi-text-muted); font-size: .85rem; }
+.notice { margin: 0; padding: .9rem 1rem; border-left: 3px solid var(--status-amber); border-radius: var(--radius); background: var(--status-amber-bg); font-size: .85rem; line-height: 1.55; }
+.hint { margin: 0; color: var(--magrabi-text-muted); font-size: .8rem; line-height: 1.55; }
+.sites { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: .6rem; }
+.sites button { min-width: 0; text-align: left; }
+.sites strong, .sites span { display: block; overflow-wrap: anywhere; }
+.sites span { color: var(--magrabi-text-muted); font-size: .73rem; margin-top: .3rem; }
+.sites button[aria-pressed='true'] { border-color: var(--status-blue); outline: 1px solid var(--status-blue); }
+.detail { display: grid; gap: .8rem; padding: 1rem; border: 1px solid var(--magrabi-border); border-radius: var(--radius-lg); }
+.detail header { display: flex; gap: 1rem; flex-wrap: wrap; align-items: baseline; justify-content: space-between; }
+.detail header > span { color: var(--magrabi-text-muted); font-size: .75rem; }
+.tableScroll { max-width: 100%; overflow: auto; border: 1px solid var(--magrabi-border); border-radius: var(--radius); }
+.tableScroll table { min-width: 1120px; }
+.tableScroll td { font-variant-numeric: tabular-nums; font-size: .78rem; }
+.tableScroll tbody tr { cursor: pointer; }
+.tableScroll tbody tr:hover { background: var(--magrabi-bg-alt); }
+.tableScroll button code { margin: 0; color: var(--status-blue); font-size: .73rem; }
+.errorRow { border-left: 3px solid var(--status-red); }

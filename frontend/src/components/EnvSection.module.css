@@ -1,0 +1,105 @@
+.section {
+  margin-bottom: 28px;
+}
+
+.heading {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--magrabi-slate);
+  margin: 0 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.count {
+  color: var(--magrabi-text-muted);
+  font-weight: 400;
+  font-size: 12px;
+}
+
+/* Production is read-only here but still meaningfully higher-stakes than DEV/SIT/UAT -- a subtle
+   left accent flags it visually without needing a big warning banner. */
+.prod {
+  border-left: 3px solid var(--magrabi-red);
+  padding-left: 12px;
+}
+
+.prod .heading {
+  color: var(--magrabi-red);
+}
+
+/* SortableTable's wrapper sets overflow: hidden so its rounded corners clip the table -- which
+   also means anything past the right edge is silently unreachable. With seven columns a narrow
+   window can get there, so let this page's wrappers scroll sideways instead of hiding the last
+   column. Only the x axis is relaxed; y stays hidden, so the corners still clip. */
+.section > div {
+  overflow-x: auto;
+}
+
+/* Out-links to Azure DevOps. Blue rather than the brand red, which throughout this app means
+   "production" or "danger" and would read as a warning on an ordinary link. */
+.link {
+  color: var(--status-blue);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.link:hover,
+.link:focus-visible {
+  text-decoration: underline;
+}
+
+.commit {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--magrabi-text-muted);
+  background: var(--status-gray-bg);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.deployedCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.deployedBy {
+  font-size: 11px;
+  color: var(--magrabi-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* align-self:start stops the tag stretching to the cell width in this flex column. */
+.automatedTag {
+  align-self: flex-start;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--magrabi-border);
+  color: var(--magrabi-text-muted);
+  white-space: nowrap;
+}
+
+.varsButton {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--magrabi-border);
+  background: var(--magrabi-surface);
+  color: var(--magrabi-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.varsButton:hover {
+  border-color: var(--magrabi-red);
+  color: var(--magrabi-text);
+}

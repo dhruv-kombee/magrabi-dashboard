@@ -1,0 +1,11 @@
+# Cursor Rules — Magrabi Deployment Portal
+
+The single source of truth for rules, verification disciplines, and permissions is:
+AGENTS.md
+
+## Directives
+1. Before performing tasks, review ENVIRONMENT_RUNBOOK.md and work_log/00_MASTER_CONTEXT.md.
+2. Maintain work_log/ and .secrets/ as strictly gitignored.
+3. Apply adversarial verification before declaring tasks complete.
+4. Never print or log secret values; verify configuration by SHA-256 fingerprint hash.
+5. All durable facts belong in ENVIRONMENT_RUNBOOK.md; logs belong in work_log/.

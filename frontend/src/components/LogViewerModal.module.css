@@ -1,0 +1,294 @@
+/* Sits above the detail drawer (z-index 1001), which it is always opened from. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  /* A neutral dark scrim, not a themed surface -- it dims whatever is behind it and reads
+     correctly in both light and dark, so it needs no per-theme token. */
+  background: rgba(0, 0, 0, 0.5);
+  animation: fadeIn 0.18s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  width: min(1080px, 100%);
+  height: min(84vh, 100%);
+  background: var(--magrabi-bg);
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  animation: riseIn 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--magrabi-border);
+  background: var(--magrabi-bg-alt);
+}
+
+.titleBlock {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.eyebrow {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--magrabi-text-muted);
+}
+
+.title {
+  margin: 2px 0 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--magrabi-slate);
+  overflow-wrap: break-word;
+}
+
+.subtitle {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--magrabi-text-muted);
+}
+
+.close {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  background: var(--magrabi-bg);
+  color: var(--magrabi-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.close:hover {
+  color: var(--magrabi-red);
+  border-color: var(--magrabi-red);
+}
+
+.closeIcon {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--magrabi-border);
+}
+
+.search {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--magrabi-text);
+  background: var(--magrabi-bg);
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+}
+
+.search:focus {
+  outline: none;
+  border-color: var(--magrabi-red);
+}
+
+.search:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.counts {
+  font-size: 11px;
+  color: var(--magrabi-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.toolbarActions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.action {
+  padding: 5px 12px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--magrabi-text);
+  background: var(--magrabi-bg);
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.action:hover:not(:disabled) {
+  color: var(--magrabi-red);
+  border-color: var(--magrabi-red);
+  background: var(--row-hover);
+}
+
+.action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.notice {
+  margin: 0;
+  padding: 8px 16px;
+  font-size: 11.5px;
+  color: var(--status-amber);
+  background: var(--status-amber-bg);
+  border-bottom: 1px solid var(--magrabi-border);
+}
+
+.noticeLink {
+  color: inherit;
+  font-weight: 700;
+}
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  background: var(--magrabi-bg);
+}
+
+.state {
+  margin: 0;
+  padding: 20px 16px;
+  font-size: 13px;
+  color: var(--magrabi-text-muted);
+  font-style: italic;
+}
+
+.errorBox {
+  margin: 16px;
+  padding: 12px 14px;
+  background: var(--status-red-bg);
+  border-left: 3px solid var(--status-red);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.errorTitle {
+  display: block;
+  font-size: 13px;
+  color: var(--status-red);
+  margin-bottom: 3px;
+}
+
+.errorMessage {
+  display: block;
+  font-size: 12px;
+  color: var(--magrabi-text);
+  overflow-wrap: break-word;
+}
+
+.lines {
+  font-family: ui-monospace, SFMono-Regular, "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  padding: 8px 0;
+}
+
+.line {
+  display: flex;
+  gap: 12px;
+  padding: 0 16px;
+}
+
+.line:hover {
+  background: var(--row-hover);
+}
+
+.lineNo {
+  flex: none;
+  width: 62px;
+  text-align: right;
+  color: var(--magrabi-text-muted);
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+  border-right: 1px solid var(--magrabi-border);
+  padding-right: 10px;
+}
+
+.lineText {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--magrabi-text);
+}
+
+/* The browser default for <mark> is black-on-yellow, which is invisible against the dark theme's
+   text colour -- both halves have to come from tokens. */
+.match {
+  background: var(--status-amber-bg);
+  color: var(--status-amber);
+  border-radius: 2px;
+  padding: 0 1px;
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .modal {
+    animation: none;
+  }
+
+  .close,
+  .action,
+  .search {
+    transition: none;
+  }
+}

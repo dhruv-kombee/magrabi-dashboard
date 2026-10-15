@@ -1,0 +1,71 @@
+.wrap {
+  position: relative;
+  display: inline-block;
+}
+
+/* Surface tokens, not --magrabi-slate: slate is a TEXT token and dark mode flips it to a near-white
+   for headings, which turned this into white-on-near-white (~1.3:1) the moment the theme changed.
+   --magrabi-bg-alt / --magrabi-text are a matched pair in BOTH themes, so the label stays legible.
+   Padding is 1px tighter than the borderless siblings (ApprovalButton 6px/12px) so the added 1px
+   border keeps the outer box the same size and the action column still lines up. */
+.button {
+  background: var(--magrabi-bg-alt);
+  color: var(--magrabi-text);
+  border: 1px solid var(--magrabi-border);
+  padding: 5px 11px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* --magrabi-border rather than --row-hover: the table row underneath already takes --row-hover on
+   hover (SortableTable), so reusing it here would make the button vanish into the row exactly when
+   it is being pointed at. Border-as-fill deepens in light mode and lightens in dark, both correct. */
+.button:hover {
+  background: var(--magrabi-border);
+}
+
+.caret {
+  transition: transform 0.15s ease;
+}
+
+.caretOpen {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caret {
+    transition: none;
+  }
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: var(--magrabi-bg);
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  min-width: 190px;
+  z-index: 10;
+  overflow: hidden;
+}
+
+.menuItem {
+  display: block;
+  padding: 9px 14px;
+  font-size: 12px;
+  color: var(--magrabi-text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.menuItem:hover {
+  background: var(--magrabi-bg-alt);
+}

@@ -1,0 +1,17 @@
+.eta {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums; /* stops the column twitching as digits change width */
+  color: var(--magrabi-text-muted);
+  white-space: nowrap;
+}
+
+.soon {
+  color: #2e7d32;
+  font-weight: 600;
+}
+
+/* Past its usual time -- the row worth looking at. */
+.over {
+  color: var(--magrabi-red, #c0392b);
+  font-weight: 600;
+}

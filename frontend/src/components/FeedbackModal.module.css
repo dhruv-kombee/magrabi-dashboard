@@ -1,0 +1,467 @@
+/* Below LogViewerModal (1100) and above the detail drawer (1001). This modal is opened from the
+   nav bar, so it never stacks with either -- the ordering just keeps the app's one z-index scale
+   coherent rather than starting a second one. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--scrim);
+  animation: fadeIn 0.18s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  width: min(600px, 100%);
+  /* Caps at the viewport so the form scrolls internally instead of pushing the footer -- and the
+     submit button with it -- off-screen on a laptop once a long description is typed. */
+  max-height: min(88vh, 100%);
+  background: var(--magrabi-bg);
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: riseIn 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex: none;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--magrabi-border);
+  background: var(--magrabi-bg-alt);
+}
+
+.titleBlock {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.eyebrow {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--magrabi-text-muted);
+}
+
+.heading {
+  margin: 2px 0 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--magrabi-slate);
+}
+
+.subtitle {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--magrabi-text-muted);
+}
+
+.close {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  background: var(--magrabi-bg);
+  color: var(--magrabi-text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.close:hover {
+  color: var(--magrabi-red);
+  border-color: var(--magrabi-red);
+}
+
+.closeIcon {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.label {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--magrabi-text-muted);
+}
+
+/* Amber rather than red: an unfilled required field is a prompt, not a failure. Red here would
+   put an error colour on a form the user has not submitted yet. */
+.required {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: var(--status-amber);
+}
+
+.optional {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--magrabi-text-muted);
+  opacity: 0.8;
+}
+
+.typeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.typeChip {
+  display: inline-flex;
+  align-items: center;
+  /* Anchors the visually-hidden radio, which stays in the layout (rather than display: none) so
+     it remains focusable and keeps native arrow-key group navigation working. */
+  position: relative;
+  padding: 7px 15px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--magrabi-text);
+  background: var(--magrabi-bg);
+  border: 1px solid var(--magrabi-border);
+  border-radius: 999px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.typeChip:hover {
+  border-color: var(--magrabi-gold);
+}
+
+.typeChipActive {
+  color: var(--status-blue);
+  background: var(--status-blue-bg);
+  border-color: var(--status-blue);
+}
+
+.typeRadio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The ring has to come from the label, since the input it belongs to is invisible. */
+.typeChip:focus-within {
+  outline: 2px solid var(--status-blue);
+  outline-offset: 2px;
+}
+
+.input,
+.textarea {
+  width: 100%;
+  padding: 9px 11px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--magrabi-text);
+  background: var(--magrabi-bg);
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 96px;
+  line-height: 1.5;
+}
+
+.input:focus,
+.textarea:focus {
+  outline: none;
+  border-color: var(--magrabi-red);
+}
+
+.inputError,
+.inputError:focus {
+  border-color: var(--status-red);
+}
+
+.counter {
+  align-self: flex-end;
+  font-size: 11px;
+  color: var(--magrabi-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.counterWarn {
+  color: var(--status-amber);
+  font-weight: 700;
+}
+
+.fieldError {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--status-red);
+}
+
+.fileInput {
+  width: 100%;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--magrabi-text-muted);
+}
+
+/* Styling the native picker button is the only way to keep it from looking like a stray OS widget
+   in dark mode -- the rest of the control is text the browser paints from `color`. */
+.fileInput::file-selector-button {
+  margin-right: 10px;
+  padding: 7px 13px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--magrabi-text);
+  background: var(--magrabi-bg-alt);
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.fileInput::file-selector-button:hover {
+  border-color: var(--magrabi-gold);
+  background: var(--row-hover);
+}
+
+.preview {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 2px;
+  padding: 9px;
+  background: var(--magrabi-bg-alt);
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+}
+
+.thumb {
+  flex: none;
+  width: 52px;
+  height: 52px;
+  /* Crop to a square tile so a panorama screenshot cannot stretch the row's height. */
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--magrabi-border);
+  background: var(--magrabi-bg);
+}
+
+.previewMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.previewName {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--magrabi-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.previewSize {
+  font-size: 11px;
+  color: var(--magrabi-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.clearFile {
+  flex: none;
+  padding: 6px 12px;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--magrabi-text-muted);
+  background: var(--magrabi-bg);
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.clearFile:hover {
+  color: var(--status-red);
+  border-color: var(--status-red);
+}
+
+.formError {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px 13px;
+  background: var(--status-red-bg);
+  border-left: 3px solid var(--status-red);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.formErrorTitle {
+  font-size: 12.5px;
+  color: var(--status-red);
+}
+
+.formErrorText {
+  font-size: 12px;
+  color: var(--magrabi-text);
+  overflow-wrap: break-word;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  padding-top: 2px;
+}
+
+.cancel {
+  padding: 9px 16px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--magrabi-text);
+  background: var(--magrabi-bg);
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.cancel:hover {
+  color: var(--magrabi-red);
+  border-color: var(--magrabi-red);
+}
+
+/* Matches the primary button in NewDeploymentForm. The label is a literal `white`, not a theme
+   token, on purpose: the red fill is identical in both themes, so a token that flips to near-black
+   in dark mode would put dark text on bright red. */
+.submit {
+  padding: 9px 18px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: white;
+  background: var(--magrabi-red);
+  border: 1px solid var(--magrabi-red);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.submit:hover:not(:disabled) {
+  background: var(--magrabi-red-hover);
+  border-color: var(--magrabi-red-hover);
+}
+
+.submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 44px 24px 48px;
+  text-align: center;
+}
+
+.successIcon {
+  width: 38px;
+  height: 38px;
+  padding: 8px;
+  fill: none;
+  stroke: var(--status-green);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  background: var(--status-green-bg);
+  border-radius: 50%;
+}
+
+.successTitle {
+  font-size: 15px;
+  color: var(--magrabi-slate);
+}
+
+.successText {
+  font-size: 12.5px;
+  color: var(--magrabi-text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .modal {
+    animation: none;
+  }
+
+  .close,
+  .cancel,
+  .submit,
+  .clearFile,
+  .typeChip {
+    transition: none;
+  }
+}

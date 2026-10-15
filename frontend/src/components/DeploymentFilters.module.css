@@ -1,0 +1,240 @@
+.bar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  background: var(--magrabi-bg);
+  box-shadow: var(--shadow-sm);
+}
+
+.searchRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.searchWrap {
+  position: relative;
+  flex: 1 1 300px;
+  min-width: 220px;
+}
+
+.searchIcon {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%);
+  color: var(--magrabi-text-muted);
+  pointer-events: none;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 9px 32px 9px 32px;
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  background: var(--magrabi-bg);
+  color: var(--magrabi-text);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: var(--magrabi-red);
+}
+
+/* The native type="search" clear affordance is inconsistent across browsers and invisible in dark
+   mode, so it is suppressed in favour of the button rendered alongside it. */
+.searchInput::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.clearSearch {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--status-gray-bg);
+  color: var(--magrabi-text-muted);
+  cursor: pointer;
+}
+
+.clearSearch:hover {
+  color: var(--magrabi-red);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.count {
+  font-size: 12px;
+  color: var(--magrabi-text-muted);
+  white-space: nowrap;
+}
+
+.activeBadge {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--status-blue-bg);
+  color: var(--status-blue);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.clearAll {
+  padding: 7px 13px;
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  background: var(--magrabi-bg);
+  color: var(--magrabi-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease;
+}
+
+.clearAll:hover:not(:disabled) {
+  color: var(--magrabi-red);
+  border-color: var(--magrabi-red);
+  background: var(--status-red-bg);
+}
+
+.clearAll:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 10px 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--magrabi-text-muted);
+}
+
+/* Shared by the selects and the two date inputs so the whole row keeps one control height -- date
+   inputs render noticeably taller than selects otherwise. */
+.select {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  background: var(--magrabi-bg);
+  color: var(--magrabi-text);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--magrabi-red);
+}
+
+.select:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Dark mode paints the calendar/spinner glyph in the browser's own near-black, which disappears
+   against the dark control -- inverting it is the only hook the shadow DOM exposes. */
+:global(:root[data-theme='dark']) .select::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.6;
+}
+
+/* Divider above rather than a separate card: this is a filter like any other, it just does not fit
+   the label-over-control grid the rest of the row uses. */
+.noiseRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--magrabi-border);
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggleInput {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  flex: none;
+  /* The brand red is the app's FAILED colour everywhere else, so the tick borrows the neutral
+     "informational" blue instead -- this control is not a failure signal. */
+  accent-color: var(--status-blue);
+  cursor: inherit;
+}
+
+.toggleInput:disabled {
+  cursor: default;
+}
+
+.toggleText {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--magrabi-text);
+}
+
+/* Adjacent-sibling rather than :has() on the label so the dimming does not depend on a selector
+   this build is not otherwise relying on anywhere. */
+.toggleInput:disabled + .toggleText {
+  color: var(--magrabi-text-muted);
+}
+
+/* Amber, not red: rows are being withheld, which the reader must notice, but nothing is wrong. */
+.hiddenBadge {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--status-amber-bg);
+  color: var(--status-amber);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.noiseNote {
+  font-size: 11.5px;
+  color: var(--magrabi-text-muted);
+}

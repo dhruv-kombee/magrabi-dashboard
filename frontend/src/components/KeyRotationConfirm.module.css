@@ -1,0 +1,81 @@
+/* Same dialog geometry as the Variables page's inline confirm, so the two writes in this portal
+   that matter most look and behave identically. Only the confirm button differs: rollback gets the
+   danger variant. */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 70;
+}
+
+.dialog {
+  background: var(--magrabi-surface);
+  border: 1px solid var(--magrabi-border);
+  border-radius: 10px;
+  width: min(620px, 100%);
+  max-height: 80vh;
+  overflow: auto;
+  padding: 18px;
+}
+
+.dialogTitle {
+  margin: 0 0 10px;
+  font-size: 16px;
+  color: var(--magrabi-slate);
+}
+
+.body {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.note {
+  font-size: 12px;
+  color: var(--magrabi-text-muted);
+  margin: 14px 0;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.cancel {
+  font-size: 13px;
+  padding: 7px 14px;
+  border-radius: 7px;
+  border: 1px solid var(--magrabi-border);
+  background: transparent;
+  color: var(--magrabi-text);
+  cursor: pointer;
+}
+
+.confirm {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 7px 14px;
+  border-radius: 7px;
+  border: none;
+  background: var(--magrabi-red, #c0392b);
+  color: #fff;
+  cursor: pointer;
+}
+
+/* The rollback variant. Filled red is already the portal's write colour, so "more dangerous" has
+   to come from somewhere else: a ring that reads as a hazard outline around the button. */
+.confirmDanger {
+  composes: confirm;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--magrabi-red) 28%, transparent);
+}
+
+.confirm:disabled,
+.confirmDanger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

@@ -1,0 +1,312 @@
+/* The result view: "what was updated where". Shared by a live run and by a run replayed out of
+   history, so it carries its own heading and dismiss affordance rather than relying on the page. */
+
+.wrap {
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  padding: 16px;
+  margin-bottom: 18px;
+}
+
+/* A run that wrote is the loud one. A dry run is deliberately quiet -- it changed nothing, and
+   dressing it up like a completed rotation is how a preview gets mistaken for the real thing. */
+.wrapWrote {
+  border-left: 4px solid var(--status-green);
+}
+
+.wrapDry {
+  border-left: 4px solid var(--status-blue);
+}
+
+.wrapBad {
+  border-left: 4px solid var(--magrabi-red);
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--magrabi-slate);
+}
+
+.message {
+  margin: 0;
+  font-size: 13px;
+  color: var(--magrabi-text);
+}
+
+.runId {
+  display: block;
+  margin-top: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: var(--magrabi-text-muted);
+  word-break: break-all;
+}
+
+.dismiss {
+  padding: 5px 12px;
+  border: 1px solid var(--magrabi-border);
+  border-radius: 6px;
+  background: var(--magrabi-bg);
+  color: var(--magrabi-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  flex: none;
+}
+
+.dismiss:hover {
+  border-color: var(--magrabi-red);
+  color: var(--magrabi-text);
+}
+
+/* Preview pill. Says the one thing a reader must not miss about a dry run. */
+.dryPill {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--status-blue-bg);
+  color: var(--status-blue);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.totals {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.total {
+  border: 1px solid var(--magrabi-border);
+  border-radius: 999px;
+  padding: 3px 11px;
+  font-size: 12px;
+  color: var(--magrabi-text-muted);
+}
+
+.total strong {
+  color: var(--magrabi-text);
+  font-weight: 700;
+}
+
+.totalBad {
+  border-color: var(--status-red);
+  background: var(--status-red-bg);
+  color: var(--status-red);
+}
+
+.totalBad strong {
+  color: var(--status-red);
+}
+
+/* ---- Vault side of a rollback -------------------------------------------------------------- */
+
+.vaultBlock {
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: var(--magrabi-bg);
+}
+
+.blockTitle {
+  margin: 0 0 7px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--magrabi-text-muted);
+}
+
+.vaultList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+  line-height: 1.8;
+}
+
+/* ---- Grouped results ------------------------------------------------------------------------ */
+
+/* One block per definition, so the view reads as "this definition changed these variables" rather
+   than as a flat list the reader has to re-sort in their head. */
+.group {
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.groupHead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: var(--magrabi-bg-alt);
+  border-bottom: 1px solid var(--magrabi-border);
+}
+
+.groupName {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--magrabi-text);
+}
+
+.groupMeta {
+  font-size: 11.5px;
+  color: var(--magrabi-text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Horizontal scroll stays inside the group, never on the page. */
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+}
+
+.table th {
+  text-align: left;
+  padding: 7px 10px;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--magrabi-text-muted);
+  background: var(--magrabi-bg);
+  box-shadow: inset 0 -1px 0 var(--magrabi-border);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 6px 10px;
+  box-shadow: inset 0 -1px 0 var(--magrabi-border);
+  vertical-align: top;
+  background: var(--magrabi-bg);
+}
+
+.table tr:last-child td {
+  box-shadow: none;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-all;
+}
+
+.muted {
+  color: var(--magrabi-text-muted);
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+/* Refused and failed must be impossible to skim past -- they are the rows someone has to act on. */
+.rowBad td {
+  background: var(--status-red-bg);
+}
+
+.rowWritten td {
+  background: color-mix(in srgb, var(--status-green) 7%, var(--magrabi-bg));
+}
+
+.action {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.actionWritten {
+  background: var(--status-green-bg);
+  color: var(--status-green);
+}
+
+.actionUnchanged {
+  background: var(--status-gray-bg);
+  color: var(--status-gray);
+}
+
+.actionRefused,
+.actionFailed {
+  background: var(--status-red);
+  color: #fff;
+}
+
+/* Skipped is rollback-only and is NOT a problem -- the secret had no earlier version to go back
+   to. Grey, deliberately quieter than refused, so it does not read as something to fix. */
+.actionSkipped {
+  background: var(--status-gray-bg);
+  color: var(--status-gray);
+}
+
+.rowMessage {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--status-red);
+  max-width: 34rem;
+}
+
+/* The revision pair. Arrow between two numbers, or a dash where nothing moved. */
+.rev {
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.empty {
+  margin: 0;
+  padding: 14px;
+  font-size: 13px;
+  color: var(--magrabi-text-muted);
+  border: 1px dashed var(--magrabi-border);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+/* Laptop width. The two columns that can go are the ones repeated in the group header above
+   (service) and the one nobody reads mid-incident (hashes are already their own column). */
+@media (max-width: 1100px) {
+  .hideNarrow {
+    display: none;
+  }
+}
+
+/* Azure DevOps' own term, under the plain-language label. Same treatment as .sourceTerm on the
+   Variables page, so the two screens read alike. */
+.kindTerm {
+  display: block;
+  font-size: 10px;
+  opacity: 0.65;
+  color: var(--magrabi-text-muted);
+}

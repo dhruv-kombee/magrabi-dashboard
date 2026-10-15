@@ -1,0 +1,40 @@
+/* Reads as plain text until hovered, so the column does not look like a form. */
+.display {
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 2px 6px;
+  border-radius: 5px;
+  cursor: text;
+  text-align: left;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.display:hover {
+  border-color: var(--magrabi-border);
+  background: var(--magrabi-surface);
+}
+
+.placeholder {
+  color: var(--magrabi-text-muted);
+}
+
+.error {
+  border-color: var(--magrabi-red, #c0392b);
+  color: var(--magrabi-red, #c0392b);
+}
+
+.input {
+  width: 100%;
+  min-width: 90px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--magrabi-red, #c0392b);
+  background: var(--magrabi-bg);
+  color: var(--magrabi-text);
+  font: inherit;
+}

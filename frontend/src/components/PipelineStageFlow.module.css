@@ -1,0 +1,670 @@
+.flow {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* ---------- overall progress ---------- */
+
+.overall {
+  background: var(--magrabi-bg);
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.overallTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.overallLabel {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--magrabi-text-muted);
+}
+
+.overallPercent {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--magrabi-slate);
+  font-variant-numeric: tabular-nums;
+}
+
+.overallTrack {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--status-gray-bg);
+  overflow: hidden;
+}
+
+.overallFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--magrabi-gold), var(--magrabi-red));
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Translucent white gloss, not a theme color -- it reads as a highlight sliding over whatever
+   is underneath, so it needs no dark-mode counterpart. */
+.overallFillLive::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  animation: sweep 1.7s linear infinite;
+}
+
+@keyframes sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.overallNow {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--magrabi-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.overallNow strong {
+  color: var(--magrabi-text);
+}
+
+.nowDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status-blue);
+  flex: none;
+  animation: nowPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes nowPulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.75);
+  }
+}
+
+/* ---------- stage card ---------- */
+
+.stage {
+  background: var(--magrabi-bg);
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  padding: 14px 16px 16px;
+  box-shadow: var(--shadow-sm);
+  /* The 3D scene. Steps inside sit on their own Z planes; the running one is lifted toward the
+     viewer, which is what makes "where are we right now" readable at a glance rather than
+     something you have to hunt for in a list of near-identical rows. */
+  perspective: 1100px;
+  perspective-origin: 20% 50%;
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.stageRunning {
+  border-color: var(--status-blue);
+  box-shadow: var(--shadow-md);
+}
+
+.stageHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--magrabi-border);
+  margin-bottom: 14px;
+}
+
+.stageRank {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--magrabi-bg-alt);
+  border: 1px solid var(--magrabi-border);
+  color: var(--magrabi-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stageTitleBlock {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.stageName {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--magrabi-slate);
+  overflow-wrap: break-word;
+}
+
+.stageSub {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--magrabi-text-muted);
+}
+
+.stageStatus {
+  flex: none;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.stageEmpty {
+  margin: 0;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--magrabi-text-muted);
+}
+
+.tone_done {
+  background: var(--status-green-bg);
+  color: var(--status-green);
+}
+
+.tone_running {
+  background: var(--status-blue-bg);
+  color: var(--status-blue);
+}
+
+.tone_failed {
+  background: var(--status-red-bg);
+  color: var(--status-red);
+}
+
+.tone_warned {
+  background: var(--status-amber-bg);
+  color: var(--status-amber);
+}
+
+.tone_skipped,
+.tone_pending {
+  background: var(--status-gray-bg);
+  color: var(--status-gray);
+}
+
+/* ---------- steps ---------- */
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  /* Required for the children's translateZ to render in the .stage perspective rather than
+     being flattened away. */
+  transform-style: preserve-3d;
+}
+
+.step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  column-gap: 12px;
+  padding-bottom: 16px;
+  transform: translateZ(0);
+  transition: transform 0.35s ease;
+}
+
+/* Steps that have not run yet sit fractionally further back in the scene than settled ones, so
+   the list reads front-to-back as "done -> now -> not yet" even before you read the icons. */
+.step_pending,
+.step_skipped {
+  transform: translateZ(-10px);
+}
+
+.step:last-child {
+  padding-bottom: 0;
+}
+
+.gutter {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.marker {
+  position: relative;
+  z-index: 1;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--magrabi-bg);
+  border: 2px solid var(--magrabi-border);
+  color: var(--status-gray);
+  transition: transform 0.35s ease, border-color 0.25s ease, background-color 0.25s ease;
+}
+
+.icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Draws the tick on rather than popping it in -- the one place a small flourish genuinely helps,
+   because it marks the moment a step flipped to done while you were watching. */
+.checkPath {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: drawStroke 0.45s ease forwards;
+}
+
+.crossPath {
+  stroke-dasharray: 14;
+  stroke-dashoffset: 14;
+  animation: drawStroke 0.25s ease forwards;
+}
+
+.crossPathLate {
+  stroke-dasharray: 14;
+  stroke-dashoffset: 14;
+  animation: drawStroke 0.25s ease 0.18s forwards;
+}
+
+@keyframes drawStroke {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ---------- per-kind marker treatment ---------- */
+
+.step_done .marker {
+  border-color: var(--status-green);
+  color: var(--status-green);
+  background: var(--status-green-bg);
+}
+
+.step_warned .marker {
+  border-color: var(--status-amber);
+  color: var(--status-amber);
+  background: var(--status-amber-bg);
+}
+
+.step_failed .marker {
+  border-color: var(--status-red);
+  color: var(--status-red);
+  background: var(--status-red-bg);
+}
+
+.step_skipped .marker,
+.step_pending .marker {
+  color: var(--status-gray);
+  background: var(--magrabi-bg-alt);
+}
+
+.step_skipped,
+.step_pending {
+  opacity: 0.62;
+}
+
+.step_running {
+  /* Lifted out of the page toward the viewer. Small on purpose: at 1100px perspective this is
+     roughly a 2% visual scale-up, enough to separate the live step from its neighbours without
+     the list looking like it is falling over. */
+  transform: translateZ(26px);
+  opacity: 1;
+}
+
+.step_running .marker {
+  border-color: var(--status-blue);
+  color: var(--status-blue);
+  background: var(--status-blue-bg);
+  /* Plain scale, not another translateZ: .step is a flat (non-preserve-3d) container, so a Z
+     offset on its child would be flattened away and silently do nothing. The step's own
+     translateZ above is what supplies the actual depth. */
+  transform: scale(1.08);
+}
+
+.step_running .stepName {
+  color: var(--status-blue);
+}
+
+.runningDot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status-blue);
+}
+
+/* Rings are hung off the marker, not the 8px dot, so they expand from the full node outline.
+   Two of them offset in time, so it reads as continuously emitting rather than blinking. */
+.step_running .marker::before,
+.step_running .marker::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 2px solid var(--status-blue);
+  animation: pulseRing 1.8s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+}
+
+.step_running .marker::after {
+  animation-delay: 0.9s;
+}
+
+@keyframes pulseRing {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.85;
+  }
+  70% {
+    transform: scale(1.85);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.85);
+    opacity: 0;
+  }
+}
+
+/* ---------- connector rail ---------- */
+
+.rail {
+  position: absolute;
+  top: 28px;
+  bottom: -14px;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 2px;
+  background: var(--magrabi-border);
+  overflow: hidden;
+}
+
+.railFill {
+  position: absolute;
+  inset: 0;
+  background: var(--status-green);
+  transform: scaleY(0);
+  transform-origin: top;
+  transition: transform 0.5s ease;
+}
+
+.railFilled .railFill {
+  animation: fillRail 0.55s ease forwards;
+}
+
+.railFailedTone .railFill {
+  background: var(--status-red);
+}
+
+@keyframes fillRail {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/* The shimmer travels down the rail that feeds the step currently executing -- it points the eye
+   at the live step from the step above it, so the whole stage has one obvious focal point. */
+.railShimmer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 40%;
+  background: linear-gradient(180deg, transparent, var(--status-blue), transparent);
+  animation: travel 1.5s ease-in-out infinite;
+}
+
+.railActive {
+  background: var(--status-blue-bg);
+}
+
+@keyframes travel {
+  0% {
+    transform: translateY(-110%);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(260%);
+    opacity: 0;
+  }
+}
+
+/* ---------- step body ---------- */
+
+.stepBody {
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.stepTop {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.stepName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--magrabi-text);
+  overflow-wrap: break-word;
+}
+
+.stepState {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--magrabi-text-muted);
+}
+
+.stepMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--magrabi-text-muted);
+}
+
+.issueList {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.issue {
+  background: var(--status-red-bg);
+  border-left: 3px solid var(--status-red);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 7px 10px;
+  font-size: 12px;
+  color: var(--magrabi-text);
+}
+
+.issueType {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--status-red);
+  margin-bottom: 2px;
+}
+
+.issueMessage {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.logButton {
+  margin-top: 8px;
+  background: transparent;
+  border: 1px solid var(--magrabi-border);
+  color: var(--magrabi-text);
+  border-radius: var(--radius);
+  padding: 4px 11px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.logButton:hover {
+  border-color: var(--magrabi-red);
+  color: var(--magrabi-red);
+  background: var(--row-hover);
+}
+
+/* ---------- loading / empty ---------- */
+
+.placeholder {
+  background: var(--magrabi-bg);
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  padding: 20px 18px;
+}
+
+.placeholderText {
+  margin: 0;
+  font-size: 13px;
+  color: var(--magrabi-text);
+}
+
+.placeholderHint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--magrabi-text-muted);
+  line-height: 1.5;
+}
+
+.skeletonBar {
+  height: 12px;
+  border-radius: 6px;
+  background: var(--magrabi-bg-alt);
+  margin-bottom: 10px;
+  /* Neutral translucent gray, deliberately not a token: it has to read as a sheen against
+     --magrabi-bg-alt in both themes, and mid-gray at low alpha is the one value that does. */
+  background-image: linear-gradient(90deg, transparent, rgba(128, 128, 128, 0.22), transparent);
+  background-size: 220px 100%;
+  background-repeat: no-repeat;
+  animation: shimmerBar 1.3s linear infinite;
+}
+
+.skeletonBar:nth-child(2) {
+  width: 78%;
+}
+
+.skeletonBar:nth-child(3) {
+  width: 55%;
+}
+
+@keyframes shimmerBar {
+  from {
+    background-position: -220px 0;
+  }
+  to {
+    background-position: calc(100% + 220px) 0;
+  }
+}
+
+/* Motion here is decorative signalling, never the only channel carrying meaning -- status text,
+   colour and icon all still say the same thing with animation switched off. */
+@media (prefers-reduced-motion: reduce) {
+  .overallFill,
+  .marker,
+  .step,
+  .stage,
+  .railFill,
+  .logButton {
+    transition: none;
+  }
+
+  .overallFillLive::after,
+  .nowDot,
+  .checkPath,
+  .crossPath,
+  .crossPathLate,
+  .railShimmer,
+  .step_running .marker::before,
+  .step_running .marker::after,
+  .skeletonBar {
+    animation: none;
+  }
+
+  .step_running .marker::before,
+  .step_running .marker::after {
+    display: none;
+  }
+
+  .checkPath,
+  .crossPath,
+  .crossPathLate {
+    stroke-dashoffset: 0;
+  }
+
+  .railFilled .railFill {
+    animation: none;
+    transform: scaleY(1);
+  }
+
+  .railShimmer {
+    display: none;
+  }
+
+  .step_running {
+    transform: none;
+  }
+
+  .step_running .marker {
+    transform: none;
+    /* Replaces the lift that reduced-motion removes, so the live step is still unmistakable. */
+    box-shadow: 0 0 0 3px var(--status-blue-bg);
+  }
+}

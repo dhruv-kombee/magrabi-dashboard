@@ -1,0 +1,121 @@
+/* Version list for a single secret, shown inside an expanded row -- so it is inset and quieter
+   than a top-level table, and it scrolls horizontally on its own rather than widening the page. */
+
+.wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  background: var(--magrabi-bg);
+  padding: 2px 0 0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 11.5px;
+}
+
+.caption {
+  caption-side: top;
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 11.5px;
+  color: var(--magrabi-text-muted);
+  line-height: 1.5;
+}
+
+.table th {
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--magrabi-text-muted);
+  box-shadow: inset 0 -1px 0 var(--magrabi-border);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 5px 10px;
+  box-shadow: inset 0 -1px 0 var(--magrabi-border);
+  vertical-align: middle;
+}
+
+.table tr:last-child td {
+  box-shadow: none;
+}
+
+/* The two rows that carry meaning: what is live, and what a rollback would put back. Everything
+   else is history and is left plain. */
+.rowCurrent td {
+  background: color-mix(in srgb, var(--status-blue) 9%, transparent);
+}
+
+.rowTarget td {
+  background: var(--status-amber-bg);
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-all;
+}
+
+/* Full version ids are long and nobody reads them end to end -- but they must be selectable and
+   copyable, so they are truncated by width rather than by substring. */
+.versionId {
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.pillCurrent,
+.pillTarget,
+.pillOff {
+  display: inline-block;
+  margin-right: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.pillCurrent {
+  background: var(--status-blue-bg);
+  color: var(--status-blue);
+}
+
+.pillTarget {
+  background: var(--status-amber-bg);
+  color: var(--status-amber);
+}
+
+.pillOff {
+  background: var(--status-gray-bg);
+  color: var(--status-gray);
+}
+
+.state,
+.stateBad {
+  margin: 0;
+  padding: 8px 2px;
+  font-size: 12px;
+  color: var(--magrabi-text-muted);
+}
+
+.stateBad {
+  color: var(--status-red);
+}

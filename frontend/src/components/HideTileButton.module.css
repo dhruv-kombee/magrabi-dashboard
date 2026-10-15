@@ -1,0 +1,45 @@
+.button {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--magrabi-border);
+  background: var(--magrabi-surface);
+  color: var(--magrabi-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.button:hover:not(:disabled) {
+  border-color: var(--magrabi-red);
+  color: var(--magrabi-text);
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Unhide is the recovery action, so it reads as available rather than destructive. */
+.restore {
+  border-color: #2e7d32;
+  color: #2e7d32;
+}
+
+.restore:hover:not(:disabled) {
+  border-color: #2e7d32;
+  color: #1b5e20;
+}
+
+.fail {
+  border-color: var(--magrabi-red, #c0392b);
+  color: var(--magrabi-red, #c0392b);
+}
+
+/* Confirm step. Hiding is global and silent for every other user, so the click that does it should
+   not be the same click that a mis-aim produces. */
+.confirm {
+  border-color: var(--magrabi-red, #c0392b);
+  color: var(--magrabi-red, #c0392b);
+  background: var(--status-red-bg, transparent);
+}

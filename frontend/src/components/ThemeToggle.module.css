@@ -1,0 +1,22 @@
+.button {
+  background: none;
+  border: 1px solid var(--magrabi-border);
+  border-radius: 999px;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--magrabi-text-muted);
+}
+
+.button:hover {
+  border-color: var(--magrabi-gold);
+  color: var(--magrabi-gold);
+}
+
+.on {
+  color: var(--magrabi-gold);
+  border-color: var(--magrabi-gold);
+}

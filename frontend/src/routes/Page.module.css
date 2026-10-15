@@ -1,0 +1,66 @@
+/* Full-bleed by design -- no max-width. These pages are dense operational tables and the extra
+   horizontal room is what keeps columns from truncating on a wide monitor. Do not centre this. */
+.main {
+  padding: 28px 32px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.updated {
+  color: var(--magrabi-text-muted);
+  font-size: 11px;
+  margin-bottom: 14px;
+}
+
+.loading,
+.error {
+  color: var(--magrabi-text-muted);
+  padding: 24px;
+  text-align: center;
+}
+
+.error {
+  color: var(--status-red);
+}
+
+/* Page-shell primitives shared by the route components. Anything specific to one page's content
+   belongs in that page's own module -- these are only the title row and the empty state. */
+.pageHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-bottom: 16px;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--magrabi-slate);
+  letter-spacing: 0.2px;
+}
+
+.pageSubtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--magrabi-text-muted);
+}
+
+.empty {
+  color: var(--magrabi-text-muted);
+  background: var(--surface-raised);
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius-lg);
+  padding: 40px 24px;
+  text-align: center;
+  font-size: 14px;
+}
+
+/* Horizontal scroll is contained here rather than on the page: a wide table must never make the
+   whole document scroll sideways, which would drag the header off-screen with it. */
+.scrollX {
+  width: 100%;
+  overflow-x: auto;
+}

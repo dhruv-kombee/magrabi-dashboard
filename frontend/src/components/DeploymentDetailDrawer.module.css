@@ -1,0 +1,405 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  /* Neutral dark scrim rather than a themed surface: it dims whatever sits behind it and reads
+     correctly in both themes, so it needs no light/dark counterpart. */
+  background: rgba(0, 0, 0, 0.42);
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1001;
+  width: min(760px, 100vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--magrabi-bg-alt);
+  border-left: 1px solid var(--magrabi-border);
+  box-shadow: var(--shadow-md);
+  animation: slideIn 0.26s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(36px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ---------- header ---------- */
+
+.header {
+  flex: none;
+  padding: 16px 20px 14px;
+  background: var(--magrabi-bg);
+  border-bottom: 1px solid var(--magrabi-border);
+}
+
+.headerTop {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.titleBlock {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.eyebrow {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--magrabi-text-muted);
+}
+
+.title {
+  margin: 2px 0 0;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--magrabi-slate);
+  overflow-wrap: break-word;
+}
+
+.subtitle {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--magrabi-text-muted);
+}
+
+.close {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  background: var(--magrabi-bg);
+  color: var(--magrabi-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.close:hover {
+  color: var(--magrabi-red);
+  border-color: var(--magrabi-red);
+}
+
+.closeIcon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.envChip,
+.plainChip {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.plainChip {
+  background: var(--status-gray-bg);
+  color: var(--status-gray);
+}
+
+.env_prod {
+  background: var(--status-red-bg);
+  color: var(--status-red);
+}
+
+.env_uat {
+  background: var(--status-amber-bg);
+  color: var(--status-amber);
+}
+
+.env_sit {
+  background: var(--status-blue-bg);
+  color: var(--status-blue);
+}
+
+.env_dev {
+  background: var(--badge-bg-light);
+  color: var(--magrabi-gold);
+}
+
+.env_other {
+  background: var(--status-gray-bg);
+  color: var(--status-gray);
+}
+
+.stuck {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--status-amber);
+  background: var(--status-amber-bg);
+  border-left: 3px solid var(--status-amber);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px 16px;
+  margin: 14px 0 0;
+}
+
+.metaItem {
+  min-width: 0;
+}
+
+.metaLabel {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--magrabi-text-muted);
+}
+
+.metaValue {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--magrabi-text);
+  overflow-wrap: break-word;
+}
+
+.metaMono {
+  font-family: ui-monospace, SFMono-Regular, "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+}
+
+/* ---------- body ---------- */
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.errorBox {
+  padding: 14px 16px;
+  background: var(--status-red-bg);
+  border-left: 3px solid var(--status-red);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.errorTitle {
+  display: block;
+  font-size: 13px;
+  color: var(--status-red);
+  margin-bottom: 4px;
+}
+
+.errorMessage {
+  display: block;
+  font-size: 12px;
+  color: var(--magrabi-text);
+  overflow-wrap: break-word;
+}
+
+.errorHint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--magrabi-text-muted);
+}
+
+/* ---------- approvals (read-only: this panel never approves anything) ---------- */
+
+.approvals {
+  background: var(--magrabi-bg);
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.approvalsTitle {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--magrabi-text-muted);
+}
+
+.approvalList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.approval {
+  padding: 10px 12px;
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  background: var(--magrabi-bg-alt);
+}
+
+.approvalTop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.approvalType {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--magrabi-text);
+  text-transform: capitalize;
+}
+
+.approvalWho {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--magrabi-text-muted);
+}
+
+.approvalComment {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--magrabi-text);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+/* ---------- footer ---------- */
+
+.footer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 20px;
+  background: var(--magrabi-bg);
+  border-top: 1px solid var(--magrabi-border);
+}
+
+.footerAction {
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--magrabi-text);
+  background: var(--magrabi-bg);
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  text-decoration: none;
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.footerAction:hover {
+  color: var(--magrabi-red);
+  border-color: var(--magrabi-red);
+  background: var(--row-hover);
+}
+
+.footerDanger {
+  color: var(--status-red);
+  border-color: var(--status-red);
+}
+
+.footerLink {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--magrabi-gold);
+  text-decoration: none;
+}
+
+.footerLink:hover {
+  color: var(--magrabi-gold-hover);
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .footerLink {
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .drawer {
+    animation: none;
+  }
+
+  .close,
+  .footerAction {
+    transition: none;
+  }
+}
+
+/* Not an error state: the build simply has not produced a release yet. Green rather than red -- a
+   red panel over a healthy deployment sent people looking for a failure that did not exist. */
+.waitingBox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid #2e7d32;
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: color-mix(in srgb, #2e7d32 8%, transparent);
+}
+
+.waitingTitle {
+  font-size: 14px;
+  color: #2e7d32;
+}
+
+.waitingMessage {
+  font-size: 13px;
+  color: var(--magrabi-text-muted);
+  line-height: 1.5;
+}

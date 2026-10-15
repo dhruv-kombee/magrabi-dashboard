@@ -1,0 +1,94 @@
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  line-height: 1.5;
+  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.icon {
+  display: block;
+  flex: none;
+}
+
+.label {
+  display: block;
+}
+
+/* The track is painted in the pill's own background colour so only the leading arc reads as a
+   moving element -- a full contrast ring would look like a loading spinner bolted onto a chip. */
+.spinner {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid var(--status-blue-bg);
+  border-top-color: var(--status-blue);
+  animation: pillSpin 0.75s linear infinite;
+}
+
+@keyframes pillSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.succeeded {
+  background: var(--status-green-bg);
+  color: var(--status-green);
+  border-color: var(--status-green-bg);
+}
+
+.failed {
+  background: var(--status-red-bg);
+  color: var(--status-red);
+  border-color: var(--status-red-bg);
+}
+
+.inProgress {
+  background: var(--status-blue-bg);
+  color: var(--status-blue);
+  border-color: var(--status-blue-bg);
+}
+
+.waiting {
+  background: var(--status-amber-bg);
+  color: var(--status-amber);
+  border-color: var(--status-amber-bg);
+}
+
+.queued,
+.canceled,
+.notDeployed,
+.unknown {
+  background: var(--status-gray-bg);
+  color: var(--status-gray);
+  border-color: var(--status-gray-bg);
+}
+
+/* Rejected is a human decision, not a system failure -- red lettering keeps the severity while the
+   neutral chip stops it shouting as loudly as an outright failure sitting next to it. */
+.rejected {
+  background: var(--status-gray-bg);
+  color: var(--status-red);
+  border-color: var(--status-red-bg);
+}
+
+.notDeployed {
+  border-style: dashed;
+  border-color: var(--magrabi-border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}

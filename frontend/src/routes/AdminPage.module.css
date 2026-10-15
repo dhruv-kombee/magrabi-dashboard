@@ -1,0 +1,174 @@
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.tabButton {
+  background: var(--magrabi-bg);
+  border: 1px solid var(--magrabi-border);
+  color: var(--magrabi-text-muted);
+  padding: 9px 18px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.tabButton:hover {
+  color: var(--magrabi-text);
+}
+
+.tabButtonActive {
+  background: var(--status-red-bg);
+  border-color: var(--magrabi-red);
+  color: var(--magrabi-red);
+}
+
+/* Deployed tab gets its own accent color when active, distinct from Ongoing -- same visual
+   language as the panel headings had in the earlier side-by-side layout. */
+.tabButtonActiveDeployed {
+  background: var(--status-green-bg);
+  border-color: var(--status-green);
+  color: var(--status-green);
+}
+
+.count {
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+.tabButtonWithBadge {
+  position: relative;
+}
+
+/* Sits just outside the button's top-right corner, classic notification-dot placement -- stays
+   up for as long as there's at least one deployed row the user hasn't switched to/looked at yet. */
+.badge {
+  position: absolute;
+  top: -9px;
+  right: -10px;
+  background: var(--magrabi-red);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+}
+
+
+/* Approval alert controls. Sits directly under the new-deployment form because that is where the
+   eye already is after starting a deployment -- which is exactly when the gate is about to open. */
+.alertBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 10px 0 2px;
+}
+
+.alertToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--magrabi-text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.alertEnable {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--magrabi-border);
+  background: var(--magrabi-surface);
+  color: var(--magrabi-text);
+  cursor: pointer;
+}
+
+.alertEnable:hover {
+  border-color: var(--magrabi-red);
+}
+
+.alertHint {
+  font-size: 12px;
+  color: var(--magrabi-text-muted);
+}
+
+/* Backup failed tab -- explanation on the left, the destructive action on the right. */
+.backupBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 10px 0 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--magrabi-border);
+  border-radius: 8px;
+  background: var(--magrabi-bg-alt);
+}
+
+.backupNote {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--magrabi-text-muted);
+  max-width: 70ch;
+}
+
+.backupActions {
+  display: inline-flex;
+  gap: 8px;
+  flex: none;
+}
+
+.flushButton,
+.flushConfirm,
+.flushCancel {
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.flushButton {
+  border: 1px solid var(--magrabi-border);
+  background: var(--magrabi-bg);
+  color: var(--magrabi-text-muted);
+}
+
+.flushButton:hover {
+  border-color: var(--magrabi-red);
+  color: var(--magrabi-red);
+}
+
+/* Only the CONFIRM step is loud. The first click must not look like the destructive one. */
+.flushConfirm {
+  border: 0;
+  background: var(--magrabi-red);
+  color: #fff;
+}
+
+.flushConfirm:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.flushCancel {
+  border: 1px solid var(--magrabi-border);
+  background: var(--magrabi-bg);
+  color: var(--magrabi-text-muted);
+}
+
+.flushResult {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--magrabi-text-muted);
+}

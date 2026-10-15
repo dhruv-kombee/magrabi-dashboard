@@ -1,0 +1,676 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.muted {
+  color: var(--magrabi-text-muted);
+  font-size: 0.9rem;
+  padding: 0.75rem 0;
+}
+
+.error {
+  color: var(--status-red);
+  font-size: 0.9rem;
+  padding: 0.75rem 0;
+}
+
+/* ---- banner ---- */
+.banner {
+  background: var(--magrabi-bg-alt);
+  border: 1px solid var(--magrabi-border);
+  border-left: 3px solid var(--magrabi-gold);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem;
+}
+
+.bannerTitle {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--magrabi-text);
+}
+
+.bannerBody {
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--magrabi-text);
+}
+
+.bannerMeta {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--magrabi-text-muted);
+}
+
+/* ---- mismatch callout ---- */
+.problem {
+  background: var(--status-amber-bg);
+  border: 1px solid var(--status-amber);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem;
+}
+
+.problemTitle {
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--magrabi-text);
+}
+
+.problemBody {
+  margin: 0 0 0.5rem;
+  font-size: 0.82rem;
+  color: var(--magrabi-text-muted);
+}
+
+.problemList {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.problemList code {
+  background: var(--code-bg);
+  border-radius: 3px;
+  padding: 0.05rem 0.3rem;
+  font-size: 0.82rem;
+}
+
+/* ---- generic block ---- */
+.block {
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  background: var(--magrabi-surface);
+  padding: 0.9rem 1rem;
+}
+
+.blockHead {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.7rem;
+}
+
+.blockTitle {
+  margin: 0 0 0.6rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--magrabi-text);
+}
+
+.blockHead .blockTitle {
+  margin: 0;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.dim {
+  display: block;
+  color: var(--magrabi-text-muted);
+  font-size: 0.78rem;
+  font-weight: 400;
+  margin-top: 0.15rem;
+}
+
+.blockTitle .dim,
+.blockHead .dim {
+  display: inline;
+  margin-left: 0.35rem;
+}
+
+/* ---- source-of-truth table ---- */
+.fileTable {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 0.35rem;
+  font-size: 0.85rem;
+}
+
+.fileRole {
+  color: var(--magrabi-text-muted);
+  width: 8.5rem;
+  vertical-align: top;
+  padding-right: 0.75rem;
+}
+
+.fileTable code {
+  background: var(--code-bg);
+  border-radius: 3px;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.82rem;
+}
+
+.caution {
+  margin: 0.6rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--magrabi-text);
+  background: var(--status-amber-bg);
+  border-left: 3px solid var(--status-amber);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 0.5rem 0.7rem;
+}
+
+/* ---- controls ---- */
+.search {
+  background: var(--magrabi-bg);
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  color: var(--magrabi-text);
+  padding: 0.35rem 0.6rem;
+  font-size: 0.83rem;
+  min-width: 12rem;
+}
+
+.toggle,
+.refresh {
+  background: var(--magrabi-bg);
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  color: var(--magrabi-text);
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.toggle:hover,
+.refresh:hover {
+  border-color: var(--magrabi-gold);
+}
+
+.toggleOn {
+  border-color: var(--magrabi-gold);
+  color: var(--magrabi-gold);
+}
+
+.refresh:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ---- settings table ---- */
+.tableWrap {
+  max-height: 26rem;
+  overflow: auto;
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.84rem;
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--magrabi-bg-alt);
+  border-bottom: 1px solid var(--magrabi-border);
+  text-align: left;
+  padding: 0.5rem 0.7rem;
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--magrabi-text-muted);
+}
+
+.table td {
+  padding: 0.45rem 0.7rem;
+  border-bottom: 1px solid var(--magrabi-border);
+  vertical-align: top;
+}
+
+.table tbody tr:hover {
+  background: var(--row-hover);
+}
+
+.name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  color: var(--status-green);
+  white-space: nowrap;
+}
+
+.value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  color: var(--magrabi-text);
+  word-break: break-all;
+}
+
+.secret {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  color: var(--status-red);
+  word-break: break-all;
+}
+
+.withheld {
+  color: var(--magrabi-text-muted);
+  font-style: italic;
+}
+
+.usedBy {
+  color: var(--magrabi-text-muted);
+  font-size: 0.8rem;
+}
+
+.nobody {
+  color: var(--status-amber);
+}
+
+/* ---- apply steps ---- */
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+}
+
+.stepNum {
+  flex: 0 0 auto;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  background: var(--magrabi-bg-alt);
+  border: 1px solid var(--magrabi-border);
+  color: var(--magrabi-text-muted);
+  font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.note {
+  margin: 0.7rem 0 0;
+  font-size: 0.82rem;
+  color: var(--magrabi-text-muted);
+}
+
+.readonly {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--magrabi-text-muted);
+  border-top: 1px solid var(--magrabi-border);
+  padding-top: 0.7rem;
+}
+
+/* ---- the add form: the point of the screen, so it leads ---- */
+.lede {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--magrabi-text);
+}
+
+.form {
+  border: 1px solid var(--magrabi-border);
+  border-left: 3px solid var(--magrabi-red);
+  border-radius: var(--radius);
+  background: var(--magrabi-surface);
+  padding: 1rem 1.1rem;
+}
+
+.formTitle {
+  margin: 0 0 0.9rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--magrabi-text);
+}
+
+.row {
+  display: flex;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.9rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1 1 15rem;
+  min-width: 0;
+}
+
+.label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--magrabi-text-muted);
+}
+
+.hint {
+  display: block;
+  margin-top: 0.2rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.76rem;
+  color: var(--magrabi-text-muted);
+}
+
+.input {
+  background: var(--magrabi-bg);
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  color: var(--magrabi-text);
+  padding: 0.5rem 0.7rem;
+  font-size: 0.9rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  width: 100%;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--magrabi-gold);
+}
+
+.checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  padding: 0.35rem 0.65rem;
+  font-size: 0.83rem;
+  cursor: pointer;
+  background: var(--magrabi-bg);
+  color: var(--magrabi-text);
+}
+
+.check:hover {
+  border-color: var(--magrabi-gold);
+}
+
+.checkOn {
+  border-color: var(--magrabi-gold);
+  color: var(--magrabi-gold);
+}
+
+.checkDisabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  align-items: center;
+}
+
+.check1 {
+  background: var(--magrabi-bg-alt);
+  border: 1px solid var(--magrabi-gold);
+  color: var(--magrabi-gold);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.9rem;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.check1:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: var(--magrabi-border);
+  color: var(--magrabi-text-muted);
+}
+
+.clear {
+  background: none;
+  border: none;
+  color: var(--magrabi-text-muted);
+  font-size: 0.83rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.inlineFix {
+  margin-left: 0.5rem;
+  background: none;
+  border: 1px solid var(--status-amber);
+  color: var(--status-amber);
+  border-radius: var(--radius);
+  padding: 0.1rem 0.45rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+/* ---- preview result ---- */
+.result {
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--magrabi-border);
+}
+
+.resultTitle {
+  margin: 0 0 0.45rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--magrabi-text);
+}
+
+.stop {
+  background: var(--status-red-bg, rgba(220, 60, 60, 0.12));
+  border-left: 3px solid var(--status-red);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 0.55rem 0.75rem;
+  margin-bottom: 0.7rem;
+}
+
+.stop p {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--magrabi-text);
+}
+
+.fileList {
+  list-style: none;
+  margin: 0 0 0.7rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.fileList li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.84rem;
+  flex-wrap: wrap;
+}
+
+.fileList code {
+  background: var(--code-bg);
+  border-radius: 3px;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.8rem;
+}
+
+.go {
+  margin-top: 0.6rem;
+  background: var(--magrabi-red);
+  border: none;
+  color: #fff;
+  border-radius: var(--radius);
+  padding: 0.6rem 1.1rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.go:hover:not(:disabled) {
+  background: var(--magrabi-red-hover);
+}
+
+.go:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---- after it is done ---- */
+.done {
+  border: 1px solid var(--status-green);
+  border-radius: var(--radius);
+  background: var(--magrabi-surface);
+  padding: 1rem 1.1rem;
+}
+
+.doneTitle {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--status-green);
+}
+
+.stepBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.run {
+  align-self: flex-start;
+  margin-top: 0.3rem;
+  background: var(--magrabi-red);
+  border: none;
+  color: #fff;
+  border-radius: var(--radius);
+  padding: 0.35rem 0.8rem;
+  font-size: 0.83rem;
+  cursor: pointer;
+}
+
+.run:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.link {
+  color: var(--magrabi-gold);
+  font-size: 0.83rem;
+  text-decoration: underline;
+}
+
+.disclose {
+  background: none;
+  border: none;
+  color: var(--magrabi-text-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.block .search {
+  margin: 0.7rem 0;
+  display: block;
+}
+
+/* ---- inline value editing ---- */
+.editRow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.editInput {
+  background: var(--magrabi-bg);
+  border: 1px solid var(--magrabi-gold);
+  border-radius: var(--radius);
+  color: var(--magrabi-text);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.82rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  min-width: 14rem;
+  flex: 1;
+}
+
+.editBtn {
+  margin-left: 0.55rem;
+  background: none;
+  border: 1px solid var(--magrabi-border);
+  color: var(--magrabi-text-muted);
+  border-radius: var(--radius);
+  padding: 0.05rem 0.4rem;
+  font-size: 0.72rem;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.editBtn:hover {
+  border-color: var(--magrabi-gold);
+  color: var(--magrabi-gold);
+}
+
+.saveBtn {
+  background: var(--magrabi-red);
+  border: none;
+  color: #fff;
+  border-radius: var(--radius);
+  padding: 0.25rem 0.6rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.saveBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---- clearer two-file explanation ---- */
+.fileList li {
+  display: block;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  background: var(--magrabi-bg);
+}
+
+.fileWhat {
+  display: block;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--magrabi-text);
+}
+
+.filePath {
+  display: inline-block;
+  margin-top: 0.3rem;
+  background: var(--code-bg);
+  border-radius: 3px;
+  padding: 0.05rem 0.35rem;
+  font-size: 0.75rem;
+  color: var(--magrabi-text-muted);
+}

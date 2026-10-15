@@ -1,0 +1,64 @@
+.button,
+.link {
+  background: var(--magrabi-red);
+  color: white;
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  display: inline-block;
+}
+
+.button:hover:not(:disabled),
+.link:hover {
+  background: var(--magrabi-red-hover);
+}
+
+/* Outlined rather than filled so the two retry actions are not equally loud: rebuilding is the one
+   that actually fixes a build failure, redeploying the same artifact is the niche fast path. */
+.secondaryButton {
+  background: transparent;
+  color: var(--magrabi-text-muted);
+  border: 1px solid var(--magrabi-border);
+}
+
+.secondaryButton:hover:not(:disabled) {
+  background: var(--row-hover);
+  color: var(--magrabi-text);
+  border-color: var(--magrabi-text-muted);
+}
+
+.button:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+
+.done {
+  background: var(--status-green-bg);
+  color: var(--status-green);
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.deploying {
+  background: var(--status-amber-bg);
+  color: var(--status-amber);
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* The failed-action variant of a red button, so it cannot just reuse --magrabi-red or it would be
+   indistinguishable from the normal state. color-mix darkens the brand red against the page's own
+   text color, which resolves differently per theme and so stays distinguishable in both, rather
+   than pinning a fixed dark red that disappears against a dark background. */
+.errorButton {
+  background: color-mix(in srgb, var(--magrabi-red) 62%, var(--magrabi-text));
+}

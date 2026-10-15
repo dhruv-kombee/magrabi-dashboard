@@ -1,0 +1,445 @@
+/* Live Environment Status — tile view.
+ *
+ * Colour system: each tone sets ONE base hue (--tone) and everything else is derived from it with
+ * color-mix against the page surface. That keeps the four categories looking like one family
+ * instead of four hand-picked hex values that drift apart, and it means dark mode needs a different
+ * surface, not a different palette. Plain fallbacks are declared first for anything without
+ * color-mix (Safari < 16.2), so the tiles degrade to a neutral card rather than a transparent one.
+ */
+
+.wrap {
+  margin-bottom: 30px;
+}
+
+.heading {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--magrabi-slate);
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.count {
+  color: var(--magrabi-text-muted);
+  font-weight: 400;
+  font-size: 12px;
+}
+
+/* Same production accent the table view uses, so the two views flag it identically. */
+.prod {
+  border-left: 3px solid var(--magrabi-red);
+  padding-left: 12px;
+}
+
+.prod .heading {
+  color: var(--magrabi-red);
+}
+
+.empty {
+  color: var(--magrabi-text-muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+/* ---- Frontend / Backend bands ---------------------------------------------------------------- */
+
+.groupBlock {
+  margin-bottom: 22px;
+}
+
+.groupBlock:last-child {
+  margin-bottom: 0;
+}
+
+/* A rule that runs the full width rather than a small heading: with 30+ cards on screen the
+   boundary between Frontend and Backend has to stay legible while scrolling past it. The line
+   after the label does that without the visual weight of a filled bar. */
+.groupBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.groupBar::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--magrabi-border);
+}
+
+.groupName {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--magrabi-text);
+  padding-left: 9px;
+  border-left: 3px solid var(--magrabi-slate);
+  line-height: 1.1;
+}
+
+.bar_frontend .groupName {
+  border-left-color: var(--status-green);
+}
+
+.bar_backend .groupName {
+  border-left-color: var(--status-blue);
+}
+
+.groupCount {
+  font-size: 11px;
+  color: var(--magrabi-text-muted);
+  white-space: nowrap;
+}
+
+/* ---- The grid --------------------------------------------------------------------------------- */
+
+/* auto-fill, not auto-fit: with a handful of tiles auto-fit would stretch each one across the whole
+   row, so DEV (33 services) and a filtered search (2 services) would render at wildly different
+   card sizes. auto-fill keeps the column width stable and lets the row end early instead. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
+  gap: 14px;
+}
+
+/* ---- Tones ------------------------------------------------------------------------------------ */
+
+.green {
+  --tone: #1a7f37;
+}
+
+.yellow {
+  --tone: #b07d10;
+}
+
+.blue {
+  --tone: #0969da;
+}
+
+.grey {
+  --tone: #6b7280;
+}
+
+/* Brighter bases in dark mode: the same hues, lifted so they still read as colour against a dark
+   surface instead of collapsing into mud. */
+:global(:root[data-theme='dark']) .green {
+  --tone: #4ade80;
+}
+
+:global(:root[data-theme='dark']) .yellow {
+  --tone: #fbbf24;
+}
+
+:global(:root[data-theme='dark']) .blue {
+  --tone: #60a5fa;
+}
+
+:global(:root[data-theme='dark']) .grey {
+  --tone: #9aa5b5;
+}
+
+/* ---- Tiles ------------------------------------------------------------------------------------ */
+
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--magrabi-surface);
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  min-width: 0;
+  color: var(--magrabi-text);
+  transition: box-shadow 120ms ease, transform 120ms ease, border-color 120ms ease;
+}
+
+/* Full-height accent rather than a border on the tile itself: no layout shift, and it stays clipped
+   by the card's own radius. This is the strongest category signal on the card. */
+.tile::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--tone);
+}
+
+@supports (background: color-mix(in oklab, red 10%, white)) {
+  .tile {
+    border-color: color-mix(in oklab, var(--tone) 26%, var(--magrabi-border));
+    /* A whisper of the hue across the whole card, so the category is readable at a glance from the
+       tile as a whole and not only from its header. */
+    background: color-mix(in oklab, var(--tone) 4%, var(--magrabi-surface));
+  }
+}
+
+.tile:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+@supports (background: color-mix(in oklab, red 10%, white)) {
+  .tile:hover {
+    border-color: color-mix(in oklab, var(--tone) 45%, var(--magrabi-border));
+  }
+}
+
+/* Never deployed to this environment. Kept in the grid rather than dropped: the absence is the
+   information, and a missing tile would read as "filtered out". */
+.tileEmpty {
+  opacity: 0.55;
+  box-shadow: none;
+}
+
+.tileEmpty:hover {
+  transform: none;
+}
+
+/* ---- Header band ------------------------------------------------------------------------------ */
+
+/* The only strongly tinted surface on the card. Everything that has to be READ sits below it on the
+   neutral body, which is what keeps "coloured tiles" and "readable text" from fighting. */
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 13px 11px 15px;
+  background: var(--magrabi-bg-alt);
+  border-bottom: 1px solid var(--magrabi-border);
+  min-width: 0;
+}
+
+@supports (background: color-mix(in oklab, red 10%, white)) {
+  .head {
+    background: color-mix(in oklab, var(--tone) 13%, var(--magrabi-surface));
+    border-bottom-color: color-mix(in oklab, var(--tone) 24%, var(--magrabi-border));
+  }
+}
+
+/* Category in shape as well as hue — survives greyscale and colour-blindness. */
+.dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--tone);
+  box-shadow: 0 0 0 3px var(--magrabi-surface);
+}
+
+@supports (background: color-mix(in oklab, red 10%, white)) {
+  .dot {
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--tone) 18%, var(--magrabi-surface));
+  }
+}
+
+.names {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.pipeline {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--magrabi-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.application {
+  font-size: 11px;
+  color: var(--magrabi-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Body ------------------------------------------------------------------------------------- */
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding: 12px 13px;
+  min-width: 0;
+}
+
+.branchRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.label {
+  font-size: 9.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--magrabi-text-muted);
+  font-weight: 600;
+}
+
+/* The branch is the field this view exists for: full tile width, monospace (branch names are
+   path-like and read far better fixed-width) and on the plain surface so it stays the highest-
+   contrast thing on the card. Two lines maximum — past that a 90-character feature branch would set
+   the height of every tile in the row. */
+.branch {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--magrabi-text);
+  background: var(--magrabi-surface);
+  border: 1px solid var(--magrabi-border);
+  border-radius: 6px;
+  padding: 5px 7px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.fact {
+  min-width: 0;
+}
+
+.fact dt {
+  font-size: 9.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--magrabi-text-muted);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.fact dd {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--magrabi-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.link {
+  color: var(--status-blue);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.link:hover,
+.link:focus-visible {
+  text-decoration: underline;
+}
+
+/* ---- Footer ----------------------------------------------------------------------------------- */
+
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding: 9px 13px;
+  border-top: 1px solid var(--magrabi-border);
+  background: var(--magrabi-surface);
+  min-width: 0;
+}
+
+.when {
+  font-size: 11px;
+  color: var(--magrabi-text-muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+/* The hash IS the copy button, with no "Commit" label anywhere near it. A chip rather than a second
+   button, so the tile does not read as two competing actions — hover and the cursor carry it. */
+.sha {
+  font: inherit;
+  border: 1px solid var(--magrabi-border);
+  background: var(--magrabi-bg-alt);
+  border-radius: 999px;
+  padding: 3px 9px;
+  cursor: pointer;
+  color: var(--magrabi-text-muted);
+  max-width: 100%;
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.sha code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.sha:hover,
+.sha:focus-visible {
+  border-color: var(--status-blue);
+  color: var(--status-blue);
+}
+
+.shaCopied,
+.shaCopied:hover,
+.shaCopied:focus-visible {
+  background: var(--status-green-bg);
+  color: var(--status-green);
+  border-color: var(--status-green);
+}
+
+.varsButton {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--magrabi-border);
+  background: var(--magrabi-bg-alt);
+  color: var(--magrabi-text);
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.varsButton:hover,
+.varsButton:focus-visible {
+  border-color: var(--status-blue);
+  color: var(--status-blue);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile,
+  .sha,
+  .varsButton {
+    transition: none;
+  }
+
+  .tile:hover {
+    transform: none;
+  }
+}

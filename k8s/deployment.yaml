@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: magrabi-deploy-portal
+  namespace: deploy-portal
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: magrabi-deploy-portal
+  template:
+    metadata:
+      labels:
+        app: magrabi-deploy-portal
+        # The workload-identity webhook only injects the projected token and the AZURE_* env vars
+        # when this label is present. Without it the Key Rotation section reports itself as not
+        # connected and everything else still works.
+        azure.workload.identity/use: "true"
+    spec:
+      # Workload identity, for the two CI/CD Key Vaults. See serviceaccount.yaml - the federated
+      # credential is bound to this exact namespace/name pair.
+      serviceAccountName: deploy-portal-keyvault
+      # Still false: the webhook mounts its OWN projected token for the Azure exchange, so the pod
+      # does not need a Kubernetes API token as well.
+      automountServiceAccountToken: false
+      containers:
+        - name: portal
+          image: crmepucommonuaenorth001.azurecr.io/magrabi-deploy-portal:93
+          ports:
+            - containerPort: 5151
+          env:
+            - name: RUNS_DIR
+              value: /data/deploy_runs
+            - name: FEEDBACK_DIR
+              value: /data/feedback
+            - name: SESSION_COOKIE_SECURE
+              value: "true"
+            # --- Key Rotation section (MLC-2635) -------------------------------------------
+            - name: KEYVAULT_UAT
+              value: kv-cicd-uat-uaenorth
+            - name: KEYVAULT_PROD
+              value: kv-cicd-prod-uaenorth
+            # Routing table: which secret goes to which project, definition, stage, variable and
+            # placement. Baked into the image by the Dockerfile, NOT mounted - it is derived from
+            # the live pipelines and belongs to the build it shipped with.
+            - name: KEYVAULT_PLAN_DIR
+              value: /app/keyvault
+            # On the PVC, so the record of who rotated what survives a restart.
+            - name: KEYVAULT_RUNS_DIR
+              value: /data/keyvault_runs
+          envFrom:
+            - secretRef:
+                name: deploy-portal-ado
+            - secretRef:
+                name: deploy-portal-auth
+            - secretRef:
+                name: deploy-portal-insights
+                optional: true
+            # Logging Dashboard: a service principal with Monitoring Reader on the Application
+            # Insights resources it reads. Supplies AZURE_MONITOR_TENANT_ID, _CLIENT_ID and
+            # _CLIENT_SECRET. Optional = true so the portal still starts without it -- the
+            # Logging Dashboard then says it is not connected instead of the pod failing to boot.
+            - secretRef:
+                name: deploy-portal-azure
+                optional: true
+          volumeMounts:
+            # Mounted at /data, NOT at /data/deploy_runs. Anything written outside the mount point
+            # lives in the container's ephemeral layer and is silently lost on every restart, so
+            # mounting the runs directory itself would have put the new /data/feedback tree there.
+            # Mounting the parent puts both RUNS_DIR and FEEDBACK_DIR on the one PVC.
+            # Safe to change now: the production runs directory is currently empty, so nothing moves.
+            - name: runs
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 5151
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 5151
+            initialDelaySeconds: 10
+            periodSeconds: 20
+      volumes:
+        - name: runs
+          persistentVolumeClaim:
+            claimName: deploy-portal-runs

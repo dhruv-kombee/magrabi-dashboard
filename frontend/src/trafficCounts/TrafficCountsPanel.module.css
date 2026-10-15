@@ -1,0 +1,80 @@
+.panel { color: var(--magrabi-text); margin-top: 22px; }
+.heading, .sourceHeading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+.heading h2 { margin: 3px 0 7px; font-size: 25px; letter-spacing: -.4px; }
+.heading p:not(.eyebrow) { margin: 0; font-size: 13px; color: var(--magrabi-text-muted); }
+.eyebrow { margin: 0; font-size: 10px; text-transform: uppercase; letter-spacing: .12em; font-weight: 700; color: var(--magrabi-text-muted); }
+.boundary { margin: 18px 0; padding: 12px 15px; border-left: 3px solid var(--status-blue); background: var(--magrabi-surface); color: var(--magrabi-text-muted); font-size: 12px; line-height: 1.6; }
+.boundary strong { color: var(--magrabi-text); }
+.filters, .results { border: 1px solid var(--magrabi-border); border-radius: 12px; background: var(--magrabi-surface); padding: 20px; }
+.quickRanges { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 18px; }
+.quickRanges > span { color: var(--magrabi-text-muted); font-size: 11px; margin-right: 6px; }
+.panel button, .exportButton { font: inherit; border: 1px solid var(--magrabi-border); border-radius: 6px; background: var(--magrabi-bg); color: var(--magrabi-text); padding: 8px 12px; font-size: 12px; cursor: pointer; text-decoration: none; }
+.panel button:hover:not(:disabled), .exportButton:hover { border-color: var(--status-blue); color: var(--status-blue); }
+.panel button:disabled { cursor: not-allowed; opacity: .5; }
+.panel button:focus-visible, .panel a:focus-visible, .panel input:focus-visible, .panel select:focus-visible, .tableScroll:focus-visible, .details summary:focus-visible { outline: 2px solid var(--status-blue); outline-offset: 3px; }
+.dateControls { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.dateControls label { display: flex; flex-direction: column; gap: 7px; font-size: 11px; font-weight: 600; color: var(--magrabi-text-muted); }
+.dateControls input, .dateControls select { min-height: 39px; box-sizing: border-box; font: inherit; font-size: 13px; padding: 8px 10px; color: var(--magrabi-text); background: var(--magrabi-bg); border: 1px solid var(--magrabi-border); border-radius: 6px; }
+.dateControls select { min-width: 160px; }
+.panel .primaryButton { min-height: 39px; padding: 9px 22px; color: white; background: #245b80; border-color: #245b80; font-weight: 600; }
+.panel .primaryButton:hover:not(:disabled) { color: white; background: #194968; }
+.hint { color: var(--magrabi-text-muted); font-size: 11px; line-height: 1.6; margin: 10px 0; }
+.sourceSelection { display: flex; flex-wrap: wrap; gap: 12px 20px; padding: 14px 0 0; margin: 14px 0 0; border: 0; border-top: 1px solid var(--magrabi-border); }
+.sourceSelection legend { font-size: 11px; color: var(--magrabi-text-muted); padding-right: 12px; }
+.sourceSelection label { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
+.sourceSelection small { color: var(--status-amber); font-size: 10px; }
+.panel input[type=checkbox] { accent-color: #245b80; }
+.liveControl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 18px; font-size: 12px; }
+.liveControl span { color: var(--magrabi-text-muted); font-size: 11px; margin-left: 8px; }
+.sourceTabs { display: flex; flex-wrap: wrap; gap: 7px; margin: 20px 0 14px; }
+.sourceTabs button { flex: 1; min-width: 130px; text-align: left; padding: 12px 15px; }
+.sourceTabs button small { display: block; margin-top: 5px; font-size: 10px; color: var(--magrabi-text-muted); font-weight: 400; }
+.sourceTabs button[aria-pressed=true] { color: var(--status-blue); border-color: var(--status-blue); box-shadow: inset 0 -2px 0 var(--status-blue); font-weight: 700; }
+.sourceHeading { margin-bottom: 14px; }
+.sourceHeading h3 { font-size: 18px; margin: 5px 0 0; }
+.badge { padding: 5px 9px; font-size: 11px; border: 1px solid var(--magrabi-border); border-radius: 20px; color: var(--magrabi-text-muted); }
+.warningBadge { color: var(--status-amber); background: var(--status-amber-bg); }
+.sectionTitle { font-size: 13px; margin: 22px 0 12px; }
+.sectionTitle span { display: inline-block; font-size: 11px; font-weight: 400; color: var(--magrabi-text-muted); margin-left: 8px; }
+.tableScroll { width: 100%; overflow-x: auto; border: 1px solid var(--magrabi-border); border-radius: 8px; }
+.table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.table th, .table td { padding: 11px 13px; border-bottom: 1px solid var(--magrabi-border); text-align: right; white-space: nowrap; }
+.table thead th { background: var(--magrabi-bg); color: var(--magrabi-text-muted); font-weight: 600; font-size: 11px; }
+.table th:first-child, .table tbody th { text-align: left; }
+.table tbody th { font-weight: 500; white-space: normal; min-width: 180px; }
+.table small { display: block; font-size: 10px; margin-top: 4px; color: var(--magrabi-text-muted); }
+.table tbody tr:last-child > * { border-bottom: 0; }
+.table tbody tr:nth-child(even) { background: var(--magrabi-bg); }
+.table .date { text-align: left; }
+.table .total { font-weight: 700; }
+.errorCount { color: var(--status-red); font-weight: 600; }
+.unavailable { color: var(--magrabi-text-muted); }
+.notice { padding: 11px 13px; background: var(--status-amber-bg); color: var(--status-amber); font-size: 12px; line-height: 1.65; border-radius: 6px; margin: 14px 0; }
+.notice strong { font-weight: 700; }
+.error { color: var(--status-red); background: var(--status-red-bg); padding: 12px 14px; border-radius: 6px; font-size: 12px; }
+.empty { padding: 28px 20px; border: 1px dashed var(--magrabi-border); border-radius: 8px; color: var(--magrabi-text-muted); font-size: 13px; line-height: 1.6; }
+.empty p { margin: 6px 0 0; }
+.progress { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--magrabi-text-muted); padding: 15px 0; }
+.progress progress { accent-color: #245b80; min-width: 170px; height: 8px; }
+.reportMeta { display: flex; flex-direction: column; gap: 6px; font-size: 11px; padding: 16px 0 0; color: var(--magrabi-text-muted); }
+.reportMeta strong { font-size: 12px; color: var(--magrabi-text); }
+.reportMeta .stale { color: var(--status-amber); }
+.details { margin-top: 22px; }
+.details summary { cursor: pointer; font-weight: 600; font-size: 13px; padding: 10px 0; }
+.sourceNotes { border-top: 1px solid var(--magrabi-border); margin-top: 22px; padding-top: 16px; color: var(--magrabi-text-muted); font-size: 11px; line-height: 1.65; }
+.sourceNotes strong { color: var(--magrabi-text); }
+.sourceNotes ul { margin: 7px 0 10px; padding-left: 18px; }
+.sourceNotes a { color: var(--status-blue); }
+.version { font-size: 10px; color: var(--magrabi-text-muted); line-height: 1.6; margin: 14px 0 0; }
+.sectionTabs { display: flex; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--magrabi-border); margin: 8px 0 20px; padding-bottom: 10px; }
+.sectionTabs button { font: inherit; background: transparent; color: var(--magrabi-text-muted); border: 1px solid transparent; border-radius: 6px; padding: 9px 15px; font-size: 13px; cursor: pointer; }
+.sectionTabs button[aria-pressed=true] { color: var(--status-blue); background: var(--magrabi-surface); border-color: var(--magrabi-border); font-weight: 600; }
+.sectionTabs button:focus-visible { outline: 2px solid var(--status-blue); outline-offset: 3px; }
+@media (max-width: 600px) {
+  .filters, .results { padding: 14px; }
+  .heading h2 { font-size: 22px; }
+  .dateControls label, .dateControls input, .dateControls select { width: 100%; }
+  .sourceTabs button { min-width: calc(50% - 8px); }
+  .liveControl span { margin-left: 24px; }
+  .table th, .table td { padding: 10px; }
+}

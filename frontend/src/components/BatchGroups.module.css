@@ -1,0 +1,38 @@
+.group {
+  border: 1px solid var(--magrabi-border);
+  border-left: 3px solid var(--magrabi-red, #c0392b);
+  border-radius: 8px;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 7px 12px;
+  background: var(--magrabi-surface);
+  border-bottom: 1px solid var(--magrabi-border);
+}
+
+.count {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.meta {
+  font-size: 11px;
+  color: var(--magrabi-text-muted);
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+/* The nested table keeps its own borders; strip the outer radius so it sits flush in the box. */
+.body > * {
+  border: none;
+  border-radius: 0;
+  margin: 0;
+}

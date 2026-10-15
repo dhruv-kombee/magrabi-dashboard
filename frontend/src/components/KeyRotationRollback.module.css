@@ -1,0 +1,314 @@
+/* The dangerous half of the page, and it has to look like it. Not a different colour language --
+   the portal already uses red for "this writes" -- but a heavier frame, its own hazard rail and a
+   deliberate visual break from the sync section above it, so nobody lands in here by scrolling. */
+
+.section {
+  border: 1px solid var(--magrabi-red);
+  border-left-width: 4px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  padding: 16px 18px;
+  margin: 26px 0 18px;
+}
+
+.head {
+  margin-bottom: 12px;
+}
+
+.title {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--magrabi-red);
+  letter-spacing: 0.2px;
+}
+
+.lede {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--magrabi-text-muted);
+  max-width: 68ch;
+}
+
+.blocked {
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--status-amber);
+  border-radius: var(--radius);
+  background: var(--status-amber-bg);
+  color: var(--status-amber);
+  font-size: 12.5px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--magrabi-text);
+}
+
+/* Reads as a link, behaves as a button -- same primitive as the Variables page. */
+.linkBtn {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--magrabi-red);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.linkBtn:disabled {
+  color: var(--magrabi-text-muted);
+  cursor: default;
+  text-decoration: none;
+}
+
+.listWrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--magrabi-border);
+  border-radius: var(--radius);
+  background: var(--magrabi-bg);
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+}
+
+.table th {
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--magrabi-text-muted);
+  background: var(--magrabi-bg-alt);
+  box-shadow: inset 0 -1px 0 var(--magrabi-border);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 7px 10px;
+  box-shadow: inset 0 -1px 0 var(--magrabi-border);
+  vertical-align: middle;
+}
+
+.pickCol,
+.pickCell {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.detailCol {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.rowPicked td {
+  background: color-mix(in srgb, var(--magrabi-red) 7%, transparent);
+}
+
+.service {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-all;
+}
+
+.pillYes,
+.pillNo,
+.pillBlocked {
+  display: inline-block;
+  margin-right: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.pillYes {
+  background: var(--status-green-bg);
+  color: var(--status-green);
+}
+
+.pillNo {
+  background: var(--status-gray-bg);
+  color: var(--status-gray);
+}
+
+.pillBlocked {
+  background: var(--status-red-bg);
+  color: var(--status-red);
+}
+
+.expandBtn {
+  padding: 4px 10px;
+  border: 1px solid var(--magrabi-border);
+  border-radius: 6px;
+  background: var(--magrabi-bg);
+  color: var(--magrabi-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.expandBtn:hover {
+  border-color: var(--magrabi-red);
+  color: var(--magrabi-text);
+}
+
+/* ---- Expanded service: its secrets, each with an optional version list --------------------- */
+
+.detailRow td {
+  background: var(--magrabi-bg-alt);
+}
+
+.secretList {
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+}
+
+.secretItem {
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--magrabi-border);
+}
+
+.secretItem:last-child {
+  border-bottom: 0;
+}
+
+.secretHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.secretMeta {
+  font-size: 11.5px;
+  color: var(--magrabi-text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* "now <hash>, rolls back to <hash>" on the secret line. The words carry the direction, because
+   an arrow between two hashes is read in both directions by different people. */
+.hashPair {
+  white-space: nowrap;
+}
+
+.empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--magrabi-text-muted);
+}
+
+/* ---- Actions --------------------------------------------------------------------------------- */
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.previewBtn {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 15px;
+  border-radius: 7px;
+  border: 1px solid var(--magrabi-border);
+  background: var(--magrabi-bg);
+  color: var(--magrabi-text);
+  cursor: pointer;
+}
+
+.previewBtn:hover:not(:disabled) {
+  border-color: var(--status-blue);
+}
+
+.dangerBtn {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 7px;
+  border: none;
+  background: var(--magrabi-red, #c0392b);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--magrabi-red) 22%, transparent);
+}
+
+.previewBtn:disabled,
+.dangerBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.confirmLead {
+  margin: 0 0 10px;
+}
+
+.confirmList {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.7;
+}
+
+/* Visually hidden but reachable by a screen reader -- the checkbox's own label. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Laptop width: the destinations column goes, because the same number is restated in the
+   expansion and in the confirmation. */
+@media (max-width: 1100px) {
+  .hideNarrow {
+    display: none;
+  }
+}

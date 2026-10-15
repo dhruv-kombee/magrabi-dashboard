@@ -1,0 +1,22 @@
+# No `tls:` block, matching every other test-magrabi.com Ingress on this cluster (confirmed live
+# 2026-08-06: all of them omit it) -- TLS for this DNS zone is terminated at Azure Front Door,
+# which forwards plain HTTP to ingress-nginx. Requires a matching Front Door custom domain + route
+# to actually get HTTPS -- that's an Azure-side mutation, tracked separately from this manifest.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ing-deploy-portal-001
+  namespace: deploy-portal
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: deploy-portal.test-magrabi.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: magrabi-deploy-portal
+                port:
+                  number: 80

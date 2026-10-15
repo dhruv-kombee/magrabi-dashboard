@@ -1,0 +1,44 @@
+# Sensitive credentials and environment files
+.secrets/
+.env
+.env.*
+*.pem
+*.key
+*.cert
+*.pfx
+
+# Agent work logs and context handovers (internal knowledge store)
+work_log/
+
+# OS and Editor files
+Thumbs.db
+Desktop.ini
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Node / Web build dependencies & outputs
+node_modules/
+dist/
+build/
+coverage/
+*.log
+
+# Python cache and environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# Archives & binaries
+*.zip
+*.tar.gz
+*.tgz
+

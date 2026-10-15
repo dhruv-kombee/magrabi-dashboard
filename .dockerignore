@@ -1,0 +1,15 @@
+**/.secrets/
+**/node_modules/
+**/deploy_runs/
+**/feedback/
+**/env_changes/
+**/traffic_reports/
+**/.env
+**/.env.*
+**/*.env
+**/*.env.*
+**/__pycache__/
+**/*.pyc
+frontend/dist
+backend/static
+.git

@@ -1,0 +1,151 @@
+/* Color palette pulled from the live magrabi.com site (fetched 2026-08-06) -- primary red
+   accent, gold/bronze secondary accent, near-black text, white/light-gray backgrounds. Light
+   theme overall, matching the real brand rather than a generic dark developer-tool look. */
+:root {
+  /* Tells the browser which palette to paint NATIVE widgets with -- <select> popups, date pickers,
+     scrollbars. Without it Chromium assumes light and renders an open <select> as grey-on-white
+     even when the closed control is styled dark, which made the pipeline list on the Variables page
+     essentially unreadable. Only the popup is affected; the page itself is styled by the tokens
+     below either way, so this has to be kept in step with them by hand. */
+  color-scheme: light;
+
+  --magrabi-red: #ff0004;
+  --magrabi-red-hover: #d90003;
+  --magrabi-gold: #a77540;
+  --magrabi-gold-hover: #8f6236;
+  --magrabi-text: #1d1d1d;
+  --magrabi-text-muted: #6b6b6b;
+  --magrabi-bg: #ffffff;
+  --magrabi-bg-alt: #EDEDED;
+  /* Raised surface: modals, popovers, sticky headers, small buttons. Eleven stylesheets were
+     already reading this token and it had NEVER been defined -- var() with no fallback resolves to
+     the initial value, i.e. TRANSPARENT, which is why the variables modal on the status page showed
+     the table straight through it. Defining it fixes all of them at once. */
+  --magrabi-surface: #ffffff;
+  --magrabi-slate: #2A3439;
+  --magrabi-border: #dcdcdc;
+
+  --status-green: #1a7f37;
+  --status-green-bg: #e6f4ea;
+  --status-red: #cf222e;
+  --status-red-bg: #fbe9eb;
+  --status-amber: #9a6700;
+  --status-amber-bg: #fff4d6;
+  --status-blue: #0969da;
+  --status-blue-bg: #e8f1fd;
+  --status-gray: #6b6b6b;
+  --status-gray-bg: #f0f0f0;
+
+  --radius: 8px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --row-hover: #fafafa;
+  --badge-bg-light: #f7efe4;
+  --login-gradient-end: #f7f0e8;
+
+  /* Elevation / depth set for the deployment views. Two layers rather than one: the tight layer
+     keeps the card's edge legible against the page while the wide, soft layer sells the lift.
+     A single large blur alone just looks like a smudge under the card. */
+  --shadow-lg: 0 14px 34px rgba(0, 0, 0, 0.13), 0 2px 6px rgba(0, 0, 0, 0.07);
+  /* Attention glow for live/in-progress elements. Blue rather than the brand red on purpose --
+     red is this app's FAILED colour, and a red halo around a healthy running deploy reads as an
+     alarm. Ring plus bloom so it still registers where the blur is clipped by an overflow. */
+  --shadow-glow: 0 0 0 3px rgba(9, 105, 218, 0.18), 0 0 18px rgba(9, 105, 218, 0.3);
+  /* Card surface. Light mode inverts the usual relationship: the page is grey (--magrabi-bg-alt)
+     so a raised card goes lighter, i.e. white. Dark mode raises by going lighter too. */
+  --surface-raised: #ffffff;
+  --rail: #d4d4d4;
+  --rail-active: #1a7f37;
+  --scrim: rgba(24, 24, 24, 0.44);
+  --code-bg: #f4f5f6;
+}
+
+/* Dark mode -- toggled via a [data-theme="dark"] attribute on <html> (see ThemeToggle.tsx),
+   not prefers-color-scheme, since this is a deliberate user toggle with its own persisted choice,
+   not a system-following theme. Red/gold brand accents stay the same in both themes.
+   IMPORTANT: every status-* TEXT color gets its own dark-mode override here, not just the *-bg
+   ones -- getting only the backgrounds right (an earlier mistake here) leaves e.g. dark green
+   text sitting on a dark green background, unreadable even though each half looks fine alone.
+   Same reasoning for --magrabi-slate (used for headings): light-mode's dark slate-on-white
+   inverts to slate-on-near-black in dark mode unless it's overridden too. */
+:root[data-theme='dark'] {
+  /* See the note on :root. This is what makes an open <select> readable in dark mode. */
+  color-scheme: dark;
+
+  --magrabi-text: #e6e6e6;
+  --magrabi-text-muted: #9a9a9a;
+  --magrabi-bg: #1a1a1a;
+  --magrabi-bg-alt: #0f0f0f;
+  /* Slightly lifted off --magrabi-bg so a modal reads as floating above the page rather than
+     merging into it. */
+  --magrabi-surface: #242424;
+  --magrabi-slate: #d8dde0;
+  --magrabi-border: #333333;
+
+  --status-green: #4ade80;
+  --status-green-bg: #123a22;
+  --status-red: #ff6b6b;
+  --status-red-bg: #3a1418;
+  --status-amber: #fbbf24;
+  --status-amber-bg: #3a2f0a;
+  --status-blue: #60a5fa;
+  --status-blue-bg: #0d2b4a;
+  --status-gray: #b0b0b0;
+  --status-gray-bg: #2a2a2a;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --row-hover: #262626;
+  --badge-bg-light: #3a2f22;
+  --login-gradient-end: #241d16;
+
+  /* Shadows go heavier and the glow goes lighter, and both for the same reason: contrast against
+     the surface. A 13%-black shadow is invisible on a #0f0f0f page, so it needs ~5x the opacity;
+     a glow that reads as "soft" on white reads as a blown-out neon tube on near-black, so its
+     alpha comes down. Same tokens, deliberately non-symmetric values. */
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.68), 0 2px 8px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 0 3px rgba(96, 165, 250, 0.16), 0 0 20px rgba(96, 165, 250, 0.18);
+  /* Lighter than both --magrabi-bg (#1a1a1a) and --magrabi-bg-alt (#0f0f0f): in dark mode a
+     surface reads as raised by catching more light, never by getting darker. */
+  --surface-raised: #232323;
+  --rail: #3a3a3a;
+  --rail-active: #4ade80;
+  --scrim: rgba(0, 0, 0, 0.68);
+  /* Recessed rather than raised -- a log block should read as a well cut INTO the card, so it
+     goes darker than every other dark-mode surface. */
+  --code-bg: #0b0b0b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--magrabi-bg-alt);
+  color: var(--magrabi-text);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+button {
+  font-family: inherit;
+}
+
+/* Backstop, not a substitute. Components whose animation carries MEANING (a progress bar, a live
+   pulse) still owe this media query a static equivalent of their own -- freezing them here just
+   hides the information. What this catches is the decorative rest: the 3D card lifts, flips and
+   keyframes across the deployment views, where a vestibular-sensitive user should get none of it
+   even if one component forgets to ask. Near-zero rather than 0s so transitionend/animationend
+   handlers still fire and nothing waiting on them stalls forever. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
