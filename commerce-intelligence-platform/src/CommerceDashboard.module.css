@@ -1207,3 +1207,18 @@
   border-radius: 7px;
   margin-bottom: 15px;
 }
+
+.skeletonPulse {
+  display: inline-block;
+  color: #aab5ae;
+  animation: pulseOpacity 1.2s ease-in-out infinite;
+}
+
+@keyframes pulseOpacity {
+  0%, 100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}

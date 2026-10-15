@@ -215,12 +215,50 @@ export function CommerceDashboard() {
     lastUpdated: string
     oms?: LiveOmsSummary
   }
-  const [liveSaleor, setLiveSaleor] = useState<LiveSaleorSummary | null>(null)
-  const [liveLoading, setLiveLoading] = useState(false)
+
+  // Storage cache helper for instant live data hydration on page reload
+  const LIVE_CACHE_KEY = 'magrabi_live_commerce_summary'
+
+  const [liveSaleor, setLiveSaleor] = useState<LiveSaleorSummary | null>(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const exactKey = `${LIVE_CACHE_KEY}_${brand}_${country}_${start}_${end}_${timezone}`
+        const cached = localStorage.getItem(exactKey) || localStorage.getItem(`${LIVE_CACHE_KEY}_last`)
+        if (cached) {
+          return JSON.parse(cached) as LiveSaleorSummary
+        }
+      }
+    } catch {
+      // Storage unavailable
+    }
+    return null
+  })
+
+  const [liveLoading, setLiveLoading] = useState<boolean>(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const cached = localStorage.getItem(`${LIVE_CACHE_KEY}_last`)
+        return !cached
+      }
+    } catch {
+      // ignore
+    }
+    return true
+  })
   const [, setLiveError] = useState<string | null>(null)
 
   useEffect(() => {
     let isMounted = true
+    const exactKey = `${LIVE_CACHE_KEY}_${brand}_${country}_${start}_${end}_${timezone}`
+    try {
+      const cached = localStorage.getItem(exactKey)
+      if (cached && isMounted) {
+        setLiveSaleor(JSON.parse(cached))
+      }
+    } catch {
+      // ignore
+    }
+
     setLiveLoading(true)
     fetch(`/api/commerce/orders/summary?brand=${brand}&country=${country}&start=${start}&end=${end}&tz=${timezone}`)
       .then((res) => {
@@ -232,6 +270,12 @@ export function CommerceDashboard() {
           if (data.status === 'OK' && data.live) {
             setLiveSaleor(data)
             setLiveError(null)
+            try {
+              localStorage.setItem(exactKey, JSON.stringify(data))
+              localStorage.setItem(`${LIVE_CACHE_KEY}_last`, JSON.stringify(data))
+            } catch {
+              // quota or storage disabled
+            }
           } else {
             setLiveError(data.error || 'Failed to load live data')
           }
@@ -695,7 +739,13 @@ export function CommerceDashboard() {
                       )}
                     </div>
                     <div className={styles.metricvalue}>
-                      {liveSaleor ? fmt(liveSaleor.orders) : fmt(currentAgg.orders)}
+                      {liveSaleor ? (
+                        fmt(liveSaleor.orders)
+                      ) : liveLoading ? (
+                        <span className={styles.skeletonPulse}>—</span>
+                      ) : (
+                        fmt(currentAgg.orders)
+                      )}
                     </div>
                     <div className={styles.metricfoot}>
                       {liveSaleor ? (
@@ -705,6 +755,8 @@ export function CommerceDashboard() {
                           </span>
                           <span>vs previous equal window ({fmt(liveSaleor.previousOrders)}) · {fmt(liveSaleor.todaySoFar)} today</span>
                         </>
+                      ) : liveLoading ? (
+                        <span>Connecting live Saleor feed...</span>
                       ) : (
                         renderDelta(currentAgg.orders, priorAgg?.orders)
                       )}
@@ -724,7 +776,13 @@ export function CommerceDashboard() {
                       )}
                     </div>
                     <div className={styles.metricvalue}>
-                      {liveSaleor?.oms?.live ? fmt(liveSaleor.oms.orders) : fmt(currentAgg.orders - Math.floor(currentAgg.orders * 0.02))}
+                      {liveSaleor?.oms?.live ? (
+                        fmt(liveSaleor.oms.orders)
+                      ) : liveLoading ? (
+                        <span className={styles.skeletonPulse}>—</span>
+                      ) : (
+                        fmt(currentAgg.orders - Math.floor(currentAgg.orders * 0.02))
+                      )}
                     </div>
                     <div className={styles.metricfoot}>
                       {liveSaleor?.oms?.live ? (
@@ -736,6 +794,8 @@ export function CommerceDashboard() {
                             {liveSaleor.oms.exceptions === 0 ? '0 sync delay · 100% handoff match' : `${fmt(liveSaleor.oms.exceptions)} sync delay exceptions`}
                           </span>
                         </>
+                      ) : liveLoading ? (
+                        <span>Connecting live Macula OMS feed...</span>
                       ) : (
                         `${fmt(Math.floor(currentAgg.orders * 0.02))} sample handoff exceptions · reconcile IDs`
                       )}
@@ -1048,7 +1108,13 @@ export function CommerceDashboard() {
                       )}
                     </div>
                     <div className={styles.metricvalue}>
-                      {liveSaleor ? fmt(liveSaleor.orders) : fmt(currentAgg.orders)}
+                      {liveSaleor ? (
+                        fmt(liveSaleor.orders)
+                      ) : liveLoading ? (
+                        <span className={styles.skeletonPulse}>—</span>
+                      ) : (
+                        fmt(currentAgg.orders)
+                      )}
                     </div>
                     <div className={styles.metricfoot}>
                       {liveSaleor ? (
@@ -1058,6 +1124,8 @@ export function CommerceDashboard() {
                           </span>
                           <span>vs previous equal window ({fmt(liveSaleor.previousOrders)})</span>
                         </>
+                      ) : liveLoading ? (
+                        <span>Connecting live Saleor feed...</span>
                       ) : (
                         renderDelta(currentAgg.orders, priorAgg?.orders)
                       )}
