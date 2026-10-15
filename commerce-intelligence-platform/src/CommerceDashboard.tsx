@@ -189,7 +189,16 @@ export function CommerceDashboard() {
     setTimeout(() => setToastMessage(null), 4000)
   }
 
-  // Live Saleor Connection State
+  // Live Saleor & Macula Connection State
+  interface LiveOmsSummary {
+    live: boolean
+    orders: number
+    previousOrders: number
+    changePct: number
+    exceptions: number
+    todaySoFar: number
+    source: string
+  }
   interface LiveSaleorSummary {
     status: string
     live: boolean
@@ -204,6 +213,7 @@ export function CommerceDashboard() {
     changePct: number
     todaySoFar: number
     lastUpdated: string
+    oms?: LiveOmsSummary
   }
   const [liveSaleor, setLiveSaleor] = useState<LiveSaleorSummary | null>(null)
   const [liveLoading, setLiveLoading] = useState(false)
@@ -701,12 +711,34 @@ export function CommerceDashboard() {
                     </div>
                   </div>
                   <div className={`${styles.card} ${styles.metric}`}>
-                    <div className={styles.metriclabel}>Received in OMS</div>
+                    <div className={styles.metriclabel} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Received in OMS</span>
+                      {liveSaleor?.oms?.live ? (
+                        <span style={{ fontSize: '10px', background: '#e1f5ec', color: '#1a7f5a', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                          ● LIVE PROD
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '10px', background: '#f0f2f1', color: '#68726e', padding: '2px 6px', borderRadius: '4px' }}>
+                          {liveLoading ? 'LOADING...' : 'FIXTURE'}
+                        </span>
+                      )}
+                    </div>
                     <div className={styles.metricvalue}>
-                      {fmt(currentAgg.orders - Math.floor(currentAgg.orders * 0.02))}
+                      {liveSaleor?.oms?.live ? fmt(liveSaleor.oms.orders) : fmt(currentAgg.orders - Math.floor(currentAgg.orders * 0.02))}
                     </div>
                     <div className={styles.metricfoot}>
-                      {fmt(Math.floor(currentAgg.orders * 0.02))} sample handoff exceptions · reconcile IDs
+                      {liveSaleor?.oms?.live ? (
+                        <>
+                          <span className={`${styles.change} ${liveSaleor.oms.changePct < 0 ? styles.changeDown : ''}`}>
+                            {liveSaleor.oms.changePct > 0 ? '+' : ''}{liveSaleor.oms.changePct.toFixed(1)}%
+                          </span>
+                          <span>
+                            {liveSaleor.oms.exceptions === 0 ? '0 sync delay · 100% handoff match' : `${fmt(liveSaleor.oms.exceptions)} sync delay exceptions`}
+                          </span>
+                        </>
+                      ) : (
+                        `${fmt(Math.floor(currentAgg.orders * 0.02))} sample handoff exceptions · reconcile IDs`
+                      )}
                     </div>
                   </div>
                   <div className={`${styles.card} ${styles.metric}`}>

@@ -46,6 +46,8 @@ function loadEnvFile(envPath: string): Record<string, string> {
 // In-memory token and query cache
 let cachedToken: string | null = null
 let tokenExpiry = 0
+let cachedMaculaToken: string | null = null
+let maculaTokenExpiry = 0
 const queryCache = new Map<string, { time: number; data: unknown }>()
 const CACHE_TTL_MS = 60 * 1000
 
@@ -84,7 +86,7 @@ function saleorApiPlugin(): Plugin {
             return
           }
 
-          // Authenticate if token expired
+          // 1. Authenticate with Saleor if token expired
           if (!cachedToken || Date.now() > tokenExpiry) {
             const authRes = await fetch(graphqlUrl, {
               method: 'POST',
@@ -105,6 +107,34 @@ function saleorApiPlugin(): Plugin {
             tokenExpiry = Date.now() + 20 * 60 * 1000 // 20 mins
           }
 
+          // 2. Authenticate with Macula OMS if token expired
+          const maculaSecretsPath = path.resolve(import.meta.dirname, '../.secrets/macula.env')
+          const maculaEnv = loadEnvFile(maculaSecretsPath)
+          if (maculaEnv.MACULA_USERNAME && maculaEnv.MACULA_PASSWORD) {
+            if (!cachedMaculaToken || Date.now() > maculaTokenExpiry) {
+              try {
+                const maculaLoginRes = await fetch('https://macula-v2.magrabi.com/login', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'text/plain;charset=UTF-8',
+                    'Next-Action': '29b8e5cb66c119158096e1ad95d81e0ddb1c2d01',
+                    Accept: 'text/x-component',
+                    'User-Agent': 'Mozilla/5.0'
+                  },
+                  body: JSON.stringify([{ username: maculaEnv.MACULA_USERNAME, password: maculaEnv.MACULA_PASSWORD }])
+                })
+                const setCookie = maculaLoginRes.headers.get('set-cookie') || ''
+                const tokenMatch = setCookie.match(/token=([^;]+)/)
+                cachedMaculaToken = tokenMatch ? tokenMatch[1] : null
+                if (cachedMaculaToken) {
+                  maculaTokenExpiry = Date.now() + 20 * 60 * 1000
+                }
+              } catch (macErr) {
+                console.error('Macula login error:', macErr)
+              }
+            }
+          }
+
           const channelIds = getChannelIds(brand, country)
 
           // Compute UTC dates for Yesterday and Day Before
@@ -117,6 +147,7 @@ function saleorApiPlugin(): Plugin {
           const beforeStr = dayBefore.toISOString().split('T')[0]
           const todayStr = today.toISOString().split('T')[0]
 
+          // 3. Query Saleor
           const query = `
             query GetOrdersSummary($yest: DateRangeInput, $before: DateRangeInput, $today: DateRangeInput, $channels: [ID!]) {
               yesterday: orders(first: 1, filter: { created: $yest, channels: $channels }) {
@@ -158,10 +189,72 @@ function saleorApiPlugin(): Plugin {
             changePct = Math.round(((yestOrders - beforeOrders) / beforeOrders) * 1000) / 10
           }
 
+          // 4. Query Macula OMS
+          let omsOrders = 0
+          let omsPreviousOrders = 0
+          let omsTodaySoFar = 0
+          let omsLive = false
+
+          if (cachedMaculaToken) {
+            try {
+              const fromYest = `${yestStr}T00:00:00.000Z`
+              const toYest = `${yestStr}T23:59:59.999Z`
+              const fromBefore = `${beforeStr}T00:00:00.000Z`
+              const toBefore = `${beforeStr}T23:59:59.999Z`
+              const fromToday = `${todayStr}T00:00:00.000Z`
+              const toToday = `${todayStr}T23:59:59.999Z`
+
+              const [resYest, resBefore, resToday] = await Promise.all([
+                fetch('https://macula-api.magrabi.com/api/v1/order/search', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${cachedMaculaToken}`,
+                    'User-Agent': 'Mozilla/5.0'
+                  },
+                  body: JSON.stringify({ page: 1, limit: 1, fromDate: fromYest, toDate: toYest })
+                }).then((r) => (r.ok ? r.json() : null)).catch(() => null) as any,
+                fetch('https://macula-api.magrabi.com/api/v1/order/search', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${cachedMaculaToken}`,
+                    'User-Agent': 'Mozilla/5.0'
+                  },
+                  body: JSON.stringify({ page: 1, limit: 1, fromDate: fromBefore, toDate: toBefore })
+                }).then((r) => (r.ok ? r.json() : null)).catch(() => null) as any,
+                fetch('https://macula-api.magrabi.com/api/v1/order/search', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${cachedMaculaToken}`,
+                    'User-Agent': 'Mozilla/5.0'
+                  },
+                  body: JSON.stringify({ page: 1, limit: 1, fromDate: fromToday, toDate: toToday })
+                }).then((r) => (r.ok ? r.json() : null)).catch(() => null) as any,
+              ])
+
+              if (resYest && typeof resYest.totalElements === 'number') {
+                omsOrders = resYest.totalElements
+                omsPreviousOrders = resBefore?.totalElements ?? 0
+                omsTodaySoFar = resToday?.totalElements ?? 0
+                omsLive = true
+              }
+            } catch (omsErr) {
+              console.error('Macula search error:', omsErr)
+            }
+          }
+
+          let omsChangePct = 0
+          if (omsPreviousOrders > 0) {
+            omsChangePct = Math.round(((omsOrders - omsPreviousOrders) / omsPreviousOrders) * 1000) / 10
+          }
+          const syncExceptions = Math.max(0, yestOrders - omsOrders)
+
           const result = {
             status: 'OK',
             live: true,
-            source: 'Saleor Production (https://ecom-app-api.magrabi.com/graphql/)',
+            source: 'Saleor & Macula OMS Production',
             brand,
             country,
             channelsMatched: channelIds.length,
@@ -171,6 +264,15 @@ function saleorApiPlugin(): Plugin {
             previousOrders: beforeOrders,
             changePct,
             todaySoFar: todayOrders,
+            oms: {
+              live: omsLive,
+              orders: omsOrders,
+              previousOrders: omsPreviousOrders,
+              changePct: omsChangePct,
+              exceptions: syncExceptions,
+              todaySoFar: omsTodaySoFar,
+              source: 'Macula OMS Production (https://macula-api.magrabi.com/)'
+            },
             lastUpdated: new Date().toISOString()
           }
 
