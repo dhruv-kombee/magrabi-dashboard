@@ -29,6 +29,27 @@
   display: flex;
   flex-direction: column;
   z-index: 30;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  align-self: start;
+  flex-shrink: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
 }
 
 .brand {
@@ -731,6 +752,360 @@
   font-weight: 600;
   margin-top: 4px;
 }
+
+.currencyFilterPills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.currencyPill {
+  background: #f0f4f1;
+  border: 1px solid #dce4de;
+  color: #4a594f;
+  padding: 4px 11px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.currencyPill:hover {
+  background: #e4ebe6;
+  color: #202b24;
+  border-color: #c7d5cc;
+}
+
+.currencyPillActive {
+  background: #247a60 !important;
+  border-color: #247a60 !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(36, 122, 96, 0.2);
+}
+
+.currencyGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 6px;
+}
+
+@media (max-width: 1400px) {
+  .currencyGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .currencyGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .currencyGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.currencyCard {
+  background: #ffffff;
+  border: 1px solid #e1e7e4;
+  border-radius: 10px;
+  padding: 16px 18px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px rgba(18, 30, 22, 0.03);
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.currencyCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: transparent;
+  transition: background 0.2s ease;
+}
+
+.currencyCard:hover {
+  border-color: #b8c8be;
+  box-shadow: 0 6px 18px rgba(18, 30, 22, 0.08);
+  transform: translateY(-2px);
+}
+
+.currencyCard:hover::before {
+  background: #247a60;
+}
+
+.currencyCardActive {
+  border-color: #247a60 !important;
+  background: #fbfdfc;
+  box-shadow: 0 0 0 1px #247a60, 0 6px 18px rgba(36, 122, 96, 0.09) !important;
+}
+
+.currencyCardActive::before {
+  background: #247a60 !important;
+}
+
+.currencyCardTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.currencyCountry {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.countryFlagBadge {
+  display: inline-flex;
+  width: 25px;
+  height: 19px;
+  background: #edf2ee;
+  color: #3b5042;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  border: 1px solid #dae3dc;
+  flex-shrink: 0;
+}
+
+.countryName {
+  font-size: 11px;
+  font-weight: 600;
+  color: #4b5750;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.currencyBadge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #1a5e46;
+  background: #e6f3ec;
+  border: 1px solid #c9e5d6;
+  padding: 2px 7px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.currencyValueWrap {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-bottom: 14px;
+}
+
+.currencyCodePrefix {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6d7b72;
+}
+
+.currencyAmount {
+  font-size: 24px;
+  font-weight: 700;
+  color: #172a1e;
+  letter-spacing: -0.6px;
+  line-height: 1.1;
+}
+
+.currencyMetaRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #edf2ee;
+  margin-bottom: 10px;
+}
+
+.currencyStat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.currencyStatLabel {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #839187;
+  text-transform: uppercase;
+}
+
+.currencyStatValue {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2b3930;
+}
+
+.currencyShareBarWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.currencyShareHeader {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #6c7971;
+}
+
+.currencyShareHeader b {
+  color: #247a60;
+  font-weight: 600;
+}
+
+.currencyProgressTrack {
+  height: 4px;
+  background: #ebf0ec;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.currencyProgressFill {
+  height: 100%;
+  background: linear-gradient(90deg, #3aa37b 0%, #247a60 100%);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.currencyCardFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed #e9eeea;
+  font-size: 9.5px;
+  color: #7b887f;
+}
+
+.currencyNativeSymbol {
+  font-weight: 600;
+  color: #4f6356;
+}
+
+.currencyFilterNotice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f4f8f5;
+  border: 1px solid #dce8df;
+  padding: 8px 14px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 11px;
+  color: #3b4e42;
+}
+
+.currencyResetBtn {
+  background: none;
+  border: none;
+  color: #247a60;
+  font-weight: 600;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.methodCardsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.methodCard {
+  background: #fbfdfc;
+  border: 1px solid #e1e8e4;
+  border-radius: 9px;
+  padding: 13px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.methodCard:hover {
+  background: #ffffff;
+  border-color: #b8c8be;
+  box-shadow: 0 4px 12px rgba(18, 30, 22, 0.05);
+  transform: translateY(-1px);
+}
+
+.methodCardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.methodName {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2b3930;
+}
+
+.methodCount {
+  font-size: 18px;
+  font-weight: 700;
+  color: #172a1e;
+}
+
+.methodBarTrack {
+  height: 4px;
+  background: #ebf0ec;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.methodBarFill {
+  height: 100%;
+  background: linear-gradient(90deg, #3aa37b 0%, #247a60 100%);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.methodShareText {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  color: #6c7971;
+}
+
+.methodShareText b {
+  color: #247a60;
+  font-weight: 600;
+}
+
 
 .sourceStrip {
   display: flex;

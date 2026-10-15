@@ -423,7 +423,10 @@ function saleorApiPlugin(): Plugin {
             Cash: 0,
           }
 
-          if (cachedMaculaToken) {
+          const isFilteredSelection = brand !== 'all' || country !== 'all'
+          const noMaculaChannel = isFilteredSelection && maculaChannelGroups.length === 0
+
+          if (cachedMaculaToken && !noMaculaChannel) {
             try {
               const [resCurr, resPrior, resToday, resSample] = await Promise.all([
                 fetchMaculaCount(cachedMaculaToken, currFromIso, currToIso, maculaChannelGroups),
@@ -503,7 +506,8 @@ function saleorApiPlugin(): Plugin {
             gatewayCounts,
             methodCounts,
             oms: {
-              live: omsLive,
+              live: noMaculaChannel ? true : omsLive,
+              noChannel: noMaculaChannel,
               orders: omsOrders,
               previousOrders: omsPreviousOrders,
               changePct: omsChangePct,

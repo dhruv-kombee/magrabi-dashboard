@@ -151,10 +151,22 @@ const sourceCatalog = [
   },
 ]
 
+const currencyMetadata: Record<
+  string,
+  { symbol: string; countryCode: string; name: string; nativeSymbol: string }
+> = {
+  AED: { symbol: 'AED', countryCode: 'AE', name: 'UAE Dirham', nativeSymbol: 'د.إ' },
+  SAR: { symbol: 'SAR', countryCode: 'SA', name: 'Saudi Riyal', nativeSymbol: 'ر.س' },
+  EGP: { symbol: 'EGP', countryCode: 'EG', name: 'Egyptian Pound', nativeSymbol: 'ج.م' },
+  QAR: { symbol: 'QAR', countryCode: 'QA', name: 'Qatari Riyal', nativeSymbol: 'ر.ق' },
+  KWD: { symbol: 'KWD', countryCode: 'KW', name: 'Kuwaiti Dinar', nativeSymbol: 'د.ك' },
+}
+
 export function CommerceDashboard() {
   const [section, setSection] = useState<SectionKey>('overview')
   const [brand, setBrand] = useState<BrandFilter>('all')
   const [country, setCountry] = useState<CountryFilter>('all')
+  const [selectedRevenueCurrency, setSelectedRevenueCurrency] = useState<string>('all')
   const [start, setStart] = useState<number>(Date.parse('2026-10-07T20:00:00Z'))
   const [end, setEnd] = useState<number>(Date.parse('2026-10-14T20:00:00Z'))
   const [timezone, setTimezone] = useState<TimezoneKey>('Dubai')
@@ -201,6 +213,7 @@ export function CommerceDashboard() {
     exceptions: number
     todaySoFar: number
     source: string
+    noChannel?: boolean
   }
   interface LiveDailyPoint {
     date: string
@@ -326,6 +339,150 @@ export function CommerceDashboard() {
     if (start - duration < fixtureStart) return null
     return aggregate(filterRecords(fixtures, start - duration, start, brand, country))
   }, [start, end, brand, country])
+
+  const renderRevenueCurrencyCards = (showPills = true) => {
+    const displayedCountries = Object.entries(countries).filter(([c]) => {
+      if (country !== 'all') {
+        return c === country
+      }
+      if (selectedRevenueCurrency !== 'all') {
+        return countries[c].currency === selectedRevenueCurrency
+      }
+      return true
+    })
+
+    return (
+      <>
+        {showPills && (
+          <div className={styles.currencyFilterPills}>
+            <button
+              type="button"
+              className={`${styles.currencyPill} ${selectedRevenueCurrency === 'all' ? styles.currencyPillActive : ''}`}
+              onClick={() => setSelectedRevenueCurrency('all')}
+            >
+              All Currencies ({Object.keys(countries).length})
+            </button>
+            {Object.entries(countries).map(([code, c]) => (
+              <button
+                key={code}
+                type="button"
+                className={`${styles.currencyPill} ${selectedRevenueCurrency === c.currency ? styles.currencyPillActive : ''}`}
+                onClick={() => setSelectedRevenueCurrency((prev) => (prev === c.currency ? 'all' : c.currency))}
+              >
+                <span className={styles.countryFlagBadge} style={{ width: '18px', height: '14px', fontSize: '8px' }}>
+                  {code}
+                </span>
+                {c.currency} · {code}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {country !== 'all' && (
+          <div className={styles.currencyFilterNotice}>
+            <span>
+              Dashboard filtered by country: <strong>{countries[country]?.name || country}</strong> ({countries[country]?.currency})
+            </span>
+            <button
+              type="button"
+              className={styles.currencyResetBtn}
+              onClick={() => {
+                setCountry('all')
+                setSelectedRevenueCurrency('all')
+              }}
+            >
+              Show all 5 currencies
+            </button>
+          </div>
+        )}
+
+        <div className={styles.currencyGrid}>
+          {displayedCountries.map(([code, c]) => {
+            const countryRows = currentRecords.filter((r) => r.code === code)
+            const x = aggregate(countryRows)
+            const ordersCount = liveSaleor?.countryBreakdown
+              ? (liveSaleor.countryBreakdown[code] ?? 0)
+              : x.orders
+            const totalOrders = liveSaleor ? liveSaleor.orders : currentAgg.orders
+            const sharePct = totalOrders > 0 ? (ordersCount / totalOrders) * 100 : 0
+            const liveVal = liveSaleor?.revenueByCurrency?.[c.currency]
+            const rev =
+              liveVal !== undefined
+                ? Math.round(liveVal)
+                : Math.round(
+                    sum(
+                      countryRows,
+                      'revenue',
+                    ),
+                  )
+            const aov = ordersCount > 0 ? Math.round(rev / ordersCount) : 0
+            const meta = currencyMetadata[c.currency] || {
+              symbol: c.currency,
+              countryCode: code,
+              name: c.name,
+              nativeSymbol: c.currency,
+            }
+            const isSelected = selectedRevenueCurrency === c.currency || country === code
+
+            return (
+              <div
+                key={code}
+                className={`${styles.currencyCard} ${isSelected ? styles.currencyCardActive : ''}`}
+                onClick={() => {
+                  setSelectedRevenueCurrency((prev) => (prev === c.currency ? 'all' : c.currency))
+                }}
+                title={`Click to focus on ${c.currency} (${c.name})`}
+                role="button"
+                tabIndex={0}
+              >
+                <div className={styles.currencyCardTop}>
+                  <div className={styles.currencyCountry}>
+                    <span className={styles.countryFlagBadge}>{code}</span>
+                    <span className={styles.countryName}>{c.name}</span>
+                  </div>
+                  <span className={styles.currencyBadge}>{c.currency}</span>
+                </div>
+
+                <div className={styles.currencyValueWrap}>
+                  <span className={styles.currencyCodePrefix}>{c.currency}</span>
+                  <span className={styles.currencyAmount}>{fmt(rev)}</span>
+                </div>
+
+                <div className={styles.currencyMetaRow}>
+                  <div className={styles.currencyStat}>
+                    <span className={styles.currencyStatLabel}>Orders</span>
+                    <span className={styles.currencyStatValue}>{fmt(ordersCount)}</span>
+                  </div>
+                  <div className={styles.currencyStat}>
+                    <span className={styles.currencyStatLabel}>Avg Ticket (AOV)</span>
+                    <span className={styles.currencyStatValue}>{c.currency} {fmt(aov)}</span>
+                  </div>
+                </div>
+
+                <div className={styles.currencyShareBarWrap}>
+                  <div className={styles.currencyShareHeader}>
+                    <span>Order volume share</span>
+                    <b>{sharePct.toFixed(1)}%</b>
+                  </div>
+                  <div className={styles.currencyProgressTrack}>
+                    <div
+                      className={styles.currencyProgressFill}
+                      style={{ width: `${Math.min(100, Math.max(sharePct, 4))}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className={styles.currencyCardFooter}>
+                  <span className={styles.currencyNativeSymbol}>{meta.nativeSymbol} · {meta.name}</span>
+                  <span>{liveSaleor?.revenueByCurrency ? '● Live Saleor' : 'Sample Data'}</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </>
+    )
+  }
 
   const activeSectionMeta = sectionConfig.find((s) => s.key === section) || sectionConfig[0]
 
@@ -635,9 +792,15 @@ export function CommerceDashboard() {
             </span>
             <div className={styles.topright}>
               <span className={styles.tiny}>Commerce Platform · October 2026</span>
-              <span className={`${styles.badge} ${styles.badgeDemo}`}>
-                <span className={styles.dot}></span> DEMO · SAMPLE DATA · NOT LIVE
-              </span>
+              {liveSaleor ? (
+                <span className={`${styles.badge} ${styles.badgeLive}`}>
+                  <span className={styles.dot}></span> ● LIVE PRODUCTION DATA
+                </span>
+              ) : (
+                <span className={`${styles.badge} ${styles.badgeDemo}`}>
+                  <span className={styles.dot}></span> DEMO · SAMPLE DATA · NOT LIVE
+                </span>
+              )}
             </div>
           </header>
 
@@ -651,7 +814,7 @@ export function CommerceDashboard() {
               </div>
               <div className={styles.pills}>
                 <button type="button" className={styles.btn} onClick={exportCSV}>
-                  Export sample CSV
+                  {liveSaleor ? 'Export live CSV' : 'Export sample CSV'}
                 </button>
               </div>
             </div>
@@ -811,14 +974,20 @@ export function CommerceDashboard() {
                     </div>
                     <div className={styles.metricfoot}>
                       {liveSaleor?.oms?.live ? (
-                        <>
-                          <span className={`${styles.change} ${liveSaleor.oms.changePct < 0 ? styles.changeDown : ''}`}>
-                            {liveSaleor.oms.changePct > 0 ? '+' : ''}{liveSaleor.oms.changePct.toFixed(1)}%
+                        liveSaleor.oms.noChannel ? (
+                          <span style={{ color: '#8c6a34' }}>
+                            Channel unmapped in OMS · {fmt(liveSaleor.orders)} orders unrouted
                           </span>
-                          <span>
-                            {liveSaleor.oms.exceptions === 0 ? '0 sync delay · 100% handoff match' : `${fmt(liveSaleor.oms.exceptions)} sync delay exceptions`}
-                          </span>
-                        </>
+                        ) : (
+                          <>
+                            <span className={`${styles.change} ${liveSaleor.oms.changePct < 0 ? styles.changeDown : ''}`}>
+                              {liveSaleor.oms.changePct > 0 ? '+' : ''}{liveSaleor.oms.changePct.toFixed(1)}%
+                            </span>
+                            <span>
+                              {liveSaleor.oms.exceptions === 0 ? '0 sync delay · 100% handoff match' : `${fmt(liveSaleor.oms.exceptions)} sync delay exceptions`}
+                            </span>
+                          </>
+                        )
                       ) : liveLoading ? (
                         <span>Connecting live Macula OMS feed...</span>
                       ) : (
@@ -1188,28 +1357,7 @@ export function CommerceDashboard() {
                     )}
                   </div>
                   <div className={styles.cardbody}>
-                    <div className={styles.amounts}>
-                      {Object.entries(countries)
-                        .filter(([c]) => country === 'all' || c === country)
-                        .map(([code, c]) => {
-                          const liveVal = liveSaleor?.revenueByCurrency?.[c.currency]
-                          const rev =
-                            liveVal !== undefined
-                              ? Math.round(liveVal)
-                              : Math.round(
-                                  sum(
-                                    currentRecords.filter((r) => r.code === code),
-                                    'revenue',
-                                  ),
-                                )
-                          return (
-                            <span key={code}>
-                              {c.currency}
-                              <b>{fmt(rev)}</b>
-                            </span>
-                          )
-                        })}
-                    </div>
+                    {renderRevenueCurrencyCards(true)}
                   </div>
                 </div>
               </>
@@ -1377,83 +1525,108 @@ export function CommerceDashboard() {
                   </div>
                 </article>
 
-                <div className={styles.gridHalf}>
-                  <article className={styles.card}>
-                    <div className={styles.cardhead}>
-                      <h2>Payment method-wise orders</h2>
-                      {liveSaleor?.methodCounts ? (
-                        <span className={`${styles.badge} ${styles.badgeLive}`}>● LIVE PROD</span>
-                      ) : (
-                        <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
-                      )}
+                <article className={`${styles.card} ${styles.spacer}`}>
+                  <div className={styles.cardhead} style={{ paddingBottom: '16px' }}>
+                    <div>
+                      <h2>Payment method-wise distribution</h2>
+                      <p>
+                        {liveSaleor?.methodCounts
+                          ? 'Derived from live OMS order payment backend and type attributes · Apple Pay and KNET are methods; Checkout.com and Paymob are gateways.'
+                          : 'Apple Pay and KNET are methods; Checkout.com and Paymob are gateways.'}
+                      </p>
                     </div>
-                    <div className={styles.cardbody}>
+                    {liveSaleor?.methodCounts ? (
+                      <span className={`${styles.badge} ${styles.badgeLive}`}>● LIVE PROD</span>
+                    ) : (
+                      <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
+                    )}
+                  </div>
+                  <div className={styles.cardbody}>
+                    <div className={styles.methodCardsGrid}>
                       {liveSaleor?.methodCounts ? (
-                        Object.entries(liveSaleor.methodCounts).map(([m, count]) => (
-                          <div key={m} className={styles.minirow}>
-                            <span>{m}</span>
-                            <b>{fmt(count)}</b>
-                          </div>
-                        ))
+                        Object.entries(liveSaleor.methodCounts).map(([m, count]) => {
+                          const totalMethods =
+                            Object.values(liveSaleor.methodCounts || {}).reduce((a, b) => a + b, 0) || 1
+                          const share = ((count / totalMethods) * 100).toFixed(1)
+                          return (
+                            <div key={m} className={styles.methodCard}>
+                              <div className={styles.methodCardHead}>
+                                <span className={styles.methodName}>{m}</span>
+                                <span className={styles.methodCount}>{fmt(count)}</span>
+                              </div>
+                              <div className={styles.methodBarTrack}>
+                                <div
+                                  className={styles.methodBarFill}
+                                  style={{ width: `${Math.min(100, Math.max(parseFloat(share), 4))}%` }}
+                                />
+                              </div>
+                              <div className={styles.methodShareText}>
+                                <span>Volume share</span>
+                                <b>{share}%</b>
+                              </div>
+                            </div>
+                          )
+                        })
                       ) : (
                         ['Card', 'Apple Pay', 'KNET', 'Tabby', 'Tamara', 'Cash'].map((m, i) => {
                           const onlineNums = split(currentAgg.orders - currentAgg.cash, [37, 23, 10, 15, 15])
                           const val = i === 5 ? currentAgg.cash : onlineNums[i]
+                          const total = currentAgg.orders || 1
+                          const share = ((val / total) * 100).toFixed(1)
                           return (
-                            <div key={m} className={styles.minirow}>
-                              <span>{m}</span>
-                              <b>{fmt(val)}</b>
+                            <div key={m} className={styles.methodCard}>
+                              <div className={styles.methodCardHead}>
+                                <span className={styles.methodName}>{m}</span>
+                                <span className={styles.methodCount}>{fmt(val)}</span>
+                              </div>
+                              <div className={styles.methodBarTrack}>
+                                <div
+                                  className={styles.methodBarFill}
+                                  style={{ width: `${Math.min(100, Math.max(parseFloat(share), 4))}%` }}
+                                />
+                              </div>
+                              <div className={styles.methodShareText}>
+                                <span>Volume share</span>
+                                <b>{share}%</b>
+                              </div>
                             </div>
                           )
                         })
                       )}
-                      <div className={styles.definition}>
-                        {liveSaleor?.methodCounts
-                          ? 'Derived from live OMS order payment backend and type attributes.'
-                          : 'Apple Pay and KNET are methods; Checkout.com and Paymob are gateways.'}
-                      </div>
                     </div>
-                  </article>
+                    <div className={styles.definition}>
+                      {liveSaleor?.methodCounts
+                        ? 'Extracted directly from Macula OMS payment attributes and gateway authorization responses.'
+                        : 'Apple Pay and KNET are methods; Checkout.com and Paymob are gateways.'}
+                    </div>
+                  </div>
+                </article>
 
-                  <article className={styles.card}>
-                    <div className={styles.cardhead}>
-                      <h2>Revenue & comparison rules</h2>
-                      {liveSaleor?.revenueByCurrency ? (
-                        <span className={`${styles.badge} ${styles.badgeLive}`}>● LIVE PROD</span>
-                      ) : (
-                        <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
-                      )}
+                {/* Revenue Card - Full width likewise to Overview */}
+                <article className={styles.card} style={{ marginTop: '20px' }}>
+                  <div className={styles.sourceStrip}>
+                    <div>
+                      <strong>Revenue stays in its original currency</strong>
+                      <p>
+                        {liveSaleor?.revenueByCurrency
+                          ? 'Gross order value directly from Saleor live orders · no FX conversion'
+                          : 'Illustrative gross order value · no FX conversion or cross-currency total'}
+                      </p>
                     </div>
-                    <div className={styles.cardbody}>
-                      <div className={styles.amounts}>
-                        {Object.entries(countries)
-                          .filter(([c]) => country === 'all' || c === country)
-                          .map(([code, c]) => {
-                            const liveVal = liveSaleor?.revenueByCurrency?.[c.currency]
-                            const rev =
-                              liveVal !== undefined
-                                ? Math.round(liveVal)
-                                : Math.round(
-                                    sum(
-                                      currentRecords.filter((r) => r.code === code),
-                                      'revenue',
-                                    ),
-                                  )
-                            return (
-                              <span key={code}>
-                                {c.currency}
-                                <b>{fmt(rev)}</b>
-                              </span>
-                            )
-                          })}
-                      </div>
-                      <div className={styles.definition} style={{ marginTop: '15px' }}>
-                        No mixed-currency sum. Production definitions must agree gross/net,
-                        cancellations, refunds, and order states.
-                      </div>
+                    {liveSaleor?.revenueByCurrency ? (
+                      <span className={`${styles.badge} ${styles.badgeLive}`}>● LIVE PROD</span>
+                    ) : (
+                      <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
+                    )}
+                  </div>
+                  <div className={styles.cardbody}>
+                    {renderRevenueCurrencyCards(true)}
+                    <div className={styles.definition} style={{ marginTop: '16px' }}>
+                      No mixed-currency sum. Production definitions must agree gross/net,
+                      cancellations, refunds, and order states.
                     </div>
-                  </article>
-                </div>
+                  </div>
+                </article>
               </>
             )}
 
