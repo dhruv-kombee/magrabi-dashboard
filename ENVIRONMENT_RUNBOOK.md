@@ -11,11 +11,14 @@ Living architectural and environmental record of the Magrabi Deployment Portal i
 
 ## 1. System Overview & Core Architecture
 
-- **Project Name**: Magrabi Deployment Portal (extending with Commerce Intelligence)
-- **Purpose**: Unified orchestrator and governance portal for automating application deployments, tracking pipeline releases, managing environment configurations, and hosting the Commerce Intelligence analytics dashboard for Magrabi and DoctorM retail brands.
+- **Project Name**: Magrabi Dashboard & Commerce Intelligence Workspace
+- **Purpose**: Unified monorepo housing two decoupled, independently runnable applications:
+  1. **Magrabi Deployment Portal** (`magrabi-deploy-portal/`): Automated release orchestrator, deployment verification, and ADO pipeline management.
+  2. **Commerce Intelligence Platform** (`commerce-intelligence-platform/`): Dedicated real-time monitoring and analytics web application for Magrabi and DoctorM commerce operations.
 - **Topology**:
-  - **Portal Frontend**: React 19 + TypeScript + Vite single-page application serving operational deployment tools, live monitoring insights, and Commerce Intelligence dashboards.
-  - **Backend Orchestrator / API Service**: Flask application (`backend/app.py`) serving deployment workflows, Traffic Counts API, and Commerce Intelligence query endpoints.
+  - **Commerce Intelligence Frontend**: Dedicated standalone React 19 + TypeScript + Vite application running on port `5174`, completely isolated from deployment management.
+  - **Deployment Portal Frontend**: React 19 + TypeScript + Vite single-page application (`magrabi-deploy-portal/frontend`) running on port `5173`.
+  - **Backend Orchestrator / API Service**: Flask application (`magrabi-deploy-portal/backend/app.py`) running on port `5151` for deployment workflows and Traffic Counts API.
   - **Monitoring Subsystem**: Separate containerized service (`observability/magrabi-monitoring-sit`) deployed via ADO pipeline 165, served under `/monitoring`, `/monitoring-assets`, and `/api/monitoring/v1`.
 - **Last Verified**: 2026-10-15 | Confidence: VERIFIED: LIVE
 
