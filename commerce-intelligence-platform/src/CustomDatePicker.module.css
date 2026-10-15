@@ -1,0 +1,384 @@
+.container {
+  position: relative;
+  width: 100%;
+}
+
+.label {
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.6px;
+  color: #68726b;
+  display: block;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.trigger {
+  height: 36px;
+  width: 100%;
+  border: 1px solid #dde3de;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #354039;
+  padding: 0 10px;
+  font-size: 11.5px;
+  font-weight: 550;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.trigger:hover {
+  border-color: #247a60;
+  background: #fafcfa;
+}
+
+.triggerActive {
+  border-color: #247a60;
+  box-shadow: 0 0 0 3px rgba(36, 122, 96, 0.12);
+  background: #ffffff;
+}
+
+.triggerContent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.triggerIcon {
+  color: #617067;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.chevron {
+  color: #8b9690;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+/* POPOVER */
+.popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  z-index: 1000;
+  width: 320px;
+  background: #ffffff;
+  border: 1px solid #dce4de;
+  border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(16, 32, 19, 0.12), 0 3px 8px rgba(16, 32, 19, 0.04);
+  padding: 14px;
+  box-sizing: border-box;
+  user-select: none;
+  animation: fadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.popoverLeft {
+  left: 0;
+}
+
+.popoverRight {
+  right: 0;
+}
+
+/* PRESETS */
+.presetsRow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f0f4f1;
+}
+
+.presetLabel {
+  font-size: 9px;
+  font-weight: 700;
+  color: #8a948e;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-right: 2px;
+}
+
+.presetBtn {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: #f4f6f4;
+  color: #3b4540;
+  border: 1px solid #e1e7e3;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.presetBtn:hover {
+  background: #e9f5ee;
+  color: #247a60;
+  border-color: #247a60;
+}
+
+.presetBtnActive {
+  background: #247a60 !important;
+  color: #ffffff !important;
+  border-color: #247a60 !important;
+}
+
+/* HEADER */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.navBtn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid #e1e7e3;
+  background: #ffffff;
+  color: #3b4540;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.navBtn:hover {
+  background: #f0f4f1;
+  border-color: #ccd5cf;
+}
+
+.monthTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: #202323;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* WEEKDAYS */
+.weekdaysGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.weekday {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #8e9a93;
+  padding: 4px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+/* DAYS GRID */
+.daysGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  margin-bottom: 12px;
+}
+
+.dayBtn {
+  height: 32px;
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #202323;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.dayBtn:hover:not(.dayBtnDisabled):not(.dayBtnSelected) {
+  background: #e9f5ee;
+  color: #247a60;
+  border-color: #c4ded4;
+}
+
+.dayBtnOutside {
+  color: #b8c0bb;
+  font-weight: 400;
+}
+
+.dayBtnSelected {
+  background: #247a60 !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  border-color: #247a60 !important;
+  box-shadow: 0 2px 4px rgba(36, 122, 96, 0.3);
+}
+
+.dayBtnToday:not(.dayBtnSelected) {
+  font-weight: 700;
+  color: #247a60;
+  border-color: #c4ded4;
+  background: #f4f8f5;
+}
+
+.dayBtnDisabled {
+  color: #d8dedb !important;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* TIME SECTION */
+.timeSection {
+  border-top: 1px solid #f0f4f1;
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.timeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.timeLabel {
+  font-size: 10px;
+  font-weight: 700;
+  color: #68726b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.timeSelectGroup {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.timeSelect {
+  height: 28px;
+  border: 1px solid #dde3de;
+  border-radius: 5px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #ffffff;
+  color: #202323;
+  cursor: pointer;
+  outline: none;
+}
+
+.timeSelect:focus {
+  border-color: #247a60;
+}
+
+.timeColon {
+  font-weight: 700;
+  color: #68726b;
+  font-size: 12px;
+}
+
+.timeChips {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  justify-content: flex-end;
+}
+
+.timeChip {
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 3px 6px;
+  border-radius: 4px;
+  border: 1px solid #dde3de;
+  background: #f8faf8;
+  color: #536057;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.timeChip:hover {
+  background: #e9f5ee;
+  color: #247a60;
+  border-color: #247a60;
+}
+
+.timeChipActive {
+  background: #247a60;
+  color: #ffffff;
+  border-color: #247a60;
+}
+
+/* FOOTER */
+.footer {
+  border-top: 1px solid #f0f4f1;
+  margin-top: 10px;
+  padding-top: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.footerNote {
+  font-size: 9.5px;
+  color: #8a948e;
+}
+
+.footerActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.doneBtn {
+  background: #29372e;
+  color: #ffffff;
+  border: none;
+  border-radius: 5px;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.doneBtn:hover {
+  background: #3c5043;
+}
