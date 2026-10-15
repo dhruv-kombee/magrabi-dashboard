@@ -54,7 +54,7 @@ Living architectural and environmental record of the Magrabi Deployment Portal i
 
 - **Main Deployment Portal Release**:
   - Documented existing release path is manual ACR build (`crmepucommonuaenorth001`) and targeted `kubectl set image`.
-  - Canonical repository remote for main portal is pending confirmation with Sanskar Gupta.
+  - Active GitHub repository remote: `https://github.com/dhruv-kombee/magrabi-dashboard.git` (branch `main`). Formal upstream baseline confirmation with Sanskar Gupta remains pending.
   - Dedicated test pipeline must be created in Azure DevOps for Commerce Intelligence test releases; do not deploy unreviewed builds to production.
 - **Monitoring Component Release**:
   - ADO Pipeline ID: `165` (`magrabi-observability`)
