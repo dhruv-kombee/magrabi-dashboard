@@ -152,8 +152,38 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
   }
 
   const handleTimeChange = (hour: number, minute: number) => {
-    const newStr = `${selected.year}-${pad(selected.month + 1)}-${pad(selected.day)}T${pad(hour)}:${pad(minute)}`
+    const clampedH = Math.max(0, Math.min(23, hour))
+    const clampedM = Math.max(0, Math.min(59, minute))
+    const newStr = `${selected.year}-${pad(selected.month + 1)}-${pad(selected.day)}T${pad(clampedH)}:${pad(clampedM)}`
     onChange(newStr)
+  }
+
+  const handleIncrementHour = () => {
+    handleTimeChange((selected.hour + 1) % 24, selected.minute)
+  }
+
+  const handleDecrementHour = () => {
+    handleTimeChange((selected.hour - 1 + 24) % 24, selected.minute)
+  }
+
+  const handleIncrementMinute = () => {
+    let next = 0
+    if (selected.minute < 15) next = 15
+    else if (selected.minute < 30) next = 30
+    else if (selected.minute < 45) next = 45
+    else if (selected.minute < 59) next = 59
+    else next = 0
+    handleTimeChange(selected.hour, next)
+  }
+
+  const handleDecrementMinute = () => {
+    let next = 59
+    if (selected.minute > 45) next = 45
+    else if (selected.minute > 30) next = 30
+    else if (selected.minute > 15) next = 15
+    else if (selected.minute > 0) next = 0
+    else next = 59
+    handleTimeChange(selected.hour, next)
   }
 
   const handlePresetSelect = (dateStr: string) => {
@@ -208,6 +238,16 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
           { label: '15 Oct (Start)', value: '2026-10-15T00:00' },
           { label: '15 Oct (End)', value: '2026-10-15T23:59' },
         ]
+
+  // Time preset buttons
+  const timePresets = [
+    { label: '00:00 (Start)', h: 0, m: 0 },
+    { label: '09:00 (Morning)', h: 9, m: 0 },
+    { label: '12:00 (Noon)', h: 12, m: 0 },
+    { label: '15:00 (Afternoon)', h: 15, m: 0 },
+    { label: '18:00 (Evening)', h: 18, m: 0 },
+    { label: '23:59 (End of day)', h: 23, m: 59 },
+  ]
 
   return (
     <div className={styles.container} ref={containerRef}>
@@ -284,7 +324,9 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
               title="Previous Month"
               aria-label="Previous Month"
             >
-              ‹
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
             </button>
             <div className={styles.monthTitle}>
               {MONTH_NAMES[viewMonth]} {viewYear}
@@ -296,7 +338,9 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
               title="Next Month"
               aria-label="Next Month"
             >
-              ›
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
             </button>
           </div>
 
@@ -339,77 +383,94 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
             })}
           </div>
 
-          {/* Time Picker Row */}
-          <div className={styles.timeSection}>
-            <div className={styles.timeRow}>
-              <span className={styles.timeLabel}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          {/* Luxury Time Section */}
+          <div className={styles.timeCard}>
+            <div className={styles.timeCardHeader}>
+              <span className={styles.timeCardLabel}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
                   <circle cx="12" cy="12" r="10" />
                   <polyline points="12 6 12 12 16 14" />
                 </svg>
-                Time:
+                Time Selection
               </span>
-              <div className={styles.timeSelectGroup}>
-                <select
-                  className={styles.timeSelect}
-                  value={selected.hour}
-                  onChange={(e) => handleTimeChange(Number(e.target.value), selected.minute)}
-                >
-                  {Array.from({ length: 24 }).map((_, h) => (
-                    <option key={h} value={h}>
-                      {pad(h)}:00
-                    </option>
-                  ))}
-                </select>
-                <span className={styles.timeColon}>:</span>
-                <select
-                  className={styles.timeSelect}
-                  value={selected.minute}
-                  onChange={(e) => handleTimeChange(selected.hour, Number(e.target.value))}
-                >
-                  {[0, 15, 30, 45, 59].map((m) => (
-                    <option key={m} value={m}>
-                      {pad(m)}
-                    </option>
-                  ))}
-                </select>
+
+              {/* Digital Clock Stepper */}
+              <div className={styles.digitalClock}>
+                <div className={styles.stepperUnit}>
+                  <span className={styles.timeDisplay}>{pad(selected.hour)}</span>
+                  <div className={styles.stepperActions}>
+                    <button
+                      type="button"
+                      className={styles.stepperBtn}
+                      onClick={handleIncrementHour}
+                      title="Next Hour"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.stepperBtn}
+                      onClick={handleDecrementHour}
+                      title="Previous Hour"
+                    >
+                      ▼
+                    </button>
+                  </div>
+                </div>
+                <span className={styles.clockColon}>:</span>
+                <div className={styles.stepperUnit}>
+                  <span className={styles.timeDisplay}>{pad(selected.minute)}</span>
+                  <div className={styles.stepperActions}>
+                    <button
+                      type="button"
+                      className={styles.stepperBtn}
+                      onClick={handleIncrementMinute}
+                      title="Next 15m"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.stepperBtn}
+                      onClick={handleDecrementMinute}
+                      title="Previous 15m"
+                    >
+                      ▼
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Quick Time Shortcuts */}
-            <div className={styles.timeChips}>
-              <button
-                type="button"
-                className={`${styles.timeChip} ${selected.hour === 0 && selected.minute === 0 ? styles.timeChipActive : ''}`}
-                onClick={() => handleTimeChange(0, 0)}
-              >
-                00:00 (Start)
-              </button>
-              <button
-                type="button"
-                className={`${styles.timeChip} ${selected.hour === 12 && selected.minute === 0 ? styles.timeChipActive : ''}`}
-                onClick={() => handleTimeChange(12, 0)}
-              >
-                12:00 (Noon)
-              </button>
-              <button
-                type="button"
-                className={`${styles.timeChip} ${selected.hour === 23 && selected.minute === 59 ? styles.timeChipActive : ''}`}
-                onClick={() => handleTimeChange(23, 59)}
-              >
-                23:59 (End)
-              </button>
+            {/* Quick Time Chips */}
+            <div className={styles.timeChipsGrid}>
+              {timePresets.map((tp) => {
+                const isChipActive = selected.hour === tp.h && selected.minute === tp.m
+                return (
+                  <button
+                    key={tp.label}
+                    type="button"
+                    className={`${styles.timeChip} ${isChipActive ? styles.timeChipActive : ''}`}
+                    onClick={() => handleTimeChange(tp.h, tp.m)}
+                  >
+                    {tp.label}
+                  </button>
+                )
+              })}
             </div>
           </div>
 
-          {/* Footer with Done button */}
+          {/* Footer with Summary and Done button */}
           <div className={styles.footer}>
-            <span className={styles.footerNote}>Click date to select</span>
-            <div className={styles.footerActions}>
-              <button type="button" className={styles.doneBtn} onClick={() => setIsOpen(false)}>
-                Done
-              </button>
+            <div className={styles.selectedSummary}>
+              <span>Selected:</span>
+              <span className={styles.selectedBadge}>
+                {pad(selected.day)} {MONTH_SHORT[selected.month]} · {pad(selected.hour)}:{pad(selected.minute)}
+              </span>
             </div>
+            <button type="button" className={styles.doneBtn} onClick={() => setIsOpen(false)}>
+              Done
+            </button>
           </div>
         </div>
       )}
