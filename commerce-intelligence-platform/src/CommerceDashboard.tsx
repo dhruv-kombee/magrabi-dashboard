@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import type {
   BrandFilter,
   CountryFilter,
@@ -187,6 +187,58 @@ export function CommerceDashboard() {
     setToastMessage(msg)
     setTimeout(() => setToastMessage(null), 4000)
   }
+
+  // Live Saleor Connection State
+  interface LiveSaleorSummary {
+    status: string
+    live: boolean
+    source: string
+    brand: string
+    country: string
+    channelsMatched: number
+    period: string
+    date: string
+    orders: number
+    previousOrders: number
+    changePct: number
+    todaySoFar: number
+    lastUpdated: string
+  }
+  const [liveSaleor, setLiveSaleor] = useState<LiveSaleorSummary | null>(null)
+  const [liveLoading, setLiveLoading] = useState(false)
+  const [, setLiveError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let isMounted = true
+    setLiveLoading(true)
+    fetch(`/api/commerce/orders/summary?brand=${brand}&country=${country}`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json()
+      })
+      .then((data) => {
+        if (isMounted) {
+          if (data.status === 'OK' && data.live) {
+            setLiveSaleor(data)
+            setLiveError(null)
+          } else {
+            setLiveError(data.error || 'Failed to load live data')
+          }
+        }
+      })
+      .catch((err) => {
+        if (isMounted) {
+          setLiveError(err.message)
+        }
+      })
+      .finally(() => {
+        if (isMounted) setLiveLoading(false)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [brand, country])
 
   // Current Records
   const currentRecords = useMemo(
@@ -604,7 +656,15 @@ export function CommerceDashboard() {
                 · {formatTime(start, timezone)} → {formatTime(end, timezone)} {timezone}
               </span>
               <span>
-                Fixed fixtures: 01 Sep–14 Oct 2026 UTC · <strong>No live refresh</strong>
+                {liveSaleor ? (
+                  <span style={{ color: '#186348' }}>
+                    🟢 <strong>Live Saleor Connected</strong> ({liveSaleor.source}) · Orders refreshed {new Date(liveSaleor.lastUpdated).toLocaleTimeString()}
+                  </span>
+                ) : (
+                  <span>
+                    Fixed fixtures: 01 Sep–14 Oct 2026 UTC · <strong>No live refresh</strong>
+                  </span>
+                )}
               </span>
             </div>
 
@@ -615,10 +675,32 @@ export function CommerceDashboard() {
               <>
                 <div className={styles.metrics}>
                   <div className={`${styles.card} ${styles.metric}`}>
-                    <div className={styles.metriclabel}>Orders placed · Saleor</div>
-                    <div className={styles.metricvalue}>{fmt(currentAgg.orders)}</div>
+                    <div className={styles.metriclabel} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Orders placed · Saleor</span>
+                      {liveSaleor ? (
+                        <span style={{ fontSize: '10px', background: '#e1f5ec', color: '#1a7f5a', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                          ● LIVE PROD
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '10px', background: '#f0f2f1', color: '#68726e', padding: '2px 6px', borderRadius: '4px' }}>
+                          {liveLoading ? 'LOADING...' : 'FIXTURE'}
+                        </span>
+                      )}
+                    </div>
+                    <div className={styles.metricvalue}>
+                      {liveSaleor ? fmt(liveSaleor.orders) : fmt(currentAgg.orders)}
+                    </div>
                     <div className={styles.metricfoot}>
-                      {renderDelta(currentAgg.orders, priorAgg?.orders)}
+                      {liveSaleor ? (
+                        <>
+                          <span className={`${styles.change} ${liveSaleor.changePct < 0 ? styles.changeDown : ''}`}>
+                            {liveSaleor.changePct > 0 ? '+' : ''}{liveSaleor.changePct.toFixed(1)}%
+                          </span>
+                          <span>vs prior day ({fmt(liveSaleor.previousOrders)}) · {fmt(liveSaleor.todaySoFar)} today</span>
+                        </>
+                      ) : (
+                        renderDelta(currentAgg.orders, priorAgg?.orders)
+                      )}
                     </div>
                   </div>
                   <div className={`${styles.card} ${styles.metric}`}>
