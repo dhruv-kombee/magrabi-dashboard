@@ -222,7 +222,7 @@ export function CommerceDashboard() {
   useEffect(() => {
     let isMounted = true
     setLiveLoading(true)
-    fetch(`/api/commerce/orders/summary?brand=${brand}&country=${country}`)
+    fetch(`/api/commerce/orders/summary?brand=${brand}&country=${country}&start=${start}&end=${end}&tz=${timezone}`)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
@@ -249,7 +249,7 @@ export function CommerceDashboard() {
     return () => {
       isMounted = false
     }
-  }, [brand, country])
+  }, [brand, country, start, end, timezone])
 
   // Current Records
   const currentRecords = useMemo(
@@ -279,12 +279,12 @@ export function CommerceDashboard() {
     }
     if (s < fixtureStart || eTime > fixtureEnd) {
       setFilterError(
-        'This demonstration contains fixtures from 01 Sep 2026 to 15 Oct 2026 UTC. Choose a range inside those bounds.',
+        'Selected range is outside supported dates (01 Sep 2026 to 31 Oct 2026 UTC).',
       )
       return
     }
-    if (eTime - s > 31 * 86400000) {
-      setFilterError('Choose up to 31 days for this demonstration.')
+    if (eTime - s > 62 * 86400000) {
+      setFilterError('Choose up to 62 days for this reporting view.')
       return
     }
 
@@ -294,7 +294,7 @@ export function CommerceDashboard() {
     setBrand(formBrand)
     setCountry(formCountry)
     setTimezone(formTz)
-    showToast('Filters applied to synthetic fixtures. No live source was queried.')
+    showToast('Filters applied · querying live Saleor & Macula OMS data...')
   }
 
   const handleFilterReset = () => {
@@ -665,11 +665,11 @@ export function CommerceDashboard() {
               <span>
                 {liveSaleor ? (
                   <span style={{ color: '#186348' }}>
-                    🟢 <strong>Live Saleor Connected</strong> ({liveSaleor.source}) · Orders refreshed {new Date(liveSaleor.lastUpdated).toLocaleTimeString()}
+                    🟢 <strong>Live Saleor & Macula OMS Connected</strong> ({liveSaleor.period}) · Refreshed {new Date(liveSaleor.lastUpdated).toLocaleTimeString()}
                   </span>
                 ) : (
                   <span>
-                    Fixed fixtures: 01 Sep–14 Oct 2026 UTC · <strong>No live refresh</strong>
+                    Fixed fixtures: 01 Sep–31 Oct 2026 UTC · <strong>{liveLoading ? 'Refreshing live feed...' : 'No live refresh'}</strong>
                   </span>
                 )}
               </span>
@@ -703,7 +703,7 @@ export function CommerceDashboard() {
                           <span className={`${styles.change} ${liveSaleor.changePct < 0 ? styles.changeDown : ''}`}>
                             {liveSaleor.changePct > 0 ? '+' : ''}{liveSaleor.changePct.toFixed(1)}%
                           </span>
-                          <span>vs prior day ({fmt(liveSaleor.previousOrders)}) · {fmt(liveSaleor.todaySoFar)} today</span>
+                          <span>vs previous equal window ({fmt(liveSaleor.previousOrders)}) · {fmt(liveSaleor.todaySoFar)} today</span>
                         </>
                       ) : (
                         renderDelta(currentAgg.orders, priorAgg?.orders)
@@ -1035,10 +1035,32 @@ export function CommerceDashboard() {
               <>
                 <div className={styles.metrics}>
                   <div className={`${styles.card} ${styles.metric}`}>
-                    <div className={styles.metriclabel}>Confirmed orders</div>
-                    <div className={styles.metricvalue}>{fmt(currentAgg.orders)}</div>
+                    <div className={styles.metriclabel} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Confirmed orders</span>
+                      {liveSaleor ? (
+                        <span style={{ fontSize: '10px', background: '#e1f5ec', color: '#1a7f5a', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                          ● LIVE PROD
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '10px', background: '#f0f2f1', color: '#68726e', padding: '2px 6px', borderRadius: '4px' }}>
+                          {liveLoading ? 'LOADING...' : 'FIXTURE'}
+                        </span>
+                      )}
+                    </div>
+                    <div className={styles.metricvalue}>
+                      {liveSaleor ? fmt(liveSaleor.orders) : fmt(currentAgg.orders)}
+                    </div>
                     <div className={styles.metricfoot}>
-                      {renderDelta(currentAgg.orders, priorAgg?.orders)}
+                      {liveSaleor ? (
+                        <>
+                          <span className={`${styles.change} ${liveSaleor.changePct < 0 ? styles.changeDown : ''}`}>
+                            {liveSaleor.changePct > 0 ? '+' : ''}{liveSaleor.changePct.toFixed(1)}%
+                          </span>
+                          <span>vs previous equal window ({fmt(liveSaleor.previousOrders)})</span>
+                        </>
+                      ) : (
+                        renderDelta(currentAgg.orders, priorAgg?.orders)
+                      )}
                     </div>
                   </div>
                   <div className={`${styles.card} ${styles.metric}`}>
