@@ -84,10 +84,10 @@ A knowledge store with confident incorrect statements is a liability. Adhere str
 
 | Tier | Scope | Permissions |
 |---|---|---|
-| **Tier 1: Pre-Authorized** | Local workspace (`Magrabi_deployment_portal`), local unit tests, documentation, `work_log/` updates, skill definitions | Execute autonomously; report outcome. |
+| **Tier 1: Pre-Authorized** | Local workspace (`Magrabi_deployment_portal`), local unit tests, documentation, `work_log/` updates, local commits, skill definitions | Execute autonomously; report outcome. |
 | **Tier 2: State Command First** | Shared Dev / Staging / Test environments, deployment sandbox pipelines | Read operations are free. Mutating operations (deploy, rebuild, restart, delete) require stating the exact command before running. |
-| **Tier 3: Explicit Confirmation Required** | Production (`prod`) infrastructure, live database migrations, production traffic routing | Read-only inspection allowed. Any mutation, deployment, container exec, or secret rotation requires explicit human confirmation. |
-| **Tier 4: Prohibited Actions** | Production as a test dependency, bypassing branch protections or PR review gates, committing secrets | Never permitted. |
+| **Tier 3: Explicit Confirmation Required** | Remote repository push (`git push`), Production (`prod`) infrastructure, live database migrations, production traffic routing | Read-only inspection allowed. Any mutation, deployment, remote push, container exec, or secret rotation strictly requires explicit human confirmation. |
+| **Tier 4: Prohibited Actions** | Production as a test dependency, bypassing branch protections or PR review gates, committing secrets, pushing code without explicit user instruction | Never permitted. |
 
 ---
 
