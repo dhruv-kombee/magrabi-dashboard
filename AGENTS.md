@@ -80,14 +80,26 @@ A knowledge store with confident incorrect statements is a liability. Adhere str
 
 ---
 
-## 6. Permission Boundaries (Magrabi Deployment Portal)
+## 6. Permission Boundaries & Operational Safety
+
+### Absolute Invariant: Read-Only Data Fetching — Zero External Modifications
+**Under NO circumstances may any agent, script, tool, or automated process mutate, modify, update, reconfigure, or delete any resource, setting, configuration, or data on any external platform or service.**
+
+Our sole and exclusive objective is **read-only data harvesting, aggregation, and display** to feed the Commerce Intelligence Platform.
+
+This prohibition applies universally and permanently across all platforms:
+- **E-Commerce & OMS**: Saleor Core, Macula OMS, Storefronts, MongoDB, PostgreSQL. Never update orders, products, customers, channels, or fulfillment states.
+- **Payment Gateways & Methods**: Checkout.com, Paymob, Tabby, Tamara, Apple Pay, KNET, Cash/COD. **Strictly forbidden**: payment authorizations, captures, voids, refunds, credential alterations, or merchant configuration changes.
+- **Cloud & Edge Infrastructure**: Azure Front Door, ECom CDN, Azure WAF, Application Gateways, AKS clusters, Key Vault, Log Analytics workspaces. Never edit routing rules, TLS certificates, WAF policies, scaling parameters, or secrets.
+- **Observability & Analytics**: Production/Lower/Macula Grafana, Prometheus, Loki, Sentry, Microsoft Clarity, GA4. Never alter datasources, dashboards, alert rules, or tracking properties.
+- **Communications**: Microsoft Teams, Email services. Never send unreviewed messages outside pre-approved alert delivery channels.
 
 | Tier | Scope | Permissions |
 |---|---|---|
 | **Tier 1: Pre-Authorized** | Local workspace (`Magrabi_deployment_portal`), local unit tests, documentation, `work_log/` updates, local commits, skill definitions | Execute autonomously; report outcome. |
 | **Tier 2: State Command First** | Shared Dev / Staging / Test environments, deployment sandbox pipelines | Read operations are free. Mutating operations (deploy, rebuild, restart, delete) require stating the exact command before running. |
 | **Tier 3: Explicit Confirmation Required** | Remote repository push (`git push`), Production (`prod`) infrastructure, live database migrations, production traffic routing | Read-only inspection allowed. Any mutation, deployment, remote push, container exec, or secret rotation strictly requires explicit human confirmation. |
-| **Tier 4: Prohibited Actions** | Production as a test dependency, bypassing branch protections or PR review gates, committing secrets, pushing code without explicit user instruction | Never permitted. |
+| **Tier 4: Strictly Prohibited Actions** | **ANY mutation, update, deletion, refund, capture, or configuration change on ANY external platform** (Saleor, OMS, Checkout.com, Paymob, Tabby, Tamara, Azure, AKS, Grafana, Sentry, GA4, Clarity); production as a test dependency; committing secrets; bypassing PR review gates; pushing code without explicit user instruction. | **NEVER PERMITTED UNDER ANY CIRCUMSTANCE.** |
 
 ---
 

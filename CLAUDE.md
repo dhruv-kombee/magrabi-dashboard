@@ -18,3 +18,6 @@ The single source of truth for rules, verification disciplines, and permissions 
    - Non-prod / Staging: State mutating commands first.
    - Production: Read-only by default; explicit confirmation required for mutating commands.
    - Secrets: Never print secret values or echo exception details.
+5. **Zero External Mutations (Absolute Invariant)**:
+   - Strictly READ-ONLY data fetching and feeding the dashboard.
+   - NEVER modify, reconfigure, delete, capture, or refund on ANY external platform (Saleor, Macula OMS, Checkout.com, Paymob, Tabby, Tamara, Azure, AKS, Grafana, Sentry, GA4, Clarity).

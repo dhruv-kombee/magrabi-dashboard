@@ -3,6 +3,10 @@
 This document is the **authoritative reference catalog** for all data sources in the Magrabi Commerce Intelligence Platform. 
 Whenever a dashboard UI section, metric tile, or screenshot is referenced, use this catalog to determine the exact source system, connection protocol, required credentials, and responsible team.
 
+> [!CAUTION]
+> ### STRICT INVARIANT: ZERO EXTERNAL MUTATIONS — READ-ONLY INGESTION ONLY
+> Our sole objective is to **fetch and feed data** to the internal dashboard. Under NO circumstances will this platform, any script, or any AI agent modify, reconfigure, update, or delete any resource, setting, or transaction on ANY external platform (Saleor, Macula OMS, Checkout.com, Paymob, Tabby, Tamara, Azure Front Door, CDN, WAF, AKS, Grafana, Sentry, GA4, Clarity). All external connectors must be strictly least-privilege read-only.
+
 ---
 
 ## 1. Orders, Payments & Customer Journey
