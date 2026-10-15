@@ -43,3 +43,5 @@ ENV/
 *.tar.gz
 *.tgz
 
+# Scratch and test files
+scratch/
