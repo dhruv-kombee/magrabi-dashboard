@@ -1028,11 +1028,16 @@ export function CommerceDashboard() {
                     </div>
                   </div>
                   <div className={`${styles.card} ${styles.metric}`}>
-                    <div className={styles.metriclabel}>Journey conversion</div>
+                    <div className={styles.metriclabel} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Journey conversion</span>
+                      <span style={{ fontSize: '10px', background: '#f0f2f1', color: '#68726e', padding: '2px 6px', borderRadius: '4px' }}>
+                        SAMPLE
+                      </span>
+                    </div>
                     <div className={styles.metricvalue}>
                       {pct(currentAgg.orders, currentAgg.steps[0])}
                     </div>
-                    <div className={styles.metricfoot}>Demo confirmed / add-to-cart cohort</div>
+                    <div className={styles.metricfoot}>Synthetic cohort · requires browser events</div>
                   </div>
                 </div>
 

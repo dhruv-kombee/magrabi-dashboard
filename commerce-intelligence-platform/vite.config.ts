@@ -277,13 +277,23 @@ function saleorApiPlugin(): Plugin {
             )
             .join('\n')
 
-          const countryAliases = `
-            country_SA: orders(first: 1, filter: { created: $current, channels: ["Q2hhbm5lbDoy", "Q2hhbm5lbDo3"] }) { totalCount }
-            country_AE: orders(first: 1, filter: { created: $current, channels: ["Q2hhbm5lbDox", "Q2hhbm5lbDo2"] }) { totalCount }
-            country_EG: orders(first: 1, filter: { created: $current, channels: ["Q2hhbm5lbDo1", "Q2hhbm5lbDo4"] }) { totalCount }
-            country_QA: orders(first: 1, filter: { created: $current, channels: ["Q2hhbm5lbDoz"] }) { totalCount }
-            country_KW: orders(first: 1, filter: { created: $current, channels: ["Q2hhbm5lbDo0"] }) { totalCount }
-          `
+          const countryChannels: Record<string, string[]> = {
+            SA: getChannelIds(brand, 'SA'),
+            AE: getChannelIds(brand, 'AE'),
+            EG: getChannelIds(brand, 'EG'),
+            QA: getChannelIds(brand, 'QA'),
+            KW: getChannelIds(brand, 'KW'),
+          }
+
+          const activeCountryQueries: string[] = []
+          for (const [cCode, cChs] of Object.entries(countryChannels)) {
+            if ((country === 'all' || country.toUpperCase() === cCode.toUpperCase()) && cChs.length > 0) {
+              activeCountryQueries.push(
+                `country_${cCode}: orders(first: 1, filter: { created: $current, channels: ${JSON.stringify(cChs)} }) { totalCount }`,
+              )
+            }
+          }
+          const countryAliases = activeCountryQueries.join('\n')
 
           const chargeAliases = `
             charge_FULL: orders(first: 1, filter: { created: $current, channels: $channels, chargeStatus: [FULL] }) { totalCount }
