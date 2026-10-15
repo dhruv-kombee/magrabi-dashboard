@@ -23,7 +23,7 @@ import {
   split,
   sum,
 } from './fixtures'
-import styles from './CommercePage.module.css'
+import styles from './CommerceDashboard.module.css'
 
 const sectionConfig: Array<{ key: SectionKey; label: string; title: string; subtitle: string }> = [
   {
@@ -147,7 +147,7 @@ const sourceCatalog = [
   },
 ]
 
-export function CommercePage() {
+export function CommerceDashboard() {
   const [section, setSection] = useState<SectionKey>('overview')
   const [brand, setBrand] = useState<BrandFilter>('all')
   const [country, setCountry] = useState<CountryFilter>('all')
@@ -487,9 +487,9 @@ export function CommercePage() {
               Business outcomes & technical health.
               <br />
               <br />
-              <span className={`${styles.badge} ${styles.badgeGray}`}>INTERACTIVE CONCEPT</span>
+              <span className={`${styles.badge} ${styles.badgeGray}`}>STANDALONE PLATFORM</span>
               <p style={{ marginTop: '12px', fontSize: '10px', color: '#92a296' }}>
-                Local prototype. No production mutations.
+                Commerce Intelligence Engine. Isolated from deployment operations.
               </p>
             </div>
           </div>
@@ -502,7 +502,7 @@ export function CommercePage() {
               COMMERCE <span>/ <b>{activeSectionMeta.label}</b></span>
             </span>
             <div className={styles.topright}>
-              <span className={styles.tiny}>Product concept · October 2026</span>
+              <span className={styles.tiny}>Commerce Platform · October 2026</span>
               <span className={`${styles.badge} ${styles.badgeDemo}`}>
                 <span className={styles.dot}></span> DEMO · SAMPLE DATA · NOT LIVE
               </span>

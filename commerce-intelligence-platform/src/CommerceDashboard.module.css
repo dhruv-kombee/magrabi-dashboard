@@ -12,7 +12,7 @@
   color: var(--ink);
   font-size: 14px;
   background: var(--paper);
-  min-height: calc(100vh - 60px);
+  min-height: 100vh;
 }
 
 .app {

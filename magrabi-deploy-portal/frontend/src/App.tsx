@@ -14,7 +14,6 @@ import { FeedbackPage } from './routes/FeedbackPage'
 import { InsightsPage } from './routes/InsightsPage'
 import { LoggingPage } from './routes/LoggingPage'
 import { MonitoringPage } from './monitoring/MonitoringPage'
-import { CommercePage } from './commerce/CommercePage'
 
 export default function App() {
   const { data, isLoading } = useIdentityQuery()
@@ -35,14 +34,6 @@ export default function App() {
           element={
             <RequireRole role={role} allow={['admin', 'viewer']}>
               <StatusPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="/commerce"
-          element={
-            <RequireRole role={role} allow={['admin', 'viewer']}>
-              <CommercePage />
             </RequireRole>
           }
         />

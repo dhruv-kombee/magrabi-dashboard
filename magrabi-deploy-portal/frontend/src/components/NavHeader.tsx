@@ -23,9 +23,6 @@ export function NavHeader({ role, theme, onToggleTheme }: { role: Role; theme: T
           title and on the login screen instead. */}
       <span className={styles.title}>Deployment Portal</span>
       <nav className={styles.nav}>
-        <NavLink to="/commerce" className={navLinkClass}>
-          Commerce Intelligence
-        </NavLink>
         {role === 'admin' && (
           <NavLink to="/monitoring" className={navLinkClass}>
             Monitoring
