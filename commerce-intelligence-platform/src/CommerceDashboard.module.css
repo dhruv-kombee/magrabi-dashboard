@@ -187,6 +187,12 @@
   background: #e9f5ee;
 }
 
+.badgeLive {
+  color: #1a7f5a;
+  background: #e1f5ec;
+  border: 1px solid #c3ebd9;
+}
+
 .badgeRed {
   color: #b13736;
   background: #fbeceb;

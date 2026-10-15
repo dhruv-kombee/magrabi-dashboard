@@ -149,9 +149,16 @@ function saleorApiPlugin(): Plugin {
 
           // Format date strings for Saleor (gte, lte dates)
           const currStartStr = startDate.toISOString().split('T')[0]
-          const currEndStr = new Date(endDate.getTime() - 1000).toISOString().split('T')[0]
+          let currEndStr = new Date(endDate.getTime() - 1000).toISOString().split('T')[0]
+          if (currEndStr < currStartStr) {
+            currEndStr = currStartStr
+          }
+
           const prevStartStr = prevStartDate.toISOString().split('T')[0]
-          const prevEndStr = new Date(prevEndDate.getTime() - 1000).toISOString().split('T')[0]
+          let prevEndStr = new Date(prevEndDate.getTime() - 1000).toISOString().split('T')[0]
+          if (prevEndStr < prevStartStr) {
+            prevEndStr = prevStartStr
+          }
           const todayStr = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString().split('T')[0]
 
           // Format ISO strings for Macula
@@ -186,25 +193,45 @@ function saleorApiPlugin(): Plugin {
             return
           }
 
-          // 1. Authenticate with Saleor if token expired
-          if (!cachedToken || Date.now() > tokenExpiry) {
-            const authRes = await fetch(graphqlUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                query: `mutation TokenCreate($email: String!, $password: String!) { tokenCreate(email: $email, password: $password) { token errors { message } } }`,
-                variables: { email, password },
-              }),
-            })
-            const authJson = (await authRes.json()) as any
-            cachedToken = authJson.data?.tokenCreate?.token || null
-            if (!cachedToken) {
-              res.statusCode = 401
-              res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify({ status: 'FAIL', error: 'Saleor auth failed', details: authJson.data?.tokenCreate?.errors }))
-              return
+          // 1. Authenticate with Saleor (auto-refresh before 10-min expiry)
+          async function getOrRefreshToken(force = false): Promise<string | null> {
+            if (!force && cachedToken && Date.now() < tokenExpiry) {
+              return cachedToken
             }
-            tokenExpiry = Date.now() + 20 * 60 * 1000 // 20 mins
+            try {
+              const authRes = await fetch(graphqlUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  query: `mutation TokenCreate($email: String!, $password: String!) { tokenCreate(email: $email, password: $password) { token errors { message } } }`,
+                  variables: { email, password },
+                }),
+              })
+              const authJson = (await authRes.json()) as any
+              const token = authJson.data?.tokenCreate?.token || null
+              if (token) {
+                cachedToken = token
+                try {
+                  const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString('utf-8'))
+                  // Refresh 90 seconds before real 10-minute expiry
+                  tokenExpiry = payload.exp ? payload.exp * 1000 - 90000 : Date.now() + 8 * 60 * 1000
+                } catch {
+                  tokenExpiry = Date.now() + 8 * 60 * 1000
+                }
+                return cachedToken
+              }
+            } catch (err) {
+              console.error('Saleor token error:', err)
+            }
+            return null
+          }
+
+          const activeToken = await getOrRefreshToken()
+          if (!activeToken) {
+            res.statusCode = 401
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ status: 'FAIL', error: 'Saleor auth failed' }))
+            return
           }
 
           // 2. Authenticate with Macula OMS if token expired
@@ -235,6 +262,45 @@ function saleorApiPlugin(): Plugin {
             }
           }
 
+          // Generate day strings for daily trend chart (up to 31 days)
+          const dayList: string[] = []
+          const sD = new Date(currStartStr)
+          const eD = new Date(currEndStr)
+          for (let d = new Date(sD); d <= eD && dayList.length < 31; d.setDate(d.getDate() + 1)) {
+            dayList.push(d.toISOString().split('T')[0])
+          }
+
+          const dayAliases = dayList
+            .map(
+              (dStr, idx) =>
+                `day_${idx}: orders(first: 1, filter: { created: { gte: "${dStr}", lte: "${dStr}" }, channels: $channels }) { totalCount }`,
+            )
+            .join('\n')
+
+          const countryAliases = `
+            country_SA: orders(first: 1, filter: { created: $current, channels: ["Q2hhbm5lbDoy", "Q2hhbm5lbDo3"] }) { totalCount }
+            country_AE: orders(first: 1, filter: { created: $current, channels: ["Q2hhbm5lbDox", "Q2hhbm5lbDo2"] }) { totalCount }
+            country_EG: orders(first: 1, filter: { created: $current, channels: ["Q2hhbm5lbDo1", "Q2hhbm5lbDo4"] }) { totalCount }
+            country_QA: orders(first: 1, filter: { created: $current, channels: ["Q2hhbm5lbDoz"] }) { totalCount }
+            country_KW: orders(first: 1, filter: { created: $current, channels: ["Q2hhbm5lbDo0"] }) { totalCount }
+          `
+
+          const chargeAliases = `
+            charge_FULL: orders(first: 1, filter: { created: $current, channels: $channels, chargeStatus: [FULL] }) { totalCount }
+            charge_NONE: orders(first: 1, filter: { created: $current, channels: $channels, chargeStatus: [NONE] }) { totalCount }
+          `
+
+          const recentRevQuery = `
+            recentOrders: orders(first: 100, filter: { created: $current, channels: $channels }) {
+              edges {
+                node {
+                  channel { currencyCode }
+                  total { gross { amount currency } }
+                }
+              }
+            }
+          `
+
           // 3. Query Saleor
           const query = `
             query GetOrdersSummary($current: DateRangeInput, $prior: DateRangeInput, $today: DateRangeInput, $channels: [ID!]) {
@@ -247,27 +313,57 @@ function saleorApiPlugin(): Plugin {
               today: orders(first: 1, filter: { created: $today, channels: $channels }) {
                 totalCount
               }
+              ${dayAliases}
+              ${countryAliases}
+              ${chargeAliases}
+              ${recentRevQuery}
             }
           `
 
-          const orderRes = await fetch(graphqlUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${cachedToken}`,
-            },
-            body: JSON.stringify({
-              query,
-              variables: {
-                current: { gte: currStartStr, lte: currEndStr },
-                prior: { gte: prevStartStr, lte: prevEndStr },
-                today: { gte: todayStr, lte: todayStr },
-                channels: channelIds.length > 0 ? channelIds : undefined,
+          const sendOrderQuery = async (t: string) => {
+            const res = await fetch(graphqlUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${t}`,
               },
-            }),
-          })
+              body: JSON.stringify({
+                query,
+                variables: {
+                  current: { gte: currStartStr, lte: currEndStr },
+                  prior: { gte: prevStartStr, lte: prevEndStr },
+                  today: { gte: todayStr, lte: todayStr },
+                  channels: channelIds.length > 0 ? channelIds : undefined,
+                },
+              }),
+            })
+            return (await res.json()) as any
+          }
 
-          const orderJson = (await orderRes.json()) as any
+          let orderJson = await sendOrderQuery(activeToken)
+
+          // Auto-refresh token if signature expired and retry once
+          if (
+            orderJson.errors &&
+            orderJson.errors.some((e: any) =>
+              typeof e.message === 'string' &&
+              (e.message.toLowerCase().includes('expired') || e.message.toLowerCase().includes('signature') || e.message.toLowerCase().includes('token'))
+            )
+          ) {
+            const refreshedToken = await getOrRefreshToken(true)
+            if (refreshedToken) {
+              orderJson = await sendOrderQuery(refreshedToken)
+            }
+          }
+
+          if (orderJson.errors && !orderJson.data?.current) {
+            console.error('Saleor query failed with error:', orderJson.errors)
+            res.statusCode = 502
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ status: 'FAIL', error: orderJson.errors[0]?.message || 'Saleor query failed' }))
+            return
+          }
+
           const currOrders = orderJson.data?.current?.totalCount ?? 0
           const priorOrders = orderJson.data?.prior?.totalCount ?? 0
           const todayOrders = orderJson.data?.today?.totalCount ?? 0
@@ -277,24 +373,101 @@ function saleorApiPlugin(): Plugin {
             changePct = Math.round(((currOrders - priorOrders) / priorOrders) * 1000) / 10
           }
 
+          // Extract daily points
+          const dailyPoints = dayList.map((dStr, idx) => ({
+            date: dStr,
+            orders: orderJson.data?.[`day_${idx}`]?.totalCount ?? 0,
+          }))
+
+          // Extract country breakdown
+          const countryBreakdown: Record<string, number> = {
+            SA: orderJson.data?.country_SA?.totalCount ?? 0,
+            AE: orderJson.data?.country_AE?.totalCount ?? 0,
+            EG: orderJson.data?.country_EG?.totalCount ?? 0,
+            QA: orderJson.data?.country_QA?.totalCount ?? 0,
+            KW: orderJson.data?.country_KW?.totalCount ?? 0,
+          }
+
+          // Extract payment charges
+          const fullCharge = orderJson.data?.charge_FULL?.totalCount ?? 0
+          const noneCharge = orderJson.data?.charge_NONE?.totalCount ?? 0
+          const paymentBreakdown = {
+            fullCharge,
+            noneCharge,
+            onlineRate: currOrders > 0 ? Math.round((fullCharge / currOrders) * 1000) / 10 : 0,
+          }
+
+          // Extract gross revenue by currency
+          const revenueByCurrency: Record<string, number> = {}
+          for (const edge of orderJson.data?.recentOrders?.edges || []) {
+            const cur = edge.node.total?.gross?.currency || edge.node.channel?.currencyCode || 'AED'
+            const amt = edge.node.total?.gross?.amount || 0
+            revenueByCurrency[cur] = Math.round(((revenueByCurrency[cur] || 0) + amt) * 100) / 100
+          }
+
           // 4. Query Macula OMS
           let omsOrders = 0
           let omsPreviousOrders = 0
           let omsTodaySoFar = 0
           let omsLive = false
+          const gatewayCounts: Record<string, number> = {
+            'Checkout.com': 0,
+            Tabby: 0,
+            Tamara: 0,
+            Cash: 0,
+          }
+          const methodCounts: Record<string, number> = {
+            'Card / Apple Pay': 0,
+            Tabby: 0,
+            Tamara: 0,
+            Cash: 0,
+          }
 
           if (cachedMaculaToken) {
             try {
-              const [resCurr, resPrior, resToday] = await Promise.all([
+              const [resCurr, resPrior, resToday, resSample] = await Promise.all([
                 fetchMaculaCount(cachedMaculaToken, currFromIso, currToIso, maculaChannelGroups),
                 fetchMaculaCount(cachedMaculaToken, prevFromIso, prevToIso, maculaChannelGroups),
                 fetchMaculaCount(cachedMaculaToken, todayFromIso, todayToIso, maculaChannelGroups),
+                fetch('https://macula-api.magrabi.com/api/v1/order/search', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${cachedMaculaToken}`,
+                    'User-Agent': 'Mozilla/5.0',
+                  },
+                  body: JSON.stringify({ page: 1, limit: 100, fromDate: currFromIso, toDate: currToIso }),
+                })
+                  .then((r) => (r.ok ? r.json() : null))
+                  .catch(() => null) as any,
               ])
 
               omsOrders = resCurr
               omsPreviousOrders = resPrior
               omsTodaySoFar = resToday
               omsLive = true
+
+              if (resSample && Array.isArray(resSample.content)) {
+                for (const o of resSample.content) {
+                  for (const p of o.payments || []) {
+                    const b = (p.paymentBackendSystem || '').toLowerCase()
+                    const pt = (p.paymentType || '').toLowerCase()
+                    if (b.includes('checkout') || pt.includes('online')) {
+                      gatewayCounts['Checkout.com']++
+                      methodCounts['Card / Apple Pay']++
+                    } else if (b.includes('tabby') || pt.includes('tabby')) {
+                      gatewayCounts['Tabby']++
+                      methodCounts['Tabby']++
+                    } else if (b.includes('tamara') || pt.includes('tamara')) {
+                      gatewayCounts['Tamara']++
+                      methodCounts['Tamara']++
+                    } else {
+                      gatewayCounts['Cash']++
+                      methodCounts['Cash']++
+                    }
+                  }
+                }
+              }
             } catch (omsErr) {
               console.error('Macula search error:', omsErr)
             }
@@ -323,6 +496,12 @@ function saleorApiPlugin(): Plugin {
             previousOrders: priorOrders,
             changePct,
             todaySoFar: todayOrders,
+            dailyPoints,
+            countryBreakdown,
+            paymentBreakdown,
+            revenueByCurrency,
+            gatewayCounts,
+            methodCounts,
             oms: {
               live: omsLive,
               orders: omsOrders,

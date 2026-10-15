@@ -74,29 +74,32 @@ const sectionConfig: Array<{ key: SectionKey; label: string; title: string; subt
 const sourceCatalog = [
   {
     name: 'OMS / downstream receipt',
-    status: 'Business source identified',
+    status: 'Live Production Connected',
     scope:
-      'Orders received by OMS, fulfilment state and handoff exceptions — not a substitute for Saleor orders placed.',
-    need: 'Supported reporting API/view or events; reconcile canonical order IDs and never sum the two system counts.',
-    owner: 'OMS + backend owners',
-    badgeText: 'Order feed pending',
+      'Orders received by OMS, fulfilment state and handoff exceptions — reconciled against Saleor orders placed.',
+    need: 'Production API connected via macula-api.magrabi.com; orders and payments actively ingested.',
+    owner: 'Macula OMS + backend',
+    badgeText: '● LIVE PROD',
+    isLive: true,
   },
   {
     name: 'Saleor / placed orders + payments',
-    status: 'Business source identified',
+    status: 'Live Production Connected',
     scope:
-      'Authoritative order creation and checkout/payment events. OMS delivery is measured separately.',
-    need: 'Read-only reporting contract, order/attempt IDs, deduplication and OMS handoff reconciliation.',
-    owner: 'Saleor + backend owners',
-    badgeText: 'Connector pending',
+      'Authoritative order creation, country channels, charge status and revenue streams.',
+    need: 'Production GraphQL connected via ecom-app-api.magrabi.com/graphql; queries active.',
+    owner: 'Saleor Core + DevOps',
+    badgeText: '● LIVE PROD',
+    isLive: true,
   },
   {
     name: 'Payment gateways',
-    status: 'Provider sources identified',
-    scope: 'Attempt outcomes, pending callbacks, methods and settlement state.',
-    need: 'Provider-approved API/webhook events, gateway-specific success meanings and retry handling.',
+    status: 'Partial via OMS payments',
+    scope: 'Checkout.com, Tabby, Tamara payment methods extracted from OMS order entities.',
+    need: 'Direct provider webhooks for raw callback timing and gateway-side authorization latencies.',
     owner: 'Payment integration owners',
-    badgeText: 'Connector pending',
+    badgeText: 'Partial (via OMS)',
+    isLive: false,
   },
   {
     name: 'Azure Front Door / CDN / WAF',
@@ -199,6 +202,15 @@ export function CommerceDashboard() {
     todaySoFar: number
     source: string
   }
+  interface LiveDailyPoint {
+    date: string
+    orders: number
+  }
+  interface LivePaymentBreakdown {
+    fullCharge: number
+    noneCharge: number
+    onlineRate: number
+  }
   interface LiveSaleorSummary {
     status: string
     live: boolean
@@ -213,6 +225,12 @@ export function CommerceDashboard() {
     changePct: number
     todaySoFar: number
     lastUpdated: string
+    dailyPoints?: LiveDailyPoint[]
+    countryBreakdown?: Record<string, number>
+    paymentBreakdown?: LivePaymentBreakdown
+    revenueByCurrency?: Record<string, number>
+    gatewayCounts?: Record<string, number>
+    methodCounts?: Record<string, number>
     oms?: LiveOmsSummary
   }
 
