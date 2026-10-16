@@ -452,6 +452,134 @@
   color: var(--red);
 }
 
+.metricValueRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 10px 0 10px;
+}
+
+.miniSparkline {
+  flex-shrink: 0;
+  display: block;
+}
+
+.trendRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.trendMain {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.trendBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.trendBadgeUp {
+  background: #e1f5ec;
+  color: #1a7f5a;
+  border: 1px solid #c2ebda;
+}
+
+.trendBadgeDown {
+  background: #fbeceb;
+  color: #b13736;
+  border: 1px solid #f6cfce;
+}
+
+.trendBadgeNeutral {
+  background: #f0f2f1;
+  color: #68726e;
+  border: 1px solid #dde2df;
+}
+
+.trendArrow {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.trendContext {
+  font-size: 10px;
+  color: #5a665f;
+}
+
+.trendPrior {
+  font-weight: 600;
+  color: #3b4640;
+}
+
+.trendSubtext {
+  font-size: 10px;
+  color: #78837b;
+  margin-top: 1px;
+  line-height: 1.4;
+}
+
+.quickPresetsBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.quickPresetsLabel {
+  font-size: 10px;
+  font-weight: 700;
+  color: #69756c;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-right: 4px;
+}
+
+.quickPresetPill {
+  background: #ffffff;
+  border: 1px solid #d8dfda;
+  color: #3e4a42;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.quickPresetPill:hover {
+  background: #f0f5f2;
+  border-color: #29372e;
+  color: #18231c;
+}
+
+.quickPresetPillActive {
+  background: #29372e;
+  border-color: #29372e;
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.quickPresetPillActive:hover {
+  background: #394b3f;
+  color: #ffffff;
+}
+
 .gridMain {
   display: grid;
   grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr);
@@ -685,7 +813,7 @@
   display: flex;
   align-items: flex-end;
   gap: 9px;
-  height: 160px;
+  min-height: 175px;
   padding: 5px 0 0;
 }
 
@@ -1602,4 +1730,50 @@
   50% {
     opacity: 0.85;
   }
+}
+
+.trendInlineWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.trendInlineContext {
+  font-size: 11px;
+  color: #727e77;
+  font-weight: 450;
+  white-space: nowrap;
+}
+
+.chartHeaderSummary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px 14px;
+  border-bottom: 1px solid #edf1ec;
+  margin-bottom: 12px;
+}
+
+.chartTotalValue {
+  font-size: 22px;
+  font-weight: 700;
+  color: #202524;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.chartTotalUnit {
+  font-size: 12px;
+  font-weight: 500;
+  color: #727e77;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.currencyTrendRow {
+  margin: 6px 0 10px;
+  padding-top: 6px;
 }

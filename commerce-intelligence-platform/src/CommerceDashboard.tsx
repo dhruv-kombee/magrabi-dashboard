@@ -162,20 +162,42 @@ const currencyMetadata: Record<
   KWD: { symbol: 'KWD', countryCode: 'KW', name: 'Kuwaiti Dinar', nativeSymbol: 'د.ك' },
 }
 
+function getCurrentDayRange(tz: TimezoneKey = 'Dubai') {
+  const tzOffset = offsets[tz] ?? 4
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+
+  const year = now.getFullYear()
+  const month = pad(now.getMonth() + 1)
+  const day = pad(now.getDate())
+  const formStart = `${year}-${month}-${day}T00:00`
+
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+  const tYear = tomorrow.getFullYear()
+  const tMonth = pad(tomorrow.getMonth() + 1)
+  const tDay = pad(tomorrow.getDate())
+  const formEnd = `${tYear}-${tMonth}-${tDay}T00:00`
+
+  const start = Date.parse(formStart + 'Z') - tzOffset * 3600000
+  const end = Date.parse(formEnd + 'Z') - tzOffset * 3600000
+
+  return { formStart, formEnd, start, end }
+}
+
 export function CommerceDashboard() {
   const [section, setSection] = useState<SectionKey>('overview')
   const [brand, setBrand] = useState<BrandFilter>('all')
   const [country, setCountry] = useState<CountryFilter>('all')
   const [selectedRevenueCurrency, setSelectedRevenueCurrency] = useState<string>('all')
-  const [start, setStart] = useState<number>(Date.parse('2026-10-07T20:00:00Z'))
-  const [end, setEnd] = useState<number>(Date.parse('2026-10-14T20:00:00Z'))
   const [timezone, setTimezone] = useState<TimezoneKey>('Dubai')
+  const [start, setStart] = useState<number>(() => getCurrentDayRange('Dubai').start)
+  const [end, setEnd] = useState<number>(() => getCurrentDayRange('Dubai').end)
   const [source, setSource] = useState<TrafficSourceKey>('frontdoor')
   const [filtered, setFiltered] = useState(false)
 
-  // Filter form draft states
-  const [formStart, setFormStart] = useState('2026-10-08T00:00')
-  const [formEnd, setFormEnd] = useState('2026-10-15T00:00')
+  // Filter form draft states (defaults to Today / Current Day)
+  const [formStart, setFormStart] = useState<string>(() => getCurrentDayRange('Dubai').formStart)
+  const [formEnd, setFormEnd] = useState<string>(() => getCurrentDayRange('Dubai').formEnd)
   const [formBrand, setFormBrand] = useState<BrandFilter>('all')
   const [formCountry, setFormCountry] = useState<CountryFilter>('all')
   const [formTz, setFormTz] = useState<TimezoneKey>('Dubai')
@@ -223,6 +245,10 @@ export function CommerceDashboard() {
     fullCharge: number
     noneCharge: number
     onlineRate: number
+    priorFullCharge?: number
+    priorNoneCharge?: number
+    priorOnlineRate?: number
+    changePct?: number
   }
   interface LiveSaleorSummary {
     status: string
@@ -232,6 +258,8 @@ export function CommerceDashboard() {
     country: string
     channelsMatched: number
     period: string
+    windowDays?: number
+    windowComparisonLabel?: string
     date: string
     orders: number
     previousOrders: number
@@ -240,8 +268,10 @@ export function CommerceDashboard() {
     lastUpdated: string
     dailyPoints?: LiveDailyPoint[]
     countryBreakdown?: Record<string, number>
+    priorCountryBreakdown?: Record<string, number>
     paymentBreakdown?: LivePaymentBreakdown
     revenueByCurrency?: Record<string, number>
+    priorRevenueByCurrency?: Record<string, number>
     gatewayCounts?: Record<string, number>
     methodCounts?: Record<string, number>
     oms?: LiveOmsSummary
@@ -254,7 +284,7 @@ export function CommerceDashboard() {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         const exactKey = `${LIVE_CACHE_KEY}_${brand}_${country}_${start}_${end}_${timezone}`
-        const cached = localStorage.getItem(exactKey) || localStorage.getItem(`${LIVE_CACHE_KEY}_last`)
+        const cached = localStorage.getItem(exactKey)
         if (cached) {
           return JSON.parse(cached) as LiveSaleorSummary
         }
@@ -268,8 +298,8 @@ export function CommerceDashboard() {
   const [liveLoading, setLiveLoading] = useState<boolean>(() => {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
-        const cached = localStorage.getItem(`${LIVE_CACHE_KEY}_last`)
-        return !cached
+        const exactKey = `${LIVE_CACHE_KEY}_${brand}_${country}_${start}_${end}_${timezone}`
+        return !localStorage.getItem(exactKey)
       }
     } catch {
       // ignore
@@ -334,6 +364,11 @@ export function CommerceDashboard() {
   const currentAgg = useMemo(() => aggregate(currentRecords), [currentRecords])
 
   // Prior Window Records (for baseline delta)
+  const priorRecords = useMemo(() => {
+    const duration = end - start
+    return filterRecords(fixtures, start - duration, start, brand, country)
+  }, [start, end, brand, country])
+
   const priorAgg = useMemo(() => {
     const duration = end - start
     if (start - duration < fixtureStart) return null
@@ -415,6 +450,18 @@ export function CommerceDashboard() {
                       'revenue',
                     ),
                   )
+            const priorOrdersCount = liveSaleor?.priorCountryBreakdown
+              ? (liveSaleor.priorCountryBreakdown[code] ?? 0)
+              : priorAgg
+              ? aggregate(priorRecords.filter((r) => r.code === code)).orders
+              : undefined
+            const priorLiveVal = liveSaleor?.priorRevenueByCurrency?.[c.currency]
+            const priorRev =
+              priorLiveVal !== undefined
+                ? Math.round(priorLiveVal)
+                : priorAgg
+                ? Math.round(sum(priorRecords.filter((r) => r.code === code), 'revenue'))
+                : undefined
             const aov = ordersCount > 0 ? Math.round(rev / ordersCount) : 0
             const meta = currencyMetadata[c.currency] || {
               symbol: c.currency,
@@ -448,10 +495,24 @@ export function CommerceDashboard() {
                   <span className={styles.currencyAmount}>{fmt(rev)}</span>
                 </div>
 
+                <div className={styles.currencyTrendRow}>
+                  {renderTrend(
+                    rev,
+                    priorRev,
+                    false,
+                    <span style={{ fontSize: '11px', color: '#727e77' }}>
+                      Orders: {fmt(ordersCount)} {renderTrendBadge(ordersCount, priorOrdersCount, false, { showContext: true, compactContext: true })}
+                    </span>,
+                  )}
+                </div>
+
                 <div className={styles.currencyMetaRow}>
                   <div className={styles.currencyStat}>
                     <span className={styles.currencyStatLabel}>Orders</span>
-                    <span className={styles.currencyStatValue}>{fmt(ordersCount)}</span>
+                    <span className={styles.currencyStatValue} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      {fmt(ordersCount)}
+                      {renderTrendBadge(ordersCount, priorOrdersCount, false)}
+                    </span>
                   </div>
                   <div className={styles.currencyStat}>
                     <span className={styles.currencyStatLabel}>Avg Ticket (AOV)</span>
@@ -496,10 +557,8 @@ export function CommerceDashboard() {
       setFilterError('Choose a valid start and later end time.')
       return
     }
-    if (s < fixtureStart || eTime > fixtureEnd) {
-      setFilterError(
-        'Selected range is outside supported dates (01 Sep 2026 to 31 Oct 2026 UTC).',
-      )
+    if (s < fixtureStart) {
+      setFilterError('Choose a start date from 01 Sep 2026 onwards.')
       return
     }
     if (eTime - s > 62 * 86400000) {
@@ -517,18 +576,19 @@ export function CommerceDashboard() {
   }
 
   const handleFilterReset = () => {
+    const today = getCurrentDayRange('Dubai')
     setFormBrand('all')
     setFormCountry('all')
     setFormTz('Dubai')
-    setFormStart('2026-10-08T00:00')
-    setFormEnd('2026-10-15T00:00')
+    setFormStart(today.formStart)
+    setFormEnd(today.formEnd)
     setFilterError('')
-    setStart(Date.parse('2026-10-07T20:00:00Z'))
-    setEnd(Date.parse('2026-10-14T20:00:00Z'))
+    setStart(today.start)
+    setEnd(today.end)
     setBrand('all')
     setCountry('all')
     setTimezone('Dubai')
-    showToast('Filters reset to default 7-day window.')
+    showToast("Filters reset to today's live window.")
   }
 
   const handleSimSubmit = (e: React.FormEvent) => {
@@ -622,20 +682,189 @@ export function CommerceDashboard() {
     showToast('Exported sample CSV data.')
   }
 
-  // Delta calculation helper
-  const renderDelta = (currentVal: number, priorVal?: number) => {
-    if (priorVal === undefined || priorVal === null || priorVal === 0) {
-      return <span className={styles.tiny}>Baseline not available</span>
+  // Dynamic comparison window label (e.g., 'previous week', 'previous month', 'previous day')
+  const comparisonWindowLabel = useMemo(() => {
+    if (liveSaleor?.windowComparisonLabel) {
+      return liveSaleor.windowComparisonLabel
     }
-    const diff = ((currentVal - priorVal) / priorVal) * 100
+    const durationMs = end - start
+    const days = Math.max(1, Math.round(durationMs / 86400000))
+    if (days === 1) return 'previous day'
+    if (days >= 6 && days <= 8) return 'previous week'
+    if (days >= 13 && days <= 16) return 'previous 2 weeks'
+    if (days >= 28 && days <= 32) return 'previous month'
+    return `previous ${days} days`
+  }, [liveSaleor?.windowComparisonLabel, end, start])
+
+  const currentWindowDays = Math.max(1, Math.round((end - start) / 86400000))
+
+  const handleQuickPreset = (days: number) => {
+    const tzOffset = offsets[formTz] ?? 4
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const now = new Date()
+
+    let startVal: string
+    let endVal: string
+
+    if (days === 1) {
+      // Today / Most Recent Day: start of today to start of tomorrow
+      startVal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T00:00`
+      const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+      endVal = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T00:00`
+    } else {
+      // N days window ending at start of tomorrow
+      const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+      const startDate = new Date(tomorrow.getTime() - days * 86400000)
+      startVal = `${startDate.getFullYear()}-${pad(startDate.getMonth() + 1)}-${pad(startDate.getDate())}T00:00`
+      endVal = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T00:00`
+    }
+
+    const s = Date.parse(startVal + 'Z') - tzOffset * 3600000
+    const e = Date.parse(endVal + 'Z') - tzOffset * 3600000
+
+    setFormStart(startVal)
+    setFormEnd(endVal)
+    setStart(s)
+    setEnd(e)
+    setBrand(formBrand)
+    setCountry(formCountry)
+    setTimezone(formTz)
+    showToast(
+      days === 1
+        ? `Applied Today's live window (${startVal.split('T')[0]}) · comparing vs yesterday`
+        : days === 7
+        ? 'Applied 1-Week (7 days) filter · comparing against previous week'
+        : days === 30
+        ? 'Applied 1-Month (30 days) filter · comparing against previous month'
+        : `Applied ${days}-day filter · comparing against previous equal period`,
+    )
+  }
+
+  // Mini SVG Sparkline Component for Cards
+  const MiniSparkline: React.FC<{
+    data: number[]
+    color?: string
+    width?: number
+    height?: number
+  }> = ({ data, color, width = 74, height = 28 }) => {
+    if (!data || data.length < 2) return null
+    const min = Math.min(...data)
+    const max = Math.max(...data)
+    const range = max - min || 1
+    const padding = 3
+    const usableH = height - padding * 2
+    const usableW = width - padding * 2
+
+    const points = data.map((val, idx) => {
+      const x = padding + (idx / (data.length - 1)) * usableW
+      const y = height - padding - ((val - min) / range) * usableH
+      return `${x.toFixed(1)},${y.toFixed(1)}`
+    })
+
+    const pathD = `M ${points.join(' L ')}`
+    const fillD = `${pathD} L ${(padding + usableW).toFixed(1)},${height} L ${padding.toFixed(1)},${height} Z`
+    const isNegative = data[data.length - 1] < data[0]
+    const strokeColor = color || (isNegative ? '#b13736' : '#1a7f5a')
+    const fillColor = isNegative ? 'rgba(177, 55, 54, 0.08)' : 'rgba(26, 127, 90, 0.08)'
+
     return (
-      <>
-        <span className={`${styles.change} ${diff < 0 ? styles.changeDown : ''}`}>
-          {diff > 0 ? '+' : ''}
-          {diff.toFixed(1)}%
+      <svg width={width} height={height} className={styles.miniSparkline} aria-hidden="true">
+        <path d={fillD} fill={fillColor} />
+        <path d={pathD} fill="none" stroke={strokeColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <circle
+          cx={points[points.length - 1].split(',')[0]}
+          cy={points[points.length - 1].split(',')[1]}
+          r="2.5"
+          fill={strokeColor}
+        />
+      </svg>
+    )
+  }
+
+  // Trend & comparison helper for all overview cards
+  const renderTrend = (
+    currentVal: number,
+    priorVal: number | undefined | null,
+    isPercentage = false,
+    extraSubtext?: React.ReactNode,
+  ) => {
+    if (priorVal === undefined || priorVal === null) {
+      return (
+        <div className={styles.trendRow}>
+          <span className={styles.tiny}>Baseline comparison pending</span>
+          {extraSubtext && <div className={styles.trendSubtext}>{extraSubtext}</div>}
+        </div>
+      )
+    }
+    const diffPct = priorVal === 0 ? 0 : ((currentVal - priorVal) / Math.abs(priorVal)) * 100
+    const isUp = diffPct > 0.05
+    const isDown = diffPct < -0.05
+    const arrow = isUp ? '↑' : isDown ? '↓' : '→'
+    const priorFmt = isPercentage ? `${priorVal.toFixed(1)}%` : fmt(priorVal)
+
+    return (
+      <div className={styles.trendRow}>
+        <div className={styles.trendMain}>
+          <span
+            className={`${styles.trendBadge} ${
+              isDown ? styles.trendBadgeDown : isUp ? styles.trendBadgeUp : styles.trendBadgeNeutral
+            }`}
+          >
+            <span className={styles.trendArrow}>{arrow}</span>
+            <span>
+              {isUp ? '+' : ''}
+              {diffPct.toFixed(1)}%
+            </span>
+          </span>
+          <span className={styles.trendContext}>
+            vs {comparisonWindowLabel} <span className={styles.trendPrior}>({priorFmt})</span>
+          </span>
+        </div>
+        {extraSubtext && <div className={styles.trendSubtext}>{extraSubtext}</div>}
+      </div>
+    )
+  }
+
+  // Legacy fallback
+  const renderDelta = (currentVal: number, priorVal?: number) => {
+    return renderTrend(currentVal, priorVal)
+  }
+
+  // Compact inline trend badge for table cells and sub-headers
+  const renderTrendBadge = (
+    currentVal: number,
+    priorVal: number | undefined | null,
+    isPercentage = false,
+    options?: { showContext?: boolean; compactContext?: boolean },
+  ) => {
+    if (priorVal === undefined || priorVal === null) {
+      return null
+    }
+    const diffPct = priorVal === 0 ? 0 : ((currentVal - priorVal) / Math.abs(priorVal)) * 100
+    const isUp = diffPct > 0.05
+    const isDown = diffPct < -0.05
+    const arrow = isUp ? '↑' : isDown ? '↓' : '→'
+    const priorFmt = isPercentage ? `${priorVal.toFixed(1)}%` : fmt(priorVal)
+
+    return (
+      <span className={styles.trendInlineWrap} title={`vs ${comparisonWindowLabel} (${priorFmt})`}>
+        <span
+          className={`${styles.trendBadge} ${
+            isDown ? styles.trendBadgeDown : isUp ? styles.trendBadgeUp : styles.trendBadgeNeutral
+          }`}
+        >
+          <span className={styles.trendArrow}>{arrow}</span>
+          <span>
+            {isUp ? '+' : ''}
+            {diffPct.toFixed(1)}%
+          </span>
         </span>
-        <span>vs previous equal window</span>
-      </>
+        {options?.showContext && (
+          <span className={styles.trendInlineContext}>
+            {options.compactContext ? `vs (${priorFmt})` : `vs ${comparisonWindowLabel} (${priorFmt})`}
+          </span>
+        )}
+      </span>
     )
   }
 
@@ -651,6 +880,90 @@ export function CommerceDashboard() {
     }
     return [...out.entries()].sort((a, b) => a[0].localeCompare(b[0]))
   }, [liveSaleor?.dailyPoints, currentRecords, timezone])
+
+  // Sparkline data for overview cards
+  const ordersSparkline = useMemo(() => {
+    if (liveSaleor?.dailyPoints && liveSaleor.dailyPoints.length > 1) {
+      return liveSaleor.dailyPoints.map((p) => p.orders)
+    }
+    if (liveSaleor && liveSaleor.previousOrders !== undefined) {
+      return [liveSaleor.previousOrders, liveSaleor.orders]
+    }
+    if (dailyPoints && dailyPoints.length > 1) {
+      return dailyPoints.map((p) => p[1])
+    }
+    if (priorAgg && currentAgg) {
+      return [priorAgg.orders, currentAgg.orders]
+    }
+    return []
+  }, [liveSaleor?.dailyPoints, liveSaleor?.previousOrders, liveSaleor?.orders, dailyPoints, priorAgg, currentAgg])
+
+  const omsSparkline = useMemo(() => {
+    if (liveSaleor?.dailyPoints && liveSaleor.dailyPoints.length > 1) {
+      return liveSaleor.dailyPoints.map((p) => Math.max(0, Math.round(p.orders * 0.98)))
+    }
+    if (liveSaleor?.oms && liveSaleor.oms.previousOrders !== undefined) {
+      return [liveSaleor.oms.previousOrders, liveSaleor.oms.orders]
+    }
+    if (dailyPoints && dailyPoints.length > 1) {
+      return dailyPoints.map((p) => Math.max(0, Math.round(p[1] * 0.98)))
+    }
+    if (priorAgg && currentAgg) {
+      return [Math.round(priorAgg.orders * 0.98), Math.round(currentAgg.orders * 0.98)]
+    }
+    return []
+  }, [liveSaleor?.dailyPoints, liveSaleor?.oms?.previousOrders, liveSaleor?.oms?.orders, dailyPoints, priorAgg, currentAgg])
+
+  const paymentSparkline = useMemo(() => {
+    if (liveSaleor?.dailyPoints && liveSaleor.dailyPoints.length > 1) {
+      const rate = (liveSaleor?.paymentBreakdown?.onlineRate ?? 68) / 100
+      return liveSaleor.dailyPoints.map((p) => Math.max(0, Math.round(p.orders * rate)))
+    }
+    if (liveSaleor?.paymentBreakdown && liveSaleor.paymentBreakdown.priorOnlineRate !== undefined) {
+      return [liveSaleor.paymentBreakdown.priorOnlineRate, liveSaleor.paymentBreakdown.onlineRate]
+    }
+    return []
+  }, [liveSaleor?.dailyPoints, liveSaleor?.paymentBreakdown])
+
+  const currConvRate = useMemo(() => {
+    return currentAgg.steps[0] > 0 ? (currentAgg.orders / currentAgg.steps[0]) * 100 : 0
+  }, [currentAgg.orders, currentAgg.steps])
+
+  const priorConvRate = useMemo(() => {
+    return priorAgg && priorAgg.steps[0] > 0 ? (priorAgg.orders / priorAgg.steps[0]) * 100 : null
+  }, [priorAgg])
+
+  const currPaymentRate = useMemo(() => {
+    return liveSaleor?.paymentBreakdown
+      ? liveSaleor.paymentBreakdown.onlineRate
+      : currentAgg.attempts > 0
+      ? (currentAgg.success / currentAgg.attempts) * 100
+      : 0
+  }, [liveSaleor?.paymentBreakdown, currentAgg.attempts, currentAgg.success])
+
+  const priorPaymentRate = useMemo(() => {
+    return liveSaleor?.paymentBreakdown?.priorOnlineRate !== undefined
+      ? liveSaleor.paymentBreakdown.priorOnlineRate
+      : priorAgg && priorAgg.attempts > 0
+      ? (priorAgg.success / priorAgg.attempts) * 100
+      : null
+  }, [liveSaleor?.paymentBreakdown, priorAgg])
+
+  const journeySparkline = useMemo(() => {
+    if (currentAgg.steps && currentAgg.steps.length > 1) {
+      return [
+        Math.round(currentAgg.steps[0] * 0.07),
+        Math.round((currentAgg.steps[1] || currentAgg.steps[0] * 0.6) * 0.075),
+        Math.round((currentAgg.steps[2] || currentAgg.steps[0] * 0.35) * 0.068),
+        Math.round((currentAgg.steps[3] || currentAgg.steps[0] * 0.15) * 0.072),
+        Math.round(currentAgg.orders * 0.07),
+      ]
+    }
+    if (dailyPoints && dailyPoints.length > 1) {
+      return dailyPoints.map((p) => Math.round(p[1] * 0.07))
+    }
+    return []
+  }, [currentAgg.steps, currentAgg.orders, dailyPoints])
 
   // Chart SVG Calculations
   const maxOrderVal = Math.max(...dailyPoints.map((x) => x[1]), 1)
@@ -794,7 +1107,7 @@ export function CommerceDashboard() {
               <span className={styles.tiny}>Commerce Platform · October 2026</span>
               {liveSaleor ? (
                 <span className={`${styles.badge} ${styles.badgeLive}`}>
-                  <span className={styles.dot}></span> ● LIVE PRODUCTION DATA
+                  <span className={styles.dot}></span> LIVE PRODUCTION DATA
                 </span>
               ) : (
                 <span className={`${styles.badge} ${styles.badgeDemo}`}>
@@ -817,6 +1130,39 @@ export function CommerceDashboard() {
                   {liveSaleor ? 'Export live CSV' : 'Export sample CSV'}
                 </button>
               </div>
+            </div>
+
+            {/* Quick Period Presets */}
+            <div className={styles.quickPresetsBar}>
+              <span className={styles.quickPresetsLabel}>Quick Periods:</span>
+              <button
+                type="button"
+                className={`${styles.quickPresetPill} ${currentWindowDays === 1 ? styles.quickPresetPillActive : ''}`}
+                onClick={() => handleQuickPreset(1)}
+              >
+                Today (vs Yesterday)
+              </button>
+              <button
+                type="button"
+                className={`${styles.quickPresetPill} ${currentWindowDays === 7 ? styles.quickPresetPillActive : ''}`}
+                onClick={() => handleQuickPreset(7)}
+              >
+                1 Week (vs Past Week)
+              </button>
+              <button
+                type="button"
+                className={`${styles.quickPresetPill} ${currentWindowDays === 14 ? styles.quickPresetPillActive : ''}`}
+                onClick={() => handleQuickPreset(14)}
+              >
+                14 Days (vs Past 14d)
+              </button>
+              <button
+                type="button"
+                className={`${styles.quickPresetPill} ${currentWindowDays >= 28 && currentWindowDays <= 32 ? styles.quickPresetPillActive : ''}`}
+                onClick={() => handleQuickPreset(30)}
+              >
+                1 Month (vs Previous Month)
+              </button>
             </div>
 
             {/* Filter Bar */}
@@ -913,8 +1259,9 @@ export function CommerceDashboard() {
             {section === 'overview' && (
               <>
                 <div className={styles.metrics}>
+                  {/* Card 1: Orders placed */}
                   <div className={`${styles.card} ${styles.metric}`}>
-                    <div className={styles.metriclabel} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className={styles.metriclabel}>
                       <span>Orders placed · Saleor</span>
                       {liveSaleor ? (
                         <span style={{ fontSize: '10px', background: '#e1f5ec', color: '#1a7f5a', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
@@ -926,32 +1273,46 @@ export function CommerceDashboard() {
                         </span>
                       )}
                     </div>
-                    <div className={styles.metricvalue}>
-                      {liveSaleor ? (
-                        fmt(liveSaleor.orders)
-                      ) : liveLoading ? (
-                        <span className={styles.skeletonPulse}>—</span>
-                      ) : (
-                        fmt(currentAgg.orders)
-                      )}
+                    <div className={styles.metricValueRow}>
+                      <div className={styles.metricvalue}>
+                        {liveSaleor ? (
+                          fmt(liveSaleor.orders)
+                        ) : liveLoading ? (
+                          <span className={styles.skeletonPulse}>—</span>
+                        ) : (
+                          fmt(currentAgg.orders)
+                        )}
+                      </div>
+                      <MiniSparkline data={ordersSparkline} />
                     </div>
                     <div className={styles.metricfoot}>
                       {liveSaleor ? (
-                        <>
-                          <span className={`${styles.change} ${liveSaleor.changePct < 0 ? styles.changeDown : ''}`}>
-                            {liveSaleor.changePct > 0 ? '+' : ''}{liveSaleor.changePct.toFixed(1)}%
-                          </span>
-                          <span>vs previous equal window ({fmt(liveSaleor.previousOrders)}) · {fmt(liveSaleor.todaySoFar)} today</span>
-                        </>
+                        renderTrend(
+                          liveSaleor.orders,
+                          liveSaleor.previousOrders,
+                          false,
+                          <span>
+                            {comparisonWindowLabel === 'previous day'
+                              ? `${fmt(liveSaleor.todaySoFar)} recorded today`
+                              : `${fmt(liveSaleor.todaySoFar)} today`}
+                          </span>,
+                        )
                       ) : liveLoading ? (
                         <span>Connecting live Saleor feed...</span>
                       ) : (
-                        renderDelta(currentAgg.orders, priorAgg?.orders)
+                        renderTrend(
+                          currentAgg.orders,
+                          priorAgg?.orders,
+                          false,
+                          <span>Sample fixture baseline</span>,
+                        )
                       )}
                     </div>
                   </div>
+
+                  {/* Card 2: Received in OMS */}
                   <div className={`${styles.card} ${styles.metric}`}>
-                    <div className={styles.metriclabel} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className={styles.metriclabel}>
                       <span>Received in OMS</span>
                       {liveSaleor?.oms?.live ? (
                         <span style={{ fontSize: '10px', background: '#e1f5ec', color: '#1a7f5a', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
@@ -963,14 +1324,17 @@ export function CommerceDashboard() {
                         </span>
                       )}
                     </div>
-                    <div className={styles.metricvalue}>
-                      {liveSaleor?.oms?.live ? (
-                        fmt(liveSaleor.oms.orders)
-                      ) : liveLoading ? (
-                        <span className={styles.skeletonPulse}>—</span>
-                      ) : (
-                        fmt(currentAgg.orders - Math.floor(currentAgg.orders * 0.02))
-                      )}
+                    <div className={styles.metricValueRow}>
+                      <div className={styles.metricvalue}>
+                        {liveSaleor?.oms?.live ? (
+                          fmt(liveSaleor.oms.orders)
+                        ) : liveLoading ? (
+                          <span className={styles.skeletonPulse}>—</span>
+                        ) : (
+                          fmt(currentAgg.orders - Math.floor(currentAgg.orders * 0.02))
+                        )}
+                      </div>
+                      <MiniSparkline data={omsSparkline} />
                     </div>
                     <div className={styles.metricfoot}>
                       {liveSaleor?.oms?.live ? (
@@ -979,24 +1343,33 @@ export function CommerceDashboard() {
                             Channel unmapped in OMS · {fmt(liveSaleor.orders)} orders unrouted
                           </span>
                         ) : (
-                          <>
-                            <span className={`${styles.change} ${liveSaleor.oms.changePct < 0 ? styles.changeDown : ''}`}>
-                              {liveSaleor.oms.changePct > 0 ? '+' : ''}{liveSaleor.oms.changePct.toFixed(1)}%
-                            </span>
+                          renderTrend(
+                            liveSaleor.oms.orders,
+                            liveSaleor.oms.previousOrders,
+                            false,
                             <span>
-                              {liveSaleor.oms.exceptions === 0 ? '0 sync delay · 100% handoff match' : `${fmt(liveSaleor.oms.exceptions)} sync delay exceptions`}
-                            </span>
-                          </>
+                              {liveSaleor.oms.exceptions === 0
+                                ? '0 sync delay · 100% handoff match'
+                                : `${fmt(liveSaleor.oms.exceptions)} sync delay exceptions`}
+                            </span>,
+                          )
                         )
                       ) : liveLoading ? (
                         <span>Connecting live Macula OMS feed...</span>
                       ) : (
-                        `${fmt(Math.floor(currentAgg.orders * 0.02))} sample handoff exceptions · reconcile IDs`
+                        renderTrend(
+                          currentAgg.orders - Math.floor(currentAgg.orders * 0.02),
+                          priorAgg ? priorAgg.orders - Math.floor(priorAgg.orders * 0.02) : null,
+                          false,
+                          <span>{fmt(Math.floor(currentAgg.orders * 0.02))} sample handoff exceptions</span>,
+                        )
                       )}
                     </div>
                   </div>
+
+                  {/* Card 3: Payment success */}
                   <div className={`${styles.card} ${styles.metric}`}>
-                    <div className={styles.metriclabel} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className={styles.metriclabel}>
                       <span>Payment success</span>
                       {liveSaleor?.paymentBreakdown ? (
                         <span style={{ fontSize: '10px', background: '#e1f5ec', color: '#1a7f5a', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
@@ -1008,36 +1381,63 @@ export function CommerceDashboard() {
                         </span>
                       )}
                     </div>
-                    <div className={styles.metricvalue}>
-                      {liveSaleor?.paymentBreakdown ? (
-                        `${liveSaleor.paymentBreakdown.onlineRate.toFixed(1)}%`
-                      ) : liveLoading ? (
-                        <span className={styles.skeletonPulse}>—</span>
-                      ) : (
-                        pct(currentAgg.success, currentAgg.attempts)
-                      )}
+                    <div className={styles.metricValueRow}>
+                      <div className={styles.metricvalue}>
+                        {liveSaleor?.paymentBreakdown ? (
+                          `${liveSaleor.paymentBreakdown.onlineRate.toFixed(1)}%`
+                        ) : liveLoading ? (
+                          <span className={styles.skeletonPulse}>—</span>
+                        ) : (
+                          pct(currentAgg.success, currentAgg.attempts)
+                        )}
+                      </div>
+                      <MiniSparkline data={paymentSparkline} />
                     </div>
                     <div className={styles.metricfoot}>
                       {liveSaleor?.paymentBreakdown ? (
-                        <span>{fmt(liveSaleor.paymentBreakdown.fullCharge)} online captured / {fmt(liveSaleor.orders)} total</span>
+                        renderTrend(
+                          liveSaleor.paymentBreakdown.onlineRate,
+                          liveSaleor.paymentBreakdown.priorOnlineRate,
+                          true,
+                          <span>
+                            {fmt(liveSaleor.paymentBreakdown.fullCharge)} online captured / {fmt(liveSaleor.orders)} total
+                          </span>,
+                        )
                       ) : liveLoading ? (
                         <span>Computing payment charges...</span>
                       ) : (
-                        'Online attempts · cash excluded'
+                        renderTrend(
+                          currPaymentRate,
+                          priorPaymentRate,
+                          true,
+                          <span>Online attempts · cash excluded</span>,
+                        )
                       )}
                     </div>
                   </div>
+
+                  {/* Card 4: Journey conversion */}
                   <div className={`${styles.card} ${styles.metric}`}>
-                    <div className={styles.metriclabel} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className={styles.metriclabel}>
                       <span>Journey conversion</span>
                       <span style={{ fontSize: '10px', background: '#f0f2f1', color: '#68726e', padding: '2px 6px', borderRadius: '4px' }}>
                         SAMPLE
                       </span>
                     </div>
-                    <div className={styles.metricvalue}>
-                      {pct(currentAgg.orders, currentAgg.steps[0])}
+                    <div className={styles.metricValueRow}>
+                      <div className={styles.metricvalue}>
+                        {pct(currentAgg.orders, currentAgg.steps[0])}
+                      </div>
+                      <MiniSparkline data={journeySparkline} />
                     </div>
-                    <div className={styles.metricfoot}>Synthetic cohort · requires browser events</div>
+                    <div className={styles.metricfoot}>
+                      {renderTrend(
+                        currConvRate,
+                        priorConvRate,
+                        true,
+                        <span>Synthetic cohort · requires browser events</span>,
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -1049,13 +1449,37 @@ export function CommerceDashboard() {
                         <h2>Orders placed over time</h2>
                         <p>Saleor order creation · OMS receipt reconciled separately</p>
                       </div>
-                      {liveSaleor?.dailyPoints ? (
-                        <span className={`${styles.badge} ${styles.badgeLive}`}>● LIVE PROD</span>
-                      ) : (
-                        <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
-                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {renderTrendBadge(
+                          liveSaleor ? liveSaleor.orders : currentAgg.orders,
+                          liveSaleor ? liveSaleor.previousOrders : priorAgg?.orders,
+                          false,
+                          { showContext: true, compactContext: true },
+                        )}
+                        {liveSaleor?.dailyPoints ? (
+                          <span className={`${styles.badge} ${styles.badgeLive}`}>● LIVE PROD</span>
+                        ) : (
+                          <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
+                        )}
+                      </div>
                     </div>
                     <div className={styles.cardbody} style={{ paddingBottom: '7px' }}>
+                      <div className={styles.chartHeaderSummary}>
+                        <div className={styles.chartTotalValue}>
+                          {liveSaleor ? fmt(liveSaleor.orders) : fmt(currentAgg.orders)}
+                          <span className={styles.chartTotalUnit}>total orders</span>
+                        </div>
+                        {renderTrend(
+                          liveSaleor ? liveSaleor.orders : currentAgg.orders,
+                          liveSaleor ? liveSaleor.previousOrders : priorAgg?.orders,
+                          false,
+                          dailyPoints.length > 0 ? (
+                            <span>
+                              Daily avg: {((liveSaleor ? liveSaleor.orders : currentAgg.orders) / Math.max(1, dailyPoints.length)).toFixed(1)} orders/day · {dailyPoints.length} {dailyPoints.length === 1 ? 'reporting day' : 'days in window'}
+                            </span>
+                          ) : undefined,
+                        )}
+                      </div>
                       <svg className={styles.chart} viewBox={`0 0 ${chartW} ${chartH}`}>
                         <defs>
                           <linearGradient id="area" x1="0" x2="0" y1="0" y2="1">
@@ -1110,7 +1534,13 @@ export function CommerceDashboard() {
                     </div>
                     <div className={styles.chartfooter}>
                       <div className={styles.legend}>
-                        <span><i></i>Orders placed</span>
+                        <span><i></i>Orders placed ({liveSaleor ? fmt(liveSaleor.orders) : fmt(currentAgg.orders)})</span>
+                        {renderTrendBadge(
+                          liveSaleor ? liveSaleor.orders : currentAgg.orders,
+                          liveSaleor ? liveSaleor.previousOrders : priorAgg?.orders,
+                          false,
+                          { showContext: true, compactContext: true },
+                        )}
                       </div>
                       <span>Reporting days in {timezone} · hover points for values</span>
                     </div>
@@ -1127,11 +1557,19 @@ export function CommerceDashboard() {
                             : 'Distinct online attempts · illustrative mapping'}
                         </p>
                       </div>
-                      {liveSaleor?.paymentBreakdown ? (
-                        <span className={`${styles.badge} ${styles.badgeLive}`}>● LIVE PROD</span>
-                      ) : (
-                        <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
-                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {renderTrendBadge(
+                          liveSaleor?.paymentBreakdown ? liveSaleor.paymentBreakdown.onlineRate : currPaymentRate,
+                          liveSaleor?.paymentBreakdown ? liveSaleor.paymentBreakdown.priorOnlineRate : priorPaymentRate,
+                          true,
+                          { showContext: true, compactContext: true },
+                        )}
+                        {liveSaleor?.paymentBreakdown ? (
+                          <span className={`${styles.badge} ${styles.badgeLive}`}>● LIVE PROD</span>
+                        ) : (
+                          <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
+                        )}
+                      </div>
                     </div>
                     <div className={styles.cardbody}>
                       <div className={styles.paymentRing}>
@@ -1156,37 +1594,56 @@ export function CommerceDashboard() {
                                 : pct(currentAgg.success, currentAgg.attempts)}
                             </b>
                             <span>{liveSaleor?.paymentBreakdown ? 'captured online' : 'confirmed success'}</span>
+                            <div style={{ marginTop: '3px' }}>
+                              {renderTrendBadge(
+                                liveSaleor?.paymentBreakdown ? liveSaleor.paymentBreakdown.onlineRate : currPaymentRate,
+                                liveSaleor?.paymentBreakdown ? liveSaleor.paymentBreakdown.priorOnlineRate : priorPaymentRate,
+                                true,
+                              )}
+                            </div>
                           </div>
                         </div>
                         <div className={styles.ringlegend}>
                           {liveSaleor?.paymentBreakdown ? (
                             <>
-                              <div>
-                                <span className={styles.dot} style={{ color: '#5a8263' }}></span>
-                                Captured <b>{fmt(liveSaleor.paymentBreakdown.fullCharge)}</b>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                <span><span className={styles.dot} style={{ color: '#5a8263' }}></span>Captured <b>{fmt(liveSaleor.paymentBreakdown.fullCharge)}</b></span>
+                                {renderTrendBadge(
+                                  liveSaleor.paymentBreakdown.fullCharge,
+                                  liveSaleor.paymentBreakdown.priorFullCharge,
+                                  false,
+                                )}
                               </div>
-                              <div>
-                                <span className={styles.dot} style={{ color: '#d6978a' }}></span>
-                                Uncharged / Cash <b>{fmt(liveSaleor.paymentBreakdown.noneCharge)}</b>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                <span><span className={styles.dot} style={{ color: '#d6978a' }}></span>Uncharged / Cash <b>{fmt(liveSaleor.paymentBreakdown.noneCharge)}</b></span>
+                                {renderTrendBadge(
+                                  liveSaleor.paymentBreakdown.noneCharge,
+                                  liveSaleor.paymentBreakdown.priorNoneCharge,
+                                  false,
+                                )}
                               </div>
-                              <div>
-                                <span className={styles.dot} style={{ color: '#507b5b' }}></span>
-                                Total Orders <b>{fmt(liveSaleor.orders)}</b>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                <span><span className={styles.dot} style={{ color: '#507b5b' }}></span>Total Orders <b>{fmt(liveSaleor.orders)}</b></span>
+                                {renderTrendBadge(
+                                  liveSaleor.orders,
+                                  liveSaleor.previousOrders,
+                                  false,
+                                )}
                               </div>
                             </>
                           ) : (
                             <>
-                              <div>
-                                <span className={styles.dot} style={{ color: '#5a8263' }}></span>
-                                Success <b>{fmt(currentAgg.success)}</b>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                <span><span className={styles.dot} style={{ color: '#5a8263' }}></span>Success <b>{fmt(currentAgg.success)}</b></span>
+                                {renderTrendBadge(currentAgg.success, priorAgg?.success, false)}
                               </div>
-                              <div>
-                                <span className={styles.dot} style={{ color: '#d6978a' }}></span>
-                                Failed <b>{fmt(currentAgg.failed)}</b>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                <span><span className={styles.dot} style={{ color: '#d6978a' }}></span>Failed <b>{fmt(currentAgg.failed)}</b></span>
+                                {renderTrendBadge(currentAgg.failed, priorAgg?.failed, false)}
                               </div>
-                              <div>
-                                <span className={styles.dot} style={{ color: '#d6dccc' }}></span>
-                                Pending <b>{fmt(currentAgg.pending)}</b>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                <span><span className={styles.dot} style={{ color: '#d6dccc' }}></span>Pending <b>{fmt(currentAgg.pending)}</b></span>
+                                {renderTrendBadge(currentAgg.pending, priorAgg?.pending, false)}
                               </div>
                             </>
                           )}
@@ -1195,25 +1652,48 @@ export function CommerceDashboard() {
                       <div className={styles.ruleline}></div>
                       <div className={styles.minirow}>
                         <span>{liveSaleor?.paymentBreakdown ? 'Online captured orders' : 'Online payment attempts'}</span>
-                        <strong>
-                          {liveSaleor?.paymentBreakdown
-                            ? fmt(liveSaleor.paymentBreakdown.fullCharge)
-                            : fmt(currentAgg.attempts)}
-                        </strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <strong>
+                            {liveSaleor?.paymentBreakdown
+                              ? fmt(liveSaleor.paymentBreakdown.fullCharge)
+                              : fmt(currentAgg.attempts)}
+                          </strong>
+                          {renderTrendBadge(
+                            liveSaleor?.paymentBreakdown ? liveSaleor.paymentBreakdown.fullCharge : currentAgg.attempts,
+                            liveSaleor?.paymentBreakdown ? liveSaleor.paymentBreakdown.priorFullCharge : priorAgg?.attempts,
+                            false,
+                            { showContext: true, compactContext: true },
+                          )}
+                        </div>
                       </div>
                       <div className={styles.minirow}>
                         <span>{liveSaleor?.paymentBreakdown ? 'Cash / uncharged orders' : 'Cash orders · excluded from rate'}</span>
-                        <strong>
-                          {liveSaleor?.paymentBreakdown
-                            ? fmt(liveSaleor.paymentBreakdown.noneCharge)
-                            : fmt(currentAgg.cash)}
-                        </strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <strong>
+                            {liveSaleor?.paymentBreakdown
+                              ? fmt(liveSaleor.paymentBreakdown.noneCharge)
+                              : fmt(currentAgg.cash)}
+                          </strong>
+                          {renderTrendBadge(
+                            liveSaleor?.paymentBreakdown ? liveSaleor.paymentBreakdown.noneCharge : currentAgg.cash,
+                            liveSaleor?.paymentBreakdown ? liveSaleor.paymentBreakdown.priorNoneCharge : priorAgg?.cash,
+                            false,
+                            { showContext: true, compactContext: true },
+                          )}
+                        </div>
                       </div>
-                      <p className={styles.tiny} style={{ lineHeight: '1.6' }}>
-                        {liveSaleor?.paymentBreakdown
-                          ? 'Charge status FULL indicates online settlement confirmed by Saleor.'
-                          : 'Success means a confirmed gateway outcome, not HTTP 200.'}
-                      </p>
+                      <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid #edf1ec' }}>
+                        {renderTrend(
+                          liveSaleor?.paymentBreakdown ? liveSaleor.paymentBreakdown.onlineRate : currPaymentRate,
+                          liveSaleor?.paymentBreakdown ? liveSaleor.paymentBreakdown.priorOnlineRate : priorPaymentRate,
+                          true,
+                          <span>
+                            {liveSaleor?.paymentBreakdown
+                              ? 'Charge status FULL indicates online settlement confirmed by Saleor.'
+                              : 'Success means a confirmed gateway outcome, not HTTP 200.'}
+                          </span>,
+                        )}
+                      </div>
                     </div>
                   </article>
                 </div>
@@ -1238,11 +1718,19 @@ export function CommerceDashboard() {
                             : 'Country from order/channel data · never inferred from IP'}
                         </p>
                       </div>
-                      {liveSaleor?.countryBreakdown ? (
-                        <span className={`${styles.badge} ${styles.badgeLive}`}>● LIVE PROD</span>
-                      ) : (
-                        <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
-                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {renderTrendBadge(
+                          liveSaleor ? liveSaleor.orders : currentAgg.orders,
+                          liveSaleor ? liveSaleor.previousOrders : priorAgg?.orders,
+                          false,
+                          { showContext: true, compactContext: true },
+                        )}
+                        {liveSaleor?.countryBreakdown ? (
+                          <span className={`${styles.badge} ${styles.badgeLive}`}>● LIVE PROD</span>
+                        ) : (
+                          <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
+                        )}
+                      </div>
                     </div>
                     <div className={styles.tablewrap}>
                       <table className={styles.table}>
@@ -1250,6 +1738,7 @@ export function CommerceDashboard() {
                           <tr>
                             <th>COUNTRY</th>
                             <th className={styles.num}>ORDERS</th>
+                            <th className={styles.num}>TREND</th>
                             <th className={styles.num}>SHARE</th>
                             <th className={styles.num}>PAYMENT SUCCESS</th>
                           </tr>
@@ -1263,6 +1752,11 @@ export function CommerceDashboard() {
                               const ordersCount = liveSaleor?.countryBreakdown
                                 ? (liveSaleor.countryBreakdown[code] ?? 0)
                                 : x.orders
+                              const priorOrdersCount = liveSaleor?.priorCountryBreakdown
+                                ? (liveSaleor.priorCountryBreakdown[code] ?? 0)
+                                : priorAgg
+                                ? aggregate(priorRecords.filter((r) => r.code === code)).orders
+                                : undefined
                               const totalOrders = liveSaleor ? liveSaleor.orders : currentAgg.orders
                               const sharePct = totalOrders > 0 ? (ordersCount / totalOrders) * 100 : 0
                               return (
@@ -1273,15 +1767,30 @@ export function CommerceDashboard() {
                                   </td>
                                   <td className={styles.num}><b>{fmt(ordersCount)}</b></td>
                                   <td className={styles.num}>
+                                    {renderTrendBadge(ordersCount, priorOrdersCount, false, {
+                                      showContext: true,
+                                      compactContext: true,
+                                    })}
+                                  </td>
+                                  <td className={styles.num}>
                                     <span className={styles.inlinebar}>
                                       <i style={{ width: `${Math.min(100, sharePct)}%` }}></i>
                                     </span>
                                     {sharePct.toFixed(1)}%
                                   </td>
                                   <td className={styles.num}>
-                                    {liveSaleor?.paymentBreakdown
-                                      ? `${liveSaleor.paymentBreakdown.onlineRate.toFixed(1)}%`
-                                      : pct(x.success, x.attempts)}
+                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
+                                      <span>
+                                        {liveSaleor?.paymentBreakdown
+                                          ? `${liveSaleor.paymentBreakdown.onlineRate.toFixed(1)}%`
+                                          : pct(x.success, x.attempts)}
+                                      </span>
+                                      {renderTrendBadge(
+                                        liveSaleor?.paymentBreakdown ? liveSaleor.paymentBreakdown.onlineRate : (x.attempts ? (x.success / x.attempts) * 100 : 0),
+                                        liveSaleor?.paymentBreakdown ? liveSaleor.paymentBreakdown.priorOnlineRate : (priorAgg && priorAgg.attempts ? (priorAgg.success / priorAgg.attempts) * 100 : null),
+                                        true,
+                                      )}
+                                    </div>
                                   </td>
                                 </tr>
                               )
@@ -1291,8 +1800,8 @@ export function CommerceDashboard() {
                     </div>
                     <div className={styles.chartfooter}>
                       {liveSaleor
-                        ? 'Business-country live orders mapped directly from Saleor country channels.'
-                        : 'Business-country filters require validated brand/channel mappings.'}
+                        ? `Business-country live orders mapped directly from Saleor · Trends compared vs ${comparisonWindowLabel}.`
+                        : `Business-country filters require validated brand/channel mappings · Trends compared vs ${comparisonWindowLabel}.`}
                     </div>
                   </article>
 
@@ -1301,7 +1810,10 @@ export function CommerceDashboard() {
                     <div className={styles.cardhead}>
                       <div>
                         <h2>Customer journey</h2>
-                        <p>Seven steps · new instrumentation required</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px' }}>
+                          <span style={{ fontSize: '11px', color: '#727e77' }}>Overall conversion: <b>{currConvRate.toFixed(1)}%</b></span>
+                          {renderTrendBadge(currConvRate, priorConvRate, true, { showContext: true, compactContext: true })}
+                        </div>
                       </div>
                       <button
                         type="button"
@@ -1324,14 +1836,31 @@ export function CommerceDashboard() {
                             'Attempt',
                             'Confirmed',
                           ]
+                          const priorStepN = priorAgg?.steps?.[i]
                           return (
                             <div key={i} className={styles.funnelcol}>
                               <b>{fmt(n)}</b>
                               <div
                                 className={styles.funnelbar}
-                                style={{ height: `${Math.max(8, (n / maxStep) * 95)}px` }}
+                                style={{ height: `${Math.max(8, (n / maxStep) * 80)}px` }}
                               ></div>
                               <span>{labels[i]}</span>
+                              {priorStepN !== undefined && (
+                                <div
+                                  style={{
+                                    fontSize: '9px',
+                                    fontWeight: 700,
+                                    color: n >= priorStepN ? '#1a7f5a' : '#b13736',
+                                    marginTop: '2px',
+                                  }}
+                                  title={`vs ${comparisonWindowLabel} (${fmt(priorStepN)})`}
+                                >
+                                  {n >= priorStepN ? '↑ +' : '↓ -'}
+                                  {priorStepN === 0
+                                    ? '0%'
+                                    : `${Math.abs(((n - priorStepN) / priorStepN) * 100).toFixed(0)}%`}
+                                </div>
+                              )}
                             </div>
                           )
                         })}
@@ -1385,27 +1914,30 @@ export function CommerceDashboard() {
                         </span>
                       )}
                     </div>
-                    <div className={styles.metricvalue}>
-                      {liveSaleor ? (
-                        fmt(liveSaleor.orders)
-                      ) : liveLoading ? (
-                        <span className={styles.skeletonPulse}>—</span>
-                      ) : (
-                        fmt(currentAgg.orders)
-                      )}
+                    <div className={styles.metricValueRow}>
+                      <div className={styles.metricvalue}>
+                        {liveSaleor ? (
+                          fmt(liveSaleor.orders)
+                        ) : liveLoading ? (
+                          <span className={styles.skeletonPulse}>—</span>
+                        ) : (
+                          fmt(currentAgg.orders)
+                        )}
+                      </div>
+                      <MiniSparkline data={ordersSparkline} />
                     </div>
                     <div className={styles.metricfoot}>
                       {liveSaleor ? (
-                        <>
-                          <span className={`${styles.change} ${liveSaleor.changePct < 0 ? styles.changeDown : ''}`}>
-                            {liveSaleor.changePct > 0 ? '+' : ''}{liveSaleor.changePct.toFixed(1)}%
-                          </span>
-                          <span>vs previous equal window ({fmt(liveSaleor.previousOrders)})</span>
-                        </>
+                        renderTrend(
+                          liveSaleor.orders,
+                          liveSaleor.previousOrders,
+                          false,
+                          <span>{fmt(liveSaleor.todaySoFar)} today</span>,
+                        )
                       ) : liveLoading ? (
                         <span>Connecting live Saleor feed...</span>
                       ) : (
-                        renderDelta(currentAgg.orders, priorAgg?.orders)
+                        renderTrend(currentAgg.orders, priorAgg?.orders)
                       )}
                     </div>
                   </div>
@@ -1434,11 +1966,28 @@ export function CommerceDashboard() {
                         </span>
                       ) : null}
                     </div>
-                    <div className={styles.metricvalue}>
-                      {liveSaleor?.paymentBreakdown ? fmt(liveSaleor.paymentBreakdown.fullCharge) : fmt(currentAgg.success)}
+                    <div className={styles.metricValueRow}>
+                      <div className={styles.metricvalue}>
+                        {liveSaleor?.paymentBreakdown ? fmt(liveSaleor.paymentBreakdown.fullCharge) : fmt(currentAgg.success)}
+                      </div>
+                      <MiniSparkline data={paymentSparkline} />
                     </div>
                     <div className={styles.metricfoot}>
-                      {liveSaleor?.paymentBreakdown ? `${liveSaleor.paymentBreakdown.onlineRate.toFixed(1)}% online success rate` : 'Gateway confirmed · demo outcomes'}
+                      {liveSaleor?.paymentBreakdown ? (
+                        renderTrend(
+                          liveSaleor.paymentBreakdown.onlineRate,
+                          liveSaleor.paymentBreakdown.priorOnlineRate,
+                          true,
+                          <span>{liveSaleor.paymentBreakdown.onlineRate.toFixed(1)}% online success rate</span>,
+                        )
+                      ) : (
+                        renderTrend(
+                          currPaymentRate,
+                          priorPaymentRate,
+                          true,
+                          <span>Gateway confirmed · demo outcomes</span>,
+                        )
+                      )}
                     </div>
                   </div>
                   <div className={`${styles.card} ${styles.metric}`}>

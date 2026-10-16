@@ -137,10 +137,10 @@ function saleorApiPlugin(): Plugin {
             startDate = new Date(Number(startParam))
             endDate = new Date(Number(endParam))
           } else {
-            // Default to yesterday
-            const yesterday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1))
-            startDate = yesterday
-            endDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+            // Default to today
+            const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+            startDate = todayUtc
+            endDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1))
           }
 
           const duration = Math.max(86400000, endDate.getTime() - startDate.getTime())
@@ -290,6 +290,7 @@ function saleorApiPlugin(): Plugin {
             if ((country === 'all' || country.toUpperCase() === cCode.toUpperCase()) && cChs.length > 0) {
               activeCountryQueries.push(
                 `country_${cCode}: orders(first: 1, filter: { created: $current, channels: ${JSON.stringify(cChs)} }) { totalCount }`,
+                `country_prior_${cCode}: orders(first: 1, filter: { created: $prior, channels: ${JSON.stringify(cChs)} }) { totalCount }`,
               )
             }
           }
@@ -298,10 +299,20 @@ function saleorApiPlugin(): Plugin {
           const chargeAliases = `
             charge_FULL: orders(first: 1, filter: { created: $current, channels: $channels, chargeStatus: [FULL] }) { totalCount }
             charge_NONE: orders(first: 1, filter: { created: $current, channels: $channels, chargeStatus: [NONE] }) { totalCount }
+            charge_prior_FULL: orders(first: 1, filter: { created: $prior, channels: $channels, chargeStatus: [FULL] }) { totalCount }
+            charge_prior_NONE: orders(first: 1, filter: { created: $prior, channels: $channels, chargeStatus: [NONE] }) { totalCount }
           `
 
           const recentRevQuery = `
             recentOrders: orders(first: 100, filter: { created: $current, channels: $channels }) {
+              edges {
+                node {
+                  channel { currencyCode }
+                  total { gross { amount currency } }
+                }
+              }
+            }
+            priorOrdersSample: orders(first: 100, filter: { created: $prior, channels: $channels }) {
               edges {
                 node {
                   channel { currencyCode }
@@ -397,14 +408,33 @@ function saleorApiPlugin(): Plugin {
             QA: orderJson.data?.country_QA?.totalCount ?? 0,
             KW: orderJson.data?.country_KW?.totalCount ?? 0,
           }
+          const priorCountryBreakdown: Record<string, number> = {
+            SA: orderJson.data?.country_prior_SA?.totalCount ?? 0,
+            AE: orderJson.data?.country_prior_AE?.totalCount ?? 0,
+            EG: orderJson.data?.country_prior_EG?.totalCount ?? 0,
+            QA: orderJson.data?.country_prior_QA?.totalCount ?? 0,
+            KW: orderJson.data?.country_prior_KW?.totalCount ?? 0,
+          }
 
           // Extract payment charges
           const fullCharge = orderJson.data?.charge_FULL?.totalCount ?? 0
           const noneCharge = orderJson.data?.charge_NONE?.totalCount ?? 0
+          const priorFullCharge = orderJson.data?.charge_prior_FULL?.totalCount ?? 0
+          const priorNoneCharge = orderJson.data?.charge_prior_NONE?.totalCount ?? 0
+          const onlineRate = currOrders > 0 ? Math.round((fullCharge / currOrders) * 1000) / 10 : 0
+          const priorOnlineRate = priorOrders > 0 ? Math.round((priorFullCharge / priorOrders) * 1000) / 10 : 0
+          let paymentChangePct = 0
+          if (priorOnlineRate > 0) {
+            paymentChangePct = Math.round(((onlineRate - priorOnlineRate) / priorOnlineRate) * 1000) / 10
+          }
           const paymentBreakdown = {
             fullCharge,
             noneCharge,
-            onlineRate: currOrders > 0 ? Math.round((fullCharge / currOrders) * 1000) / 10 : 0,
+            onlineRate,
+            priorFullCharge,
+            priorNoneCharge,
+            priorOnlineRate,
+            changePct: paymentChangePct,
           }
 
           // Extract gross revenue by currency
@@ -413,6 +443,13 @@ function saleorApiPlugin(): Plugin {
             const cur = edge.node.total?.gross?.currency || edge.node.channel?.currencyCode || 'AED'
             const amt = edge.node.total?.gross?.amount || 0
             revenueByCurrency[cur] = Math.round(((revenueByCurrency[cur] || 0) + amt) * 100) / 100
+          }
+
+          const priorRevenueByCurrency: Record<string, number> = {}
+          for (const edge of orderJson.data?.priorOrdersSample?.edges || []) {
+            const cur = edge.node.total?.gross?.currency || edge.node.channel?.currencyCode || 'AED'
+            const amt = edge.node.total?.gross?.amount || 0
+            priorRevenueByCurrency[cur] = Math.round(((priorRevenueByCurrency[cur] || 0) + amt) * 100) / 100
           }
 
           // 4. Query Macula OMS
@@ -493,6 +530,16 @@ function saleorApiPlugin(): Plugin {
           const syncExceptions = Math.max(0, currOrders - omsOrders)
 
           const numDays = Math.max(1, Math.round(duration / 86400000))
+          let windowComparisonLabel = `previous ${numDays} days`
+          if (numDays === 1) {
+            windowComparisonLabel = 'previous day'
+          } else if (numDays >= 6 && numDays <= 8) {
+            windowComparisonLabel = 'previous week'
+          } else if (numDays >= 13 && numDays <= 16) {
+            windowComparisonLabel = 'previous 2 weeks'
+          } else if (numDays >= 28 && numDays <= 32) {
+            windowComparisonLabel = 'previous month'
+          }
           const periodDesc = numDays === 1 ? `1 day (${currStartStr})` : `${numDays} days (${currStartStr} to ${currEndStr})`
 
           const result = {
@@ -503,6 +550,8 @@ function saleorApiPlugin(): Plugin {
             country,
             channelsMatched: channelIds.length,
             period: periodDesc,
+            windowDays: numDays,
+            windowComparisonLabel,
             startDate: currStartStr,
             endDate: currEndStr,
             orders: currOrders,
@@ -511,8 +560,10 @@ function saleorApiPlugin(): Plugin {
             todaySoFar: todayOrders,
             dailyPoints,
             countryBreakdown,
+            priorCountryBreakdown,
             paymentBreakdown,
             revenueByCurrency,
+            priorRevenueByCurrency,
             gatewayCounts,
             methodCounts,
             oms: {

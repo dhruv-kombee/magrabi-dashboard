@@ -48,11 +48,13 @@ function pad(n: number): string {
 
 function parseDateTimeString(str: string) {
   if (!str) {
-    return { year: 2026, month: 9, day: 8, hour: 0, minute: 0 }
+    const now = new Date()
+    return { year: now.getFullYear(), month: now.getMonth(), day: now.getDate(), hour: 0, minute: 0 }
   }
   const [datePart, timePart] = str.split('T')
   if (!datePart) {
-    return { year: 2026, month: 9, day: 8, hour: 0, minute: 0 }
+    const now = new Date()
+    return { year: now.getFullYear(), month: now.getMonth(), day: now.getDate(), hour: 0, minute: 0 }
   }
   const [y, m, d] = datePart.split('-').map(Number)
   const [hh, mm] = (timePart || '00:00').split(':').map(Number)
@@ -223,20 +225,29 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
     return days
   }, [viewYear, viewMonth, daysInMonth, firstDayOfWeek, prevMonthDays])
 
-  // Presets tailored for Magrabi dataset (Sept-Oct 2026)
+  // Dynamic presets based on current date
+  const now = new Date()
+  const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  const yest = new Date(now.getTime() - 86400000)
+  const yestStr = `${yest.getFullYear()}-${pad(yest.getMonth() + 1)}-${pad(yest.getDate())}`
+  const tomorrow = new Date(now.getTime() + 86400000)
+  const tomorrowStr = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`
+  const sevenAgo = new Date(now.getTime() - 7 * 86400000)
+  const sevenAgoStr = `${sevenAgo.getFullYear()}-${pad(sevenAgo.getMonth() + 1)}-${pad(sevenAgo.getDate())}`
+
   const presets =
     presetType === 'start'
       ? [
+          { label: 'Today', value: `${todayStr}T00:00` },
+          { label: 'Yesterday', value: `${yestStr}T00:00` },
+          { label: '7d Ago', value: `${sevenAgoStr}T00:00` },
           { label: '01 Oct', value: '2026-10-01T00:00' },
-          { label: '08 Oct (7d)', value: '2026-10-08T00:00' },
-          { label: '14 Oct', value: '2026-10-14T00:00' },
-          { label: '15 Oct', value: '2026-10-15T00:00' },
         ]
       : [
-          { label: '08 Oct', value: '2026-10-08T00:00' },
-          { label: '14 Oct', value: '2026-10-14T00:00' },
-          { label: '15 Oct (Start)', value: '2026-10-15T00:00' },
-          { label: '15 Oct (End)', value: '2026-10-15T23:59' },
+          { label: 'Today (End)', value: `${tomorrowStr}T00:00` },
+          { label: 'Today (23:59)', value: `${todayStr}T23:59` },
+          { label: 'Yesterday', value: `${todayStr}T00:00` },
+          { label: '15 Oct', value: '2026-10-15T23:59' },
         ]
 
   // Time preset buttons
