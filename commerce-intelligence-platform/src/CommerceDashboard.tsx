@@ -12,7 +12,6 @@ import {
   countries,
   dayKey,
   filterRecords,
-  fixtureEnd,
   fixtures,
   fixtureStart,
   fmt,
@@ -896,10 +895,6 @@ export function CommerceDashboard() {
     )
   }
 
-  // Legacy fallback
-  const renderDelta = (currentVal: number, priorVal?: number) => {
-    return renderTrend(currentVal, priorVal)
-  }
 
   // Compact inline trend badge for table cells and sub-headers
   const renderTrendBadge = (
@@ -2263,14 +2258,23 @@ export function CommerceDashboard() {
 
                         {/* Chart with Interactive Date Dots and Guideline */}
                         <div className={styles.chartWrapper} style={{ padding: '12px 18px 6px' }}>
-                          {countryHover && (
-                            <div
-                              className={styles.chartTooltip}
-                              style={{
-                                left: `${(countryHover.x / countryChartW) * 100}%`,
-                                top: `${(countryHover.y / countryChartH) * 100}%`,
-                              }}
-                            >
+                          {countryHover && (() => {
+                            const xRatio = countryHover.x / countryChartW
+                            const yRatio = countryHover.y / countryChartH
+                            const isHigh = yRatio < 0.48
+                            const isRight = xRatio > 0.68
+                            const isLeft = xRatio < 0.28
+
+                            return (
+                              <div
+                                className={`${styles.chartTooltip} ${isHigh ? styles.chartTooltipBottom : ''} ${
+                                  isRight ? styles.chartTooltipRight : isLeft ? styles.chartTooltipLeft : ''
+                                }`}
+                                style={{
+                                  left: `calc(18px + ${(countryHover.x / countryChartW)} * (100% - 36px))`,
+                                  top: `${12 + countryHover.y}px`,
+                                }}
+                              >
                               <div className={styles.chartTooltipHeader}>
                                 <span>📅 {formatChartDate(countryHover.date)}</span>
                                 <span style={{ color: '#7be3a7' }}>● Country Daily</span>
@@ -2303,7 +2307,7 @@ export function CommerceDashboard() {
                                 </div>
                               </div>
                             </div>
-                          )}
+                          )})()}
 
                           <svg className={styles.chart} viewBox={`0 0 ${countryChartW} ${countryChartH}`} style={{ height: '260px' }}>
                             {/* Horizontal guide lines */}

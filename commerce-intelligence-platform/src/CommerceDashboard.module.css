@@ -1798,20 +1798,39 @@
   z-index: 100;
   min-width: 130px;
   max-width: 260px;
-  transform: translate(-50%, -100%);
-  margin-top: -12px;
+  transform: translate(var(--tt-x, -50%), var(--tt-y, -100%));
+  margin-top: var(--tt-my, -12px);
   transition: opacity 0.12s ease, transform 0.12s ease;
 }
 
 .chartTooltip::after {
   content: '';
   position: absolute;
-  top: 100%;
-  left: 50%;
+  top: var(--tt-arrow-top, 100%);
+  bottom: var(--tt-arrow-bottom, auto);
+  left: var(--tt-arrow-left, 50%);
   margin-left: -5px;
   border-width: 5px;
   border-style: solid;
-  border-color: #18231c transparent transparent transparent;
+  border-color: var(--tt-arrow-color, #18231c transparent transparent transparent);
+}
+
+.chartTooltipBottom {
+  --tt-y: 0px;
+  --tt-my: 14px;
+  --tt-arrow-top: auto;
+  --tt-arrow-bottom: 100%;
+  --tt-arrow-color: transparent transparent #18231c transparent;
+}
+
+.chartTooltipRight {
+  --tt-x: -90%;
+  --tt-arrow-left: 90%;
+}
+
+.chartTooltipLeft {
+  --tt-x: -10%;
+  --tt-arrow-left: 10%;
 }
 
 .chartTooltipHeader {
@@ -1955,4 +1974,5 @@
 
 .chartHitArea {
   cursor: crosshair;
+  pointer-events: all;
 }

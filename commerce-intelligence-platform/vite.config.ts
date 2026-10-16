@@ -21,8 +21,10 @@ const MACULA_CHANNEL_MAP: Record<string, string> = {
   'Magrabi:AE': '653a00431aaf66e6cf160938',
   'Magrabi:EG': '653a02b4b7a633308ae36572',
   'Magrabi:QA': '653a054812c9e0c020beafd9',
+  'Magrabi:KW': '66f40a88bc72e64691220a3e',
   'DoctorM:SA': '6672d9e544576401df250127',
   'DoctorM:AE': '6780c217db39c395607fb906',
+  'DoctorM:EG': '69b7c3e6fd85bfc89267f961',
 }
 
 function getChannelIds(brand: string, country: string): string[] {
