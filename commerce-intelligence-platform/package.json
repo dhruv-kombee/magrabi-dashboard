@@ -9,6 +9,7 @@
     "preview": "vite preview --port 5174"
   },
   "dependencies": {
+    "exceljs": "^4.4.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

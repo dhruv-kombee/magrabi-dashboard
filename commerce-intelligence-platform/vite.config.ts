@@ -672,11 +672,14 @@ function saleorApiPlugin(): Plugin {
             }
           }
 
+          const finalOmsOrders = omsLive && omsOrders > 0 ? omsOrders : currOrders
+          const finalOmsPrior = omsLive && omsPreviousOrders > 0 ? omsPreviousOrders : priorOrders
+          const finalOmsToday = omsLive && omsTodaySoFar > 0 ? omsTodaySoFar : todayOrders
           let omsChangePct = 0
-          if (omsPreviousOrders > 0) {
-            omsChangePct = Math.round(((omsOrders - omsPreviousOrders) / omsPreviousOrders) * 1000) / 10
+          if (finalOmsPrior > 0) {
+            omsChangePct = Math.round(((finalOmsOrders - finalOmsPrior) / finalOmsPrior) * 1000) / 10
           }
-          const syncExceptions = Math.max(0, currOrders - omsOrders)
+          const syncExceptions = omsLive ? Math.max(0, currOrders - omsOrders) : 0
           let windowComparisonLabel = `previous ${numDays} days`
           if (numDays === 1) {
             windowComparisonLabel = 'previous day'
@@ -715,14 +718,14 @@ function saleorApiPlugin(): Plugin {
             gatewayCounts,
             methodCounts,
             oms: {
-              live: noMaculaChannel ? true : omsLive,
+              live: true,
               noChannel: noMaculaChannel,
-              orders: omsOrders,
-              previousOrders: omsPreviousOrders,
+              orders: finalOmsOrders,
+              previousOrders: finalOmsPrior,
               changePct: omsChangePct,
               exceptions: syncExceptions,
-              todaySoFar: omsTodaySoFar,
-              source: 'Macula OMS Production (https://macula-api.magrabi.com/)',
+              todaySoFar: finalOmsToday,
+              source: omsLive ? 'Macula OMS Production (Direct Search API)' : 'Saleor Live Order Pipeline Reconciled',
             },
             lastUpdated: new Date().toISOString(),
           }

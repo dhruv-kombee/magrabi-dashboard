@@ -1976,3 +1976,37 @@
   cursor: crosshair;
   pointer-events: all;
 }
+
+/* Styled Export Action Buttons */
+.btnPrimaryExcel {
+  background: #0f5132 !important;
+  color: #ffffff !important;
+  border-color: #0d4229 !important;
+  font-weight: 600 !important;
+  box-shadow: 0 1px 3px rgba(15, 81, 50, 0.25);
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+}
+
+.btnPrimaryExcel:hover {
+  background: #146c43 !important;
+  border-color: #0f5132 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(15, 81, 50, 0.35);
+  transform: translateY(-1px);
+}
+
+.btnSecondaryCsv {
+  background: #ffffff !important;
+  color: #475569 !important;
+  border-color: #cbd5e1 !important;
+  font-weight: 600 !important;
+  transition: all 0.15s ease;
+}
+
+.btnSecondaryCsv:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border-color: #94a3b8 !important;
+}

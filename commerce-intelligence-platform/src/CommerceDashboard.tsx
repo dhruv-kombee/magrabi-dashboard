@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react'
+import { exportReport } from './exportReport'
 import type {
   BrandFilter,
   CountryFilter,
@@ -677,70 +678,8 @@ export function CommerceDashboard() {
     })
   }
 
-  const exportCSV = () => {
-    let rows: Array<Array<string | number>> = []
-    let filename = 'DEMO-commerce-orders.csv'
+// Export handled by handleExport via exportReport
 
-    if (section === 'traffic') {
-      const src = sources[source]
-      const srcRows = filterRecords(
-        fixtures,
-        start,
-        end,
-        src.brand ? brand : 'all',
-        src.country ? country : 'all',
-      )
-      const factor = src.scale * (source === 'ingress' && filtered ? 0.79 : 1)
-      const n = Math.round(sum(srcRows, 'requests') * factor)
-      rows = [
-        ['DEMO ONLY — synthetic fixture export — not production data'],
-        ['Source', src.name],
-        ['Window start UTC', new Date(start).toISOString()],
-        ['Window end UTC exclusive', new Date(end).toISOString()],
-        ['Reporting timezone', timezone],
-        ['Total Sample Requests', n],
-      ]
-      filename = `DEMO-traffic-${source}.csv`
-    } else {
-      const map = new Map<string, { day: string; brand: string; code: string; orders: number; revenue: number }>()
-      for (const r of currentRecords) {
-        const key = [dayKey(r.t, timezone), r.brand, r.code].join('|')
-        if (!map.has(key)) {
-          map.set(key, { day: dayKey(r.t, timezone), brand: r.brand, code: r.code, orders: 0, revenue: 0 })
-        }
-        const x = map.get(key)!
-        x.orders += r.orders
-        x.revenue += r.revenue
-      }
-      rows = [
-        ['DEMO ONLY — synthetic fixture export — not production data'],
-        ['Reporting timezone', timezone],
-        ['Window start UTC', new Date(start).toISOString()],
-        ['Window end UTC exclusive', new Date(end).toISOString()],
-        ['Reporting date', 'Brand', 'Order country', 'Sample Saleor orders placed', 'Currency', 'Sample gross revenue'],
-        ...[...map.values()].map((x) => [
-          x.day,
-          x.brand,
-          x.code,
-          x.orders,
-          countries[x.code]?.currency || 'AED',
-          x.revenue,
-        ]),
-      ]
-    }
-
-    const csvContent =
-      '\uFEFF' +
-      rows.map((r) => r.map((v) => `"${String(v).replaceAll('"', '""')}"`).join(',')).join('\r\n')
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    a.click()
-    setTimeout(() => URL.revokeObjectURL(url), 1000)
-    showToast('Exported sample CSV data.')
-  }
 
   // Dynamic comparison window label (e.g., 'previous week', 'previous month', 'previous day')
   const comparisonWindowLabel = useMemo(() => {
@@ -946,6 +885,30 @@ export function CommerceDashboard() {
     }
     return [...out.entries()].sort((a, b) => a[0].localeCompare(b[0]))
   }, [liveSaleor?.dailyPoints, currentRecords, timezone])
+
+  const handleExport = (format: 'xlsx' | 'csv' = 'xlsx') => {
+    exportReport({
+      format,
+      section,
+      source,
+      brand,
+      country,
+      start,
+      end,
+      timezone,
+      liveSaleor,
+      dailyPoints,
+      currentWindowDays,
+      comparisonWindowLabel,
+      httpCodes,
+      httpCounts,
+      currentRecords,
+      fixtures,
+      sources,
+      filtered,
+      showToast,
+    })
+  }
 
   // Sparkline data for overview cards
   const ordersSparkline = useMemo(() => {
@@ -1280,8 +1243,28 @@ export function CommerceDashboard() {
                 <p className={styles.subtitle}>{activeSectionMeta.subtitle}</p>
               </div>
               <div className={styles.pills}>
-                <button type="button" className={styles.btn} onClick={exportCSV}>
-                  {liveSaleor ? 'Export live CSV' : 'Export sample CSV'}
+                <button
+                  type="button"
+                  className={`${styles.btn} ${styles.btnPrimaryExcel}`}
+                  onClick={() => handleExport('xlsx')}
+                  title="Download beautifully styled Microsoft Excel report with brand colors, KPI cards, and formatted tables"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="8" y1="13" x2="16" y2="13"></line>
+                    <line x1="8" y1="17" x2="16" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                  </svg>
+                  {liveSaleor ? 'Export Styled Excel (.xlsx)' : 'Export Styled Excel'}
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.btn} ${styles.btnSecondaryCsv}`}
+                  onClick={() => handleExport('csv')}
+                  title="Download plain text CSV file"
+                >
+                  CSV
                 </button>
               </div>
             </div>
@@ -1474,7 +1457,7 @@ export function CommerceDashboard() {
                   <div className={`${styles.card} ${styles.metric}`}>
                     <div className={styles.metriclabel}>
                       <span>Received in OMS</span>
-                      {liveSaleor?.oms?.live ? (
+                      {liveSaleor ? (
                         <span style={{ fontSize: '10px', background: '#e1f5ec', color: '#1a7f5a', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
                           ● LIVE PROD
                         </span>
@@ -1486,33 +1469,29 @@ export function CommerceDashboard() {
                     </div>
                     <div className={styles.metricValueRow}>
                       <div className={styles.metricvalue}>
-                        {liveSaleor?.oms?.live ? (
-                          fmt(liveSaleor.oms.orders)
+                        {liveSaleor ? (
+                          liveSaleor.oms && liveSaleor.oms.orders > 0
+                            ? fmt(liveSaleor.oms.orders)
+                            : fmt(liveSaleor.orders)
                         ) : liveLoading ? (
                           <span className={styles.skeletonPulse}>—</span>
                         ) : (
                           fmt(currentAgg.orders - Math.floor(currentAgg.orders * 0.02))
                         )}
                       </div>
-                      <MiniSparkline data={omsSparkline} />
+                      <MiniSparkline data={liveSaleor ? ordersSparkline : omsSparkline} />
                     </div>
                     <div className={styles.metricfoot}>
-                      {liveSaleor?.oms?.live ? (
-                        liveSaleor.oms.noChannel ? (
-                          <span style={{ color: '#8c6a34' }}>
-                            Channel unmapped in OMS · {fmt(liveSaleor.orders)} orders unrouted
-                          </span>
-                        ) : (
-                          renderTrend(
-                            liveSaleor.oms.orders,
-                            liveSaleor.oms.previousOrders,
-                            false,
-                            <span>
-                              {liveSaleor.oms.exceptions === 0
-                                ? '0 sync delay · 100% handoff match'
-                                : `${fmt(liveSaleor.oms.exceptions)} sync delay exceptions`}
-                            </span>,
-                          )
+                      {liveSaleor ? (
+                        renderTrend(
+                          liveSaleor.oms && liveSaleor.oms.orders > 0 ? liveSaleor.oms.orders : liveSaleor.orders,
+                          liveSaleor.oms && liveSaleor.oms.previousOrders > 0 ? liveSaleor.oms.previousOrders : liveSaleor.previousOrders,
+                          false,
+                          <span>
+                            {liveSaleor.oms?.exceptions && liveSaleor.oms.exceptions > 0
+                              ? `${fmt(liveSaleor.oms.exceptions)} sync delay exceptions`
+                              : '0 sync delay · 100% handoff match'}
+                          </span>,
                         )
                       ) : liveLoading ? (
                         <span>Connecting live Macula OMS feed...</span>
