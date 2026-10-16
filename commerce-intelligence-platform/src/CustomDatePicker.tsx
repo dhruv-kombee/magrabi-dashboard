@@ -230,24 +230,24 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
   const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
   const yest = new Date(now.getTime() - 86400000)
   const yestStr = `${yest.getFullYear()}-${pad(yest.getMonth() + 1)}-${pad(yest.getDate())}`
-  const tomorrow = new Date(now.getTime() + 86400000)
-  const tomorrowStr = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`
   const sevenAgo = new Date(now.getTime() - 7 * 86400000)
   const sevenAgoStr = `${sevenAgo.getFullYear()}-${pad(sevenAgo.getMonth() + 1)}-${pad(sevenAgo.getDate())}`
+  const nowHours = pad(now.getHours())
+  const nowMinutes = pad(now.getMinutes())
 
   const presets =
     presetType === 'start'
       ? [
-          { label: 'Today', value: `${todayStr}T00:00` },
+          { label: 'Today (00:00)', value: `${todayStr}T00:00` },
           { label: 'Yesterday', value: `${yestStr}T00:00` },
           { label: '7d Ago', value: `${sevenAgoStr}T00:00` },
           { label: '01 Oct', value: '2026-10-01T00:00' },
         ]
       : [
-          { label: 'Today (End)', value: `${tomorrowStr}T00:00` },
+          { label: 'Now (Current Time)', value: `${todayStr}T${nowHours}:${nowMinutes}` },
           { label: 'Today (23:59)', value: `${todayStr}T23:59` },
-          { label: 'Yesterday', value: `${todayStr}T00:00` },
-          { label: '15 Oct', value: '2026-10-15T23:59' },
+          { label: 'Yesterday (23:59)', value: `${yestStr}T23:59` },
+          { label: '7d Ago', value: `${sevenAgoStr}T23:59` },
         ]
 
   // Time preset buttons

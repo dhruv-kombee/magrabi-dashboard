@@ -1777,3 +1777,182 @@
   margin: 6px 0 10px;
   padding-top: 6px;
 }
+
+/* Interactive Chart Tooltip & Multi-line Trend Chart Styles */
+.chartWrapper {
+  position: relative;
+  width: 100%;
+}
+
+.chartTooltip {
+  position: absolute;
+  pointer-events: none;
+  background: #18231c;
+  color: #f7faf8;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28), 0 2px 6px rgba(0, 0, 0, 0.15);
+  border: 1px solid #2f3e34;
+  z-index: 100;
+  min-width: 130px;
+  max-width: 260px;
+  transform: translate(-50%, -100%);
+  margin-top: -12px;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.chartTooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: #18231c transparent transparent transparent;
+}
+
+.chartTooltipHeader {
+  font-size: 10px;
+  font-weight: 600;
+  color: #a3b5a8;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid #2c3a30;
+  padding-bottom: 3px;
+}
+
+.chartTooltipValue {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.chartTooltipSubtext {
+  font-size: 10px;
+  color: #8da093;
+  margin-top: 3px;
+}
+
+.chartTooltipCountryRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 0;
+  font-size: 11px;
+}
+
+.chartTooltipCountryFlag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.chartTooltipCountryDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* View Toggle Buttons */
+.viewToggleGroup {
+  display: inline-flex;
+  align-items: center;
+  background: #f0f3f1;
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid #d8dfdb;
+}
+
+.viewToggleBtn {
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #55625b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.viewToggleBtn:hover {
+  color: #1a241e;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.viewToggleBtnActive {
+  background: #ffffff;
+  color: #18231c;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Country Trend Chart Legend */
+.countryLegendBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 18px 10px;
+  border-bottom: 1px solid #edf1ec;
+  background: #fafbf9;
+}
+
+.countryLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #435148;
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: 6px;
+  transition: background 0.12s ease;
+  border: 1px solid transparent;
+}
+
+.countryLegendItem:hover {
+  background: #eef3ef;
+  border-color: #dbe4dc;
+}
+
+.countryLegendDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.countryLegendCount {
+  font-size: 10px;
+  color: #727e77;
+  font-weight: 500;
+}
+
+/* Table inline sparkline with hover dots */
+.tableSparkline {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+.chartHitArea {
+  cursor: crosshair;
+}

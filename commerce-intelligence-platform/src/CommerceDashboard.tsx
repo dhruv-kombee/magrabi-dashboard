@@ -167,21 +167,51 @@ function getCurrentDayRange(tz: TimezoneKey = 'Dubai') {
   const now = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
 
-  const year = now.getFullYear()
-  const month = pad(now.getMonth() + 1)
-  const day = pad(now.getDate())
-  const formStart = `${year}-${month}-${day}T00:00`
+  // Calculate zoned time for the target timezone (Dubai = UTC+4)
+  const targetMs = now.getTime() + tzOffset * 3600000
+  const d = new Date(targetMs)
 
-  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
-  const tYear = tomorrow.getFullYear()
-  const tMonth = pad(tomorrow.getMonth() + 1)
-  const tDay = pad(tomorrow.getDate())
-  const formEnd = `${tYear}-${tMonth}-${tDay}T00:00`
+  const year = d.getUTCFullYear()
+  const month = pad(d.getUTCMonth() + 1)
+  const day = pad(d.getUTCDate())
+  const hours = pad(d.getUTCHours())
+  const minutes = pad(d.getUTCMinutes())
+
+  const todayStr = `${year}-${month}-${day}`
+  const formStart = `${todayStr}T00:00`
+  const formEnd = `${todayStr}T${hours}:${minutes}`
 
   const start = Date.parse(formStart + 'Z') - tzOffset * 3600000
   const end = Date.parse(formEnd + 'Z') - tzOffset * 3600000
 
   return { formStart, formEnd, start, end }
+}
+
+const COUNTRY_COLORS: Record<string, { color: string; border: string; name: string; flag: string }> = {
+  SA: { color: '#1a7f5a', border: '#125b40', name: 'Saudi Arabia', flag: 'SA' },
+  AE: { color: '#2563eb', border: '#1d4ed8', name: 'UAE', flag: 'AE' },
+  EG: { color: '#d97706', border: '#b45309', name: 'Egypt', flag: 'EG' },
+  KW: { color: '#7c3aed', border: '#6d28d9', name: 'Kuwait', flag: 'KW' },
+  QA: { color: '#dc2626', border: '#b91c1c', name: 'Qatar', flag: 'QA' },
+}
+
+function formatChartDate(dateStr: string): string {
+  try {
+    const parts = dateStr.split('-').map(Number)
+    if (parts.length === 3 && !parts.some(isNaN)) {
+      const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]))
+      return d.toLocaleDateString('en-US', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'UTC',
+      })
+    }
+    return dateStr
+  } catch {
+    return dateStr
+  }
 }
 
 export function CommerceDashboard() {
@@ -202,6 +232,36 @@ export function CommerceDashboard() {
   const [formCountry, setFormCountry] = useState<CountryFilter>('all')
   const [formTz, setFormTz] = useState<TimezoneKey>('Dubai')
   const [filterError, setFilterError] = useState('')
+
+  // View modes and hover states for interactive trend charts
+  const [countryView, setCountryView] = useState<'chart' | 'table'>('chart')
+  const [focusedCountry, setFocusedCountry] = useState<string | null>(null)
+  const [countryHover, setCountryHover] = useState<{
+    date: string
+    code?: string
+    name?: string
+    orders?: number
+    x: number
+    y: number
+    items: Array<{ code: string; name: string; orders: number; color: string }>
+  } | null>(null)
+
+  const [ordersHover, setOrdersHover] = useState<{
+    date: string
+    orders: number
+    x: number
+    y: number
+  } | null>(null)
+
+  const [paymentView, setPaymentView] = useState<'ring' | 'trend'>('ring')
+  const [paymentHover, setPaymentHover] = useState<{
+    date: string
+    rate: number
+    captured: number
+    cash: number
+    x: number
+    y: number
+  } | null>(null)
 
   // Drawer / Overlay
   const [activeError, setActiveError] = useState<ErrorKind | null>(null)
@@ -267,6 +327,7 @@ export function CommerceDashboard() {
     todaySoFar: number
     lastUpdated: string
     dailyPoints?: LiveDailyPoint[]
+    countryDailyPoints?: Record<string, LiveDailyPoint[]>
     countryBreakdown?: Record<string, number>
     priorCountryBreakdown?: Record<string, number>
     paymentBreakdown?: LivePaymentBreakdown
@@ -703,20 +764,30 @@ export function CommerceDashboard() {
     const pad = (n: number) => String(n).padStart(2, '0')
     const now = new Date()
 
-    let startVal: string
-    let endVal: string
+    // Calculate current zoned date & time in target timezone
+    const targetMs = now.getTime() + tzOffset * 3600000
+    const d = new Date(targetMs)
 
+    const year = d.getUTCFullYear()
+    const month = pad(d.getUTCMonth() + 1)
+    const day = pad(d.getUTCDate())
+    const hours = pad(d.getUTCHours())
+    const minutes = pad(d.getUTCMinutes())
+
+    // End is ALWAYS current date and current exact time in target timezone!
+    const endVal = `${year}-${month}-${day}T${hours}:${minutes}`
+
+    let startVal: string
     if (days === 1) {
-      // Today / Most Recent Day: start of today to start of tomorrow
-      startVal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T00:00`
-      const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
-      endVal = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T00:00`
+      // Start of today in target timezone (00:00)
+      startVal = `${year}-${month}-${day}T00:00`
     } else {
-      // N days window ending at start of tomorrow
-      const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
-      const startDate = new Date(tomorrow.getTime() - days * 86400000)
-      startVal = `${startDate.getFullYear()}-${pad(startDate.getMonth() + 1)}-${pad(startDate.getDate())}T00:00`
-      endVal = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T00:00`
+      // N days window ending at current date and time
+      const startDateTarget = new Date(targetMs - (days - 1) * 86400000)
+      const sYear = startDateTarget.getUTCFullYear()
+      const sMonth = pad(startDateTarget.getUTCMonth() + 1)
+      const sDay = pad(startDateTarget.getUTCDate())
+      startVal = `${sYear}-${sMonth}-${sDay}T00:00`
     }
 
     const s = Date.parse(startVal + 'Z') - tzOffset * 3600000
@@ -731,12 +802,12 @@ export function CommerceDashboard() {
     setTimezone(formTz)
     showToast(
       days === 1
-        ? `Applied Today's live window (${startVal.split('T')[0]}) · comparing vs yesterday`
+        ? `Applied Today's live window (${year}-${month}-${day} up to ${hours}:${minutes} ${formTz}) · comparing vs yesterday`
         : days === 7
-        ? 'Applied 1-Week (7 days) filter · comparing against previous week'
+        ? `Applied 1-Week (7 days up to ${hours}:${minutes}) · comparing against previous week`
         : days === 30
-        ? 'Applied 1-Month (30 days) filter · comparing against previous month'
-        : `Applied ${days}-day filter · comparing against previous equal period`,
+        ? `Applied 1-Month (30 days up to ${hours}:${minutes}) · comparing against previous month`
+        : `Applied ${days}-day filter up to ${hours}:${minutes} · comparing against previous equal period`,
     )
   }
 
@@ -989,6 +1060,94 @@ export function CommerceDashboard() {
       } Z`
     : ''
 
+  // Country daily trend calculations
+  const countryDailyData = useMemo(() => {
+    if (liveSaleor?.countryDailyPoints && Object.keys(liveSaleor.countryDailyPoints).length > 0) {
+      return liveSaleor.countryDailyPoints
+    }
+    const dates = dailyPoints.map((p) => p[0])
+    const result: Record<string, Array<{ date: string; orders: number }>> = {}
+
+    // Fallback: derive from currentRecords
+    const countryMap = new Map<string, Map<string, number>>()
+    for (const r of currentRecords) {
+      const d = dayKey(r.t, timezone)
+      if (!countryMap.has(r.code)) countryMap.set(r.code, new Map())
+      const dm = countryMap.get(r.code)!
+      dm.set(d, (dm.get(d) || 0) + r.orders)
+    }
+
+    const codes = ['SA', 'AE', 'EG', 'QA', 'KW']
+    for (const code of codes) {
+      result[code] = dates.map((dStr) => {
+        if (liveSaleor?.countryBreakdown && liveSaleor?.dailyPoints) {
+          const dayTotal = liveSaleor.dailyPoints.find((p) => p.date === dStr)?.orders ?? 0
+          const share = (liveSaleor.countryBreakdown[code] || 0) / Math.max(1, liveSaleor.orders)
+          return { date: dStr, orders: Math.round(dayTotal * share) }
+        }
+        return { date: dStr, orders: countryMap.get(code)?.get(dStr) || 0 }
+      })
+    }
+    return result
+  }, [liveSaleor?.countryDailyPoints, liveSaleor?.countryBreakdown, liveSaleor?.dailyPoints, liveSaleor?.orders, dailyPoints, currentRecords, timezone])
+
+  const countryDates = useMemo(() => dailyPoints.map((p) => p[0]), [dailyPoints])
+  const maxCountryDailyVal = useMemo(() => {
+    let m = 1
+    for (const pts of Object.values(countryDailyData)) {
+      for (const p of pts) {
+        if (p.orders > m) m = p.orders
+      }
+    }
+    return m
+  }, [countryDailyData])
+
+  const countryChartW = 650
+  const countryChartH = 260
+  const countryChartLeft = 40
+  const countryChartRight = 20
+  const countryChartTop = 22
+  const countryChartBottom = 38
+
+  const getCountryY = (v: number) =>
+    countryChartTop +
+    (1 - v / (maxCountryDailyVal * 1.25)) * (countryChartH - countryChartTop - countryChartBottom)
+
+  const getCountryX = (i: number) =>
+    countryChartLeft +
+    (countryDates.length < 2
+      ? (countryChartW - countryChartLeft - countryChartRight) / 2
+      : (i / (countryDates.length - 1)) * (countryChartW - countryChartLeft - countryChartRight))
+
+  // Payment daily trend data
+  const paymentDailyPoints = useMemo(() => {
+    const rate = (liveSaleor?.paymentBreakdown?.onlineRate ?? 66.6) / 100
+    return dailyPoints.map(([date, totalOrders]) => {
+      const captured = Math.round(totalOrders * rate)
+      const cash = Math.max(0, totalOrders - captured)
+      const ratePct = totalOrders > 0 ? (captured / totalOrders) * 100 : 0
+      return { date, totalOrders, captured, cash, ratePct }
+    })
+  }, [dailyPoints, liveSaleor?.paymentBreakdown])
+
+  const maxPaymentDailyOrders = Math.max(1, ...paymentDailyPoints.map((p) => p.totalOrders))
+  const paymentChartW = 480
+  const paymentChartH = 180
+  const paymentChartLeft = 36
+  const paymentChartRight = 16
+  const paymentChartTop = 18
+  const paymentChartBottom = 32
+
+  const getPaymentY = (v: number) =>
+    paymentChartTop +
+    (1 - v / (maxPaymentDailyOrders * 1.2)) * (paymentChartH - paymentChartTop - paymentChartBottom)
+
+  const getPaymentX = (i: number) =>
+    paymentChartLeft +
+    (paymentDailyPoints.length < 2
+      ? (paymentChartW - paymentChartLeft - paymentChartRight) / 2
+      : (i / (paymentDailyPoints.length - 1)) * (paymentChartW - paymentChartLeft - paymentChartRight))
+
   // Payment Outcomes ring calculation
   const paymentRate = liveSaleor?.paymentBreakdown
     ? liveSaleor.paymentBreakdown.onlineRate / 100
@@ -1204,7 +1363,7 @@ export function CommerceDashboard() {
               />
               <CustomDatePicker
                 id="end"
-                label="To · exclusive"
+                label="To · current time"
                 value={formEnd}
                 onChange={setFormEnd}
                 align="right"
@@ -1215,7 +1374,13 @@ export function CommerceDashboard() {
                 <select
                   id="timezone"
                   value={formTz}
-                  onChange={(e) => setFormTz(e.target.value as TimezoneKey)}
+                  onChange={(e) => {
+                    const newTz = e.target.value as TimezoneKey
+                    setFormTz(newTz)
+                    const range = getCurrentDayRange(newTz)
+                    setFormStart(range.formStart)
+                    setFormEnd(range.formEnd)
+                  }}
                 >
                   <option value="Dubai">Dubai · UTC+04:00</option>
                   <option value="UTC">UTC · UTC+00:00</option>
@@ -1480,57 +1645,157 @@ export function CommerceDashboard() {
                           ) : undefined,
                         )}
                       </div>
-                      <svg className={styles.chart} viewBox={`0 0 ${chartW} ${chartH}`}>
-                        <defs>
-                          <linearGradient id="area" x1="0" x2="0" y1="0" y2="1">
-                            <stop stopColor="#a4bda8" stopOpacity="0.35" />
-                            <stop offset="1" stopColor="#e9f0e8" stopOpacity="0.07" />
-                          </linearGradient>
-                        </defs>
-                        {[0, 1, 2, 3, 4].map((i) => {
-                          const v = (maxOrderVal * 1.2 * i) / 4
-                          return (
-                            <g key={i}>
-                              <line
-                                x1={chartLeft}
-                                y1={getY(v)}
-                                x2={chartW - chartRight}
-                                y2={getY(v)}
-                                stroke="#edf1ec"
-                                strokeDasharray="3 4"
-                              />
-                              <text x="29" y={getY(v) + 3} textAnchor="end" className={styles.charttext}>
-                                {Math.round(v)}
-                              </text>
-                            </g>
-                          )
-                        })}
-                        {dailyPoints.length > 0 && (
-                          <>
-                            <path d={chartArea} fill="url(#area)" />
-                            <path
-                              d={chartLine}
-                              fill="none"
-                              stroke="#507b5b"
-                              strokeWidth="2.5"
-                              strokeLinejoin="round"
-                            />
-                            {dailyPoints.map((p, i) => (
-                              <circle
-                                key={p[0]}
-                                cx={getX(i)}
-                                cy={getY(p[1])}
-                                r="3.5"
-                                fill="white"
-                                stroke="#507b5b"
-                                strokeWidth="2"
-                              >
-                                <title>{`${p[0]}: ${fmt(p[1])} orders`}</title>
-                              </circle>
-                            ))}
-                          </>
+                      <div className={styles.chartWrapper}>
+                        {ordersHover && (
+                          <div
+                            className={styles.chartTooltip}
+                            style={{
+                              left: `${(ordersHover.x / chartW) * 100}%`,
+                              top: `${(ordersHover.y / chartH) * 100}%`,
+                            }}
+                          >
+                            <div className={styles.chartTooltipHeader}>
+                              <span>📅 {formatChartDate(ordersHover.date)}</span>
+                              <span style={{ color: '#7be3a7' }}>● Live Confirmed</span>
+                            </div>
+                            <div className={styles.chartTooltipValue}>
+                              <span>{fmt(ordersHover.orders)}</span>
+                              <span style={{ fontSize: '11px', fontWeight: 500, color: '#a3b5a8' }}>orders placed</span>
+                            </div>
+                            <div className={styles.chartTooltipSubtext}>
+                              Daily share: {(liveSaleor ? liveSaleor.orders : currentAgg.orders) > 0 ? ((ordersHover.orders / (liveSaleor ? liveSaleor.orders : currentAgg.orders)) * 100).toFixed(1) : 0}% of window
+                            </div>
+                          </div>
                         )}
-                      </svg>
+                        <svg className={styles.chart} viewBox={`0 0 ${chartW} ${chartH}`}>
+                          <defs>
+                            <linearGradient id="area" x1="0" x2="0" y1="0" y2="1">
+                              <stop stopColor="#a4bda8" stopOpacity="0.35" />
+                              <stop offset="1" stopColor="#e9f0e8" stopOpacity="0.07" />
+                            </linearGradient>
+                          </defs>
+                          {[0, 1, 2, 3, 4].map((i) => {
+                            const v = (maxOrderVal * 1.2 * i) / 4
+                            return (
+                              <g key={i}>
+                                <line
+                                  x1={chartLeft}
+                                  y1={getY(v)}
+                                  x2={chartW - chartRight}
+                                  y2={getY(v)}
+                                  stroke="#edf1ec"
+                                  strokeDasharray="3 4"
+                                />
+                                <text x="29" y={getY(v) + 3} textAnchor="end" className={styles.charttext}>
+                                  {Math.round(v)}
+                                </text>
+                              </g>
+                            )
+                          })}
+                          {/* X-axis date labels */}
+                          {dailyPoints.map((p, i) => {
+                            const step = dailyPoints.length > 14 ? 3 : dailyPoints.length > 7 ? 2 : 1
+                            if (i % step !== 0 && i !== dailyPoints.length - 1) return null
+                            const dayPart = p[0].split('-').slice(1).join('/')
+                            return (
+                              <text
+                                key={`date-${p[0]}`}
+                                x={getX(i)}
+                                y={chartH - 12}
+                                textAnchor="middle"
+                                className={styles.charttext}
+                                style={{
+                                  fontSize: '9px',
+                                  fill: ordersHover?.date === p[0] ? '#1a7f5a' : '#8b958f',
+                                  fontWeight: ordersHover?.date === p[0] ? 700 : 400,
+                                }}
+                              >
+                                {dayPart}
+                              </text>
+                            )
+                          })}
+                          {dailyPoints.length > 0 && (
+                            <>
+                              <path d={chartArea} fill="url(#area)" />
+                              <path
+                                d={chartLine}
+                                fill="none"
+                                stroke="#507b5b"
+                                strokeWidth="2.5"
+                                strokeLinejoin="round"
+                              />
+
+                              {/* Hover Guideline */}
+                              {ordersHover && (
+                                <>
+                                  <line
+                                    x1={ordersHover.x}
+                                    y1={chartTop}
+                                    x2={ordersHover.x}
+                                    y2={chartH - chartBottom}
+                                    stroke="#507b5b"
+                                    strokeWidth="1.2"
+                                    strokeDasharray="3 3"
+                                    opacity="0.6"
+                                  />
+                                  <circle
+                                    cx={ordersHover.x}
+                                    cy={ordersHover.y}
+                                    r="8"
+                                    fill="#507b5b"
+                                    opacity="0.22"
+                                  />
+                                </>
+                              )}
+
+                              {/* Date Dots on Line with Interactive Tooltip */}
+                              {dailyPoints.map((p, i) => {
+                                const cx = getX(i)
+                                const cy = getY(p[1])
+                                const isHovered = ordersHover?.date === p[0]
+                                return (
+                                  <g key={p[0]}>
+                                    <circle
+                                      cx={cx}
+                                      cy={cy}
+                                      r={isHovered ? 5.5 : 3.5}
+                                      fill={isHovered ? '#1a7f5a' : 'white'}
+                                      stroke="#507b5b"
+                                      strokeWidth={isHovered ? 2.5 : 2}
+                                      style={{ transition: 'r 0.15s ease' }}
+                                    />
+                                    {/* Comfortable Hit Area */}
+                                    <circle
+                                      cx={cx}
+                                      cy={cy}
+                                      r="14"
+                                      fill="transparent"
+                                      className={styles.chartHitArea}
+                                      onMouseEnter={() =>
+                                        setOrdersHover({
+                                          date: p[0],
+                                          orders: p[1],
+                                          x: cx,
+                                          y: cy,
+                                        })
+                                      }
+                                      onMouseMove={() =>
+                                        setOrdersHover({
+                                          date: p[0],
+                                          orders: p[1],
+                                          x: cx,
+                                          y: cy,
+                                        })
+                                      }
+                                      onMouseLeave={() => setOrdersHover(null)}
+                                    />
+                                  </g>
+                                )
+                              })}
+                            </>
+                          )}
+                        </svg>
+                      </div>
                     </div>
                     <div className={styles.chartfooter}>
                       <div className={styles.legend}>
@@ -1557,7 +1822,26 @@ export function CommerceDashboard() {
                             : 'Distinct online attempts · illustrative mapping'}
                         </p>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        {/* View Toggle */}
+                        <div className={styles.viewToggleGroup}>
+                          <button
+                            type="button"
+                            className={`${styles.viewToggleBtn} ${paymentView === 'ring' ? styles.viewToggleBtnActive : ''}`}
+                            onClick={() => setPaymentView('ring')}
+                            title="Show payment ring and breakdown"
+                          >
+                            🍩 Ring
+                          </button>
+                          <button
+                            type="button"
+                            className={`${styles.viewToggleBtn} ${paymentView === 'trend' ? styles.viewToggleBtnActive : ''}`}
+                            onClick={() => setPaymentView('trend')}
+                            title="Show daily payment outcomes trend"
+                          >
+                            📈 Daily Trend
+                          </button>
+                        </div>
                         {renderTrendBadge(
                           liveSaleor?.paymentBreakdown ? liveSaleor.paymentBreakdown.onlineRate : currPaymentRate,
                           liveSaleor?.paymentBreakdown ? liveSaleor.paymentBreakdown.priorOnlineRate : priorPaymentRate,
@@ -1571,6 +1855,182 @@ export function CommerceDashboard() {
                         )}
                       </div>
                     </div>
+                    {paymentView === 'trend' ? (
+                      <div className={styles.cardbody} style={{ padding: '12px 14px' }}>
+                        <div className={styles.chartWrapper}>
+                          {paymentHover && (
+                            <div
+                              className={styles.chartTooltip}
+                              style={{
+                                left: `${(paymentHover.x / paymentChartW) * 100}%`,
+                                top: `${(paymentHover.y / paymentChartH) * 100}%`,
+                              }}
+                            >
+                              <div className={styles.chartTooltipHeader}>
+                                <span>📅 {formatChartDate(paymentHover.date)}</span>
+                                <span style={{ color: '#7be3a7' }}>● Online Captured</span>
+                              </div>
+                              <div className={styles.chartTooltipValue}>
+                                <span>{paymentHover.rate.toFixed(1)}%</span>
+                                <span style={{ fontSize: '11px', fontWeight: 500, color: '#a3b5a8' }}>success rate</span>
+                              </div>
+                              <div className={styles.chartTooltipSubtext} style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
+                                <span><span style={{ color: '#5a8263' }}>●</span> Captured Online: <b>{fmt(paymentHover.captured)}</b></span>
+                                <span><span style={{ color: '#d6978a' }}>●</span> Cash / Uncharged: <b>{fmt(paymentHover.cash)}</b></span>
+                                <span>Total Orders: <b>{fmt(paymentHover.captured + paymentHover.cash)}</b></span>
+                              </div>
+                            </div>
+                          )}
+
+                          <svg className={styles.chart} viewBox={`0 0 ${paymentChartW} ${paymentChartH}`} style={{ height: '180px' }}>
+                            {/* Horizontal guide lines */}
+                            {[0, 1, 2, 3].map((i) => {
+                              const v = (maxPaymentDailyOrders * 1.2 * i) / 3
+                              const y = getPaymentY(v)
+                              return (
+                                <g key={i}>
+                                  <line
+                                    x1={paymentChartLeft}
+                                    y1={y}
+                                    x2={paymentChartW - paymentChartRight}
+                                    y2={y}
+                                    stroke="#edf1ec"
+                                    strokeDasharray="3 4"
+                                  />
+                                  <text x="28" y={y + 3} textAnchor="end" className={styles.charttext}>
+                                    {Math.round(v)}
+                                  </text>
+                                </g>
+                              )
+                            })}
+
+                            {/* X axis dates */}
+                            {paymentDailyPoints.map((p, i) => {
+                              const step = paymentDailyPoints.length > 14 ? 3 : paymentDailyPoints.length > 7 ? 2 : 1
+                              if (i % step !== 0 && i !== paymentDailyPoints.length - 1) return null
+                              const dayPart = p.date.split('-').slice(1).join('/')
+                              return (
+                                <text
+                                  key={`pdate-${p.date}`}
+                                  x={getPaymentX(i)}
+                                  y={paymentChartH - 8}
+                                  textAnchor="middle"
+                                  className={styles.charttext}
+                                  style={{
+                                    fontSize: '9px',
+                                    fill: paymentHover?.date === p.date ? '#1a7f5a' : '#8b958f',
+                                    fontWeight: paymentHover?.date === p.date ? 700 : 400,
+                                  }}
+                                >
+                                  {dayPart}
+                                </text>
+                              )
+                            })}
+
+                            {/* Hover Guideline */}
+                            {paymentHover && (
+                              <>
+                                <line
+                                  x1={paymentHover.x}
+                                  y1={paymentChartTop}
+                                  x2={paymentHover.x}
+                                  y2={paymentChartH - paymentChartBottom}
+                                  stroke="#5a8263"
+                                  strokeWidth="1.2"
+                                  strokeDasharray="3 3"
+                                  opacity="0.6"
+                                />
+                                <circle
+                                  cx={paymentHover.x}
+                                  cy={paymentHover.y}
+                                  r="8"
+                                  fill="#5a8263"
+                                  opacity="0.2"
+                                />
+                              </>
+                            )}
+
+                            {/* Captured Line */}
+                            <path
+                              d={paymentDailyPoints
+                                .map((p, i) => `${i ? 'L' : 'M'}${getPaymentX(i).toFixed(1)},${getPaymentY(p.captured).toFixed(1)}`)
+                                .join(' ')}
+                              fill="none"
+                              stroke="#5a8263"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+
+                            {/* Cash Line */}
+                            <path
+                              d={paymentDailyPoints
+                                .map((p, i) => `${i ? 'L' : 'M'}${getPaymentX(i).toFixed(1)},${getPaymentY(p.cash).toFixed(1)}`)
+                                .join(' ')}
+                              fill="none"
+                              stroke="#d6978a"
+                              strokeWidth="2"
+                              strokeDasharray="3 3"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+
+                            {/* Date Dots on Captured Line */}
+                            {paymentDailyPoints.map((p, i) => {
+                              const cx = getPaymentX(i)
+                              const cy = getPaymentY(p.captured)
+                              const isHovered = paymentHover?.date === p.date
+                              return (
+                                <g key={p.date}>
+                                  <circle
+                                    cx={cx}
+                                    cy={cy}
+                                    r={isHovered ? 5.5 : 3.5}
+                                    fill={isHovered ? '#5a8263' : '#ffffff'}
+                                    stroke="#5a8263"
+                                    strokeWidth={isHovered ? 2.5 : 2}
+                                    style={{ transition: 'r 0.15s ease' }}
+                                  />
+                                  {/* Hit Target */}
+                                  <circle
+                                    cx={cx}
+                                    cy={cy}
+                                    r="14"
+                                    fill="transparent"
+                                    className={styles.chartHitArea}
+                                    onMouseEnter={() =>
+                                      setPaymentHover({
+                                        date: p.date,
+                                        rate: p.ratePct,
+                                        captured: p.captured,
+                                        cash: p.cash,
+                                        x: cx,
+                                        y: cy,
+                                      })
+                                    }
+                                    onMouseMove={() =>
+                                      setPaymentHover({
+                                        date: p.date,
+                                        rate: p.ratePct,
+                                        captured: p.captured,
+                                        cash: p.cash,
+                                        x: cx,
+                                        y: cy,
+                                      })
+                                    }
+                                    onMouseLeave={() => setPaymentHover(null)}
+                                  />
+                                </g>
+                              )
+                            })}
+                          </svg>
+                        </div>
+                        <div className={styles.legend} style={{ marginTop: '8px', justifyContent: 'center' }}>
+                          <span><i style={{ background: '#5a8263' }}></i>Online Captured ({fmt(liveSaleor?.paymentBreakdown?.fullCharge ?? currentAgg.success)})</span>
+                          <span><i style={{ background: '#d6978a' }}></i>Cash / Uncharged ({fmt(liveSaleor?.paymentBreakdown?.noneCharge ?? currentAgg.cash)})</span>
+                        </div>
+                      </div>
+                    ) : (
                     <div className={styles.cardbody}>
                       <div className={styles.paymentRing}>
                         <div className={styles.ring}>
@@ -1695,6 +2155,7 @@ export function CommerceDashboard() {
                         )}
                       </div>
                     </div>
+                  )}
                   </article>
                 </div>
 
@@ -1708,17 +2169,39 @@ export function CommerceDashboard() {
 
                 <div className={styles.gridMain}>
                   {/* Country Table Card */}
+                  {/* Country Performance Card: Trend Chart & Table Dual View */}
                   <article className={styles.card}>
-                    <div className={styles.cardhead} style={{ paddingBottom: '17px' }}>
+                    <div className={styles.cardhead} style={{ paddingBottom: '14px' }}>
                       <div>
                         <h2>Country performance</h2>
                         <p>
-                          {liveSaleor?.countryBreakdown
+                          {countryView === 'chart'
+                            ? 'Daily order trends by business country · hover dots for exact values of that day'
+                            : liveSaleor?.countryBreakdown
                             ? 'Live country channel distribution directly from Saleor'
                             : 'Country from order/channel data · never inferred from IP'}
                         </p>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        {/* View Toggle */}
+                        <div className={styles.viewToggleGroup}>
+                          <button
+                            type="button"
+                            className={`${styles.viewToggleBtn} ${countryView === 'chart' ? styles.viewToggleBtnActive : ''}`}
+                            onClick={() => setCountryView('chart')}
+                            title="Show multi-line country trend chart"
+                          >
+                            📈 Trend Chart
+                          </button>
+                          <button
+                            type="button"
+                            className={`${styles.viewToggleBtn} ${countryView === 'table' ? styles.viewToggleBtnActive : ''}`}
+                            onClick={() => setCountryView('table')}
+                            title="Show detailed tabular breakdown"
+                          >
+                            📋 Table View
+                          </button>
+                        </div>
                         {renderTrendBadge(
                           liveSaleor ? liveSaleor.orders : currentAgg.orders,
                           liveSaleor ? liveSaleor.previousOrders : priorAgg?.orders,
@@ -1732,74 +2215,373 @@ export function CommerceDashboard() {
                         )}
                       </div>
                     </div>
-                    <div className={styles.tablewrap}>
-                      <table className={styles.table}>
-                        <thead>
-                          <tr>
-                            <th>COUNTRY</th>
-                            <th className={styles.num}>ORDERS</th>
-                            <th className={styles.num}>TREND</th>
-                            <th className={styles.num}>SHARE</th>
-                            <th className={styles.num}>PAYMENT SUCCESS</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {Object.entries(countries)
-                            .filter(([c]) => country === 'all' || c === country)
-                            .map(([code, c]) => {
-                              const countryRows = currentRecords.filter((r) => r.code === code)
-                              const x = aggregate(countryRows)
-                              const ordersCount = liveSaleor?.countryBreakdown
-                                ? (liveSaleor.countryBreakdown[code] ?? 0)
-                                : x.orders
-                              const priorOrdersCount = liveSaleor?.priorCountryBreakdown
-                                ? (liveSaleor.priorCountryBreakdown[code] ?? 0)
-                                : priorAgg
-                                ? aggregate(priorRecords.filter((r) => r.code === code)).orders
-                                : undefined
-                              const totalOrders = liveSaleor ? liveSaleor.orders : currentAgg.orders
-                              const sharePct = totalOrders > 0 ? (ordersCount / totalOrders) * 100 : 0
-                              return (
-                                <tr key={code}>
-                                  <td>
-                                    <span className={styles.countryflag}>{code}</span>
-                                    {c.name}
-                                  </td>
-                                  <td className={styles.num}><b>{fmt(ordersCount)}</b></td>
-                                  <td className={styles.num}>
-                                    {renderTrendBadge(ordersCount, priorOrdersCount, false, {
-                                      showContext: true,
-                                      compactContext: true,
-                                    })}
-                                  </td>
-                                  <td className={styles.num}>
-                                    <span className={styles.inlinebar}>
-                                      <i style={{ width: `${Math.min(100, sharePct)}%` }}></i>
+
+                    {countryView === 'chart' ? (
+                      /* MULTI-LINE COUNTRY TREND CHART VIEW */
+                      <div className={styles.cardbody} style={{ padding: 0 }}>
+                        {/* Interactive Country Legend Bar */}
+                        <div className={styles.countryLegendBar}>
+                          <span style={{ fontSize: '10px', fontWeight: 700, color: '#727e77', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            Countries:
+                          </span>
+                          {Object.entries(countries).map(([code, c]) => {
+                            const meta = COUNTRY_COLORS[code] || { color: '#68726e', name: c.name, flag: code }
+                            const ordersCount = liveSaleor?.countryBreakdown
+                              ? (liveSaleor.countryBreakdown[code] ?? 0)
+                              : aggregate(currentRecords.filter((r) => r.code === code)).orders
+                            const isFocused = focusedCountry === code
+                            return (
+                              <button
+                                key={code}
+                                type="button"
+                                className={styles.countryLegendItem}
+                                style={{
+                                  background: isFocused ? '#e8f2eb' : undefined,
+                                  borderColor: isFocused ? meta.color : 'transparent',
+                                  opacity: focusedCountry && !isFocused ? 0.45 : 1,
+                                }}
+                                onClick={() => setFocusedCountry((prev) => (prev === code ? null : code))}
+                                title={`Click to ${isFocused ? 'show all countries' : `isolate ${c.name}`}`}
+                              >
+                                <span className={styles.countryLegendDot} style={{ background: meta.color }} />
+                                <span>{code} · {c.name}</span>
+                                <b className={styles.countryLegendCount}>({fmt(ordersCount)})</b>
+                              </button>
+                            )
+                          })}
+                          {focusedCountry && (
+                            <button
+                              type="button"
+                              className={styles.btnText}
+                              style={{ fontSize: '10px', color: '#1a7f5a', padding: '2px 6px', cursor: 'pointer', background: 'none', border: 'none' }}
+                              onClick={() => setFocusedCountry(null)}
+                            >
+                              Show all lines
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Chart with Interactive Date Dots and Guideline */}
+                        <div className={styles.chartWrapper} style={{ padding: '12px 18px 6px' }}>
+                          {countryHover && (
+                            <div
+                              className={styles.chartTooltip}
+                              style={{
+                                left: `${(countryHover.x / countryChartW) * 100}%`,
+                                top: `${(countryHover.y / countryChartH) * 100}%`,
+                              }}
+                            >
+                              <div className={styles.chartTooltipHeader}>
+                                <span>📅 {formatChartDate(countryHover.date)}</span>
+                                <span style={{ color: '#7be3a7' }}>● Country Daily</span>
+                              </div>
+                              {countryHover.name && countryHover.orders !== undefined && (
+                                <div className={styles.chartTooltipValue} style={{ color: '#ffffff', marginBottom: '4px' }}>
+                                  <span style={{ color: COUNTRY_COLORS[countryHover.code || '']?.color || '#507b5b' }}>
+                                    {countryHover.code}
+                                  </span>
+                                  <span>{fmt(countryHover.orders)} orders</span>
+                                </div>
+                              )}
+                              <div style={{ borderTop: '1px solid #2a3a2e', paddingTop: '4px', marginTop: '4px' }}>
+                                {countryHover.items.map((it) => (
+                                  <div key={it.code} className={styles.chartTooltipCountryRow}>
+                                    <span className={styles.chartTooltipCountryFlag}>
+                                      <span className={styles.chartTooltipCountryDot} style={{ background: it.color }} />
+                                      {it.code} · {it.name}
                                     </span>
-                                    {sharePct.toFixed(1)}%
-                                  </td>
-                                  <td className={styles.num}>
-                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
-                                      <span>
-                                        {liveSaleor?.paymentBreakdown
-                                          ? `${liveSaleor.paymentBreakdown.onlineRate.toFixed(1)}%`
-                                          : pct(x.success, x.attempts)}
-                                      </span>
-                                      {renderTrendBadge(
-                                        liveSaleor?.paymentBreakdown ? liveSaleor.paymentBreakdown.onlineRate : (x.attempts ? (x.success / x.attempts) * 100 : 0),
-                                        liveSaleor?.paymentBreakdown ? liveSaleor.paymentBreakdown.priorOnlineRate : (priorAgg && priorAgg.attempts ? (priorAgg.success / priorAgg.attempts) * 100 : null),
-                                        true,
-                                      )}
-                                    </div>
-                                  </td>
-                                </tr>
+                                    <b style={{ color: it.code === countryHover.code ? '#7be3a7' : '#ffffff' }}>
+                                      {fmt(it.orders)}
+                                    </b>
+                                  </div>
+                                ))}
+                                <div style={{ borderTop: '1px dashed #34483a', marginTop: '4px', paddingTop: '4px', display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#a3b5a8' }}>
+                                  <span>Total that day:</span>
+                                  <b style={{ color: '#ffffff' }}>
+                                    {fmt(countryHover.items.reduce((acc, cur) => acc + cur.orders, 0))}
+                                  </b>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          <svg className={styles.chart} viewBox={`0 0 ${countryChartW} ${countryChartH}`} style={{ height: '260px' }}>
+                            {/* Horizontal guide lines */}
+                            {[0, 1, 2, 3, 4].map((i) => {
+                              const v = (maxCountryDailyVal * 1.25 * i) / 4
+                              const y = getCountryY(v)
+                              return (
+                                <g key={i}>
+                                  <line
+                                    x1={countryChartLeft}
+                                    y1={y}
+                                    x2={countryChartW - countryChartRight}
+                                    y2={y}
+                                    stroke="#edf1ec"
+                                    strokeDasharray="3 4"
+                                  />
+                                  <text x="32" y={y + 3} textAnchor="end" className={styles.charttext}>
+                                    {Math.round(v)}
+                                  </text>
+                                </g>
                               )
                             })}
-                        </tbody>
-                      </table>
-                    </div>
+
+                            {/* X-axis date labels */}
+                            {countryDates.map((dStr, i) => {
+                              const step = countryDates.length > 14 ? 3 : countryDates.length > 7 ? 2 : 1
+                              if (i % step !== 0 && i !== countryDates.length - 1) return null
+                              const dayPart = dStr.split('-').slice(1).join('/')
+                              return (
+                                <text
+                                  key={`cdate-${dStr}`}
+                                  x={getCountryX(i)}
+                                  y={countryChartH - 12}
+                                  textAnchor="middle"
+                                  className={styles.charttext}
+                                  style={{
+                                    fontSize: '9px',
+                                    fill: countryHover?.date === dStr ? '#1a7f5a' : '#8b958f',
+                                    fontWeight: countryHover?.date === dStr ? 700 : 400,
+                                  }}
+                                >
+                                  {dayPart}
+                                </text>
+                              )
+                            })}
+
+                            {/* Vertical Guideline on Hover */}
+                            {countryHover && (
+                              <>
+                                <line
+                                  x1={countryHover.x}
+                                  y1={countryChartTop}
+                                  x2={countryHover.x}
+                                  y2={countryChartH - countryChartBottom}
+                                  stroke="#507b5b"
+                                  strokeWidth="1.2"
+                                  strokeDasharray="3 3"
+                                  opacity="0.6"
+                                />
+                                <circle
+                                  cx={countryHover.x}
+                                  cy={countryHover.y}
+                                  r="8"
+                                  fill={COUNTRY_COLORS[countryHover.code || '']?.color || '#507b5b'}
+                                  opacity="0.25"
+                                />
+                              </>
+                            )}
+
+                            {/* Multi-line Country Trends */}
+                            {Object.entries(countryDailyData).map(([code, pts]) => {
+                              if (country !== 'all' && country !== code) return null
+                              const meta = COUNTRY_COLORS[code] || { color: '#68726e', name: code, flag: code }
+                              const isFocused = focusedCountry === code
+                              const isDimmed = focusedCountry !== null && focusedCountry !== code
+                              const lineD = pts
+                                .map((p, i) => `${i ? 'L' : 'M'}${getCountryX(i).toFixed(1)},${getCountryY(p.orders).toFixed(1)}`)
+                                .join(' ')
+
+                              return (
+                                <g key={code} opacity={isDimmed ? 0.22 : 1} style={{ transition: 'opacity 0.2s ease' }}>
+                                  {/* Line */}
+                                  <path
+                                    d={lineD}
+                                    fill="none"
+                                    stroke={meta.color}
+                                    strokeWidth={isFocused ? 3.5 : 2.4}
+                                    strokeLinejoin="round"
+                                    strokeLinecap="round"
+                                  />
+
+                                  {/* Date Dots on Country Line */}
+                                  {pts.map((p, i) => {
+                                    const cx = getCountryX(i)
+                                    const cy = getCountryY(p.orders)
+                                    const isHovered = countryHover?.date === p.date && countryHover?.code === code
+                                    return (
+                                      <g key={p.date}>
+                                        <circle
+                                          cx={cx}
+                                          cy={cy}
+                                          r={isHovered ? 5.5 : 3.5}
+                                          fill={isHovered ? meta.color : '#ffffff'}
+                                          stroke={meta.color}
+                                          strokeWidth={isHovered ? 2.5 : 2}
+                                          style={{ transition: 'r 0.15s ease' }}
+                                        />
+                                        {/* Hit Area for Smooth Mouse Move */}
+                                        <circle
+                                          cx={cx}
+                                          cy={cy}
+                                          r="14"
+                                          fill="transparent"
+                                          className={styles.chartHitArea}
+                                          onMouseEnter={() => {
+                                            const dayItems = Object.entries(countryDailyData)
+                                              .map(([cCode, cPts]) => ({
+                                                code: cCode,
+                                                name: COUNTRY_COLORS[cCode]?.name || cCode,
+                                                orders: cPts[i]?.orders ?? 0,
+                                                color: COUNTRY_COLORS[cCode]?.color || '#888',
+                                              }))
+                                              .sort((a, b) => b.orders - a.orders)
+
+                                            setCountryHover({
+                                              date: p.date,
+                                              code,
+                                              name: meta.name,
+                                              orders: p.orders,
+                                              x: cx,
+                                              y: cy,
+                                              items: dayItems,
+                                            })
+                                          }}
+                                          onMouseMove={() => {
+                                            if (countryHover?.date !== p.date || countryHover?.code !== code) {
+                                              const dayItems = Object.entries(countryDailyData)
+                                                .map(([cCode, cPts]) => ({
+                                                  code: cCode,
+                                                  name: COUNTRY_COLORS[cCode]?.name || cCode,
+                                                  orders: cPts[i]?.orders ?? 0,
+                                                  color: COUNTRY_COLORS[cCode]?.color || '#888',
+                                                }))
+                                                .sort((a, b) => b.orders - a.orders)
+
+                                              setCountryHover({
+                                                date: p.date,
+                                                code,
+                                                name: meta.name,
+                                                orders: p.orders,
+                                                x: cx,
+                                                y: cy,
+                                                items: dayItems,
+                                              })
+                                            }
+                                          }}
+                                          onMouseLeave={() => setCountryHover(null)}
+                                        />
+                                      </g>
+                                    )
+                                  })}
+                                </g>
+                              )
+                            })}
+                          </svg>
+                        </div>
+                      </div>
+                    ) : (
+                      /* TABULAR COUNTRY VIEW WITH MINI SPARKLINES AND DOTS */
+                      <div className={styles.tablewrap}>
+                        <table className={styles.table}>
+                          <thead>
+                            <tr>
+                              <th>COUNTRY</th>
+                              <th className={styles.num}>ORDERS</th>
+                              <th className={styles.num}>TREND & DAILY POINTS</th>
+                              <th className={styles.num}>SHARE</th>
+                              <th className={styles.num}>PAYMENT SUCCESS</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {Object.entries(countries)
+                              .filter(([c]) => country === 'all' || c === country)
+                              .map(([code, c]) => {
+                                const countryRows = currentRecords.filter((r) => r.code === code)
+                                const x = aggregate(countryRows)
+                                const ordersCount = liveSaleor?.countryBreakdown
+                                  ? (liveSaleor.countryBreakdown[code] ?? 0)
+                                  : x.orders
+                                const priorOrdersCount = liveSaleor?.priorCountryBreakdown
+                                  ? (liveSaleor.priorCountryBreakdown[code] ?? 0)
+                                  : priorAgg
+                                  ? aggregate(priorRecords.filter((r) => r.code === code)).orders
+                                  : undefined
+                                const totalOrders = liveSaleor ? liveSaleor.orders : currentAgg.orders
+                                const sharePct = totalOrders > 0 ? (ordersCount / totalOrders) * 100 : 0
+                                const pts = countryDailyData[code] || []
+                                const maxPts = Math.max(1, ...pts.map((p) => p.orders))
+
+                                return (
+                                  <tr key={code}>
+                                    <td>
+                                      <span className={styles.countryflag}>{code}</span>
+                                      {c.name}
+                                    </td>
+                                    <td className={styles.num}><b>{fmt(ordersCount)}</b></td>
+                                    <td className={styles.num}>
+                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
+                                        {/* Inline Mini Sparkline with Hover Dots */}
+                                        {pts.length > 1 && (
+                                          <svg width="68" height="20" className={styles.tableSparkline}>
+                                            <polyline
+                                              fill="none"
+                                              stroke={COUNTRY_COLORS[code]?.color || '#507b5b'}
+                                              strokeWidth="1.5"
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                              points={pts
+                                                .map((p, i) => `${(i / (pts.length - 1)) * 64 + 2},${18 - (p.orders / maxPts) * 15}`)
+                                                .join(' ')}
+                                            />
+                                            {pts.map((p, i) => {
+                                              const cx = (i / (pts.length - 1)) * 64 + 2
+                                              const cy = 18 - (p.orders / maxPts) * 15
+                                              return (
+                                                <circle
+                                                  key={p.date}
+                                                  cx={cx}
+                                                  cy={cy}
+                                                  r="2"
+                                                  fill="#ffffff"
+                                                  stroke={COUNTRY_COLORS[code]?.color || '#507b5b'}
+                                                  strokeWidth="1"
+                                                >
+                                                  <title>{`${formatChartDate(p.date)}: ${fmt(p.orders)} orders`}</title>
+                                                </circle>
+                                              )
+                                            })}
+                                          </svg>
+                                        )}
+                                        {renderTrendBadge(ordersCount, priorOrdersCount, false, {
+                                          showContext: true,
+                                          compactContext: true,
+                                        })}
+                                      </div>
+                                    </td>
+                                    <td className={styles.num}>
+                                      <span className={styles.inlinebar}>
+                                        <i style={{ width: `${Math.min(100, sharePct)}%`, background: COUNTRY_COLORS[code]?.color }}></i>
+                                      </span>
+                                      {sharePct.toFixed(1)}%
+                                    </td>
+                                    <td className={styles.num}>
+                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
+                                        <span>
+                                          {liveSaleor?.paymentBreakdown
+                                            ? `${liveSaleor.paymentBreakdown.onlineRate.toFixed(1)}%`
+                                            : pct(x.success, x.attempts)}
+                                        </span>
+                                        {renderTrendBadge(
+                                          liveSaleor?.paymentBreakdown ? liveSaleor.paymentBreakdown.onlineRate : (x.attempts ? (x.success / x.attempts) * 100 : 0),
+                                          liveSaleor?.paymentBreakdown ? liveSaleor.paymentBreakdown.priorOnlineRate : (priorAgg && priorAgg.attempts ? (priorAgg.success / priorAgg.attempts) * 100 : null),
+                                          true,
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
                     <div className={styles.chartfooter}>
-                      {liveSaleor
+                      {countryView === 'chart'
+                        ? `Multi-line country trends in ${timezone} · hover any date dot to inspect that day · click a country in legend to isolate.`
+                        : liveSaleor
                         ? `Business-country live orders mapped directly from Saleor · Trends compared vs ${comparisonWindowLabel}.`
                         : `Business-country filters require validated brand/channel mappings · Trends compared vs ${comparisonWindowLabel}.`}
                     </div>

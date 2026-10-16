@@ -19,7 +19,10 @@ const CHANNEL_MAP: Record<string, string> = {
 const MACULA_CHANNEL_MAP: Record<string, string> = {
   'Magrabi:SA': '653a0168f66d966a3c6c06f2',
   'Magrabi:AE': '653a00431aaf66e6cf160938',
+  'Magrabi:EG': '653a02b4b7a633308ae36572',
+  'Magrabi:QA': '653a054812c9e0c020beafd9',
   'DoctorM:SA': '6672d9e544576401df250127',
+  'DoctorM:AE': '6780c217db39c395607fb906',
 }
 
 function getChannelIds(brand: string, country: string): string[] {
@@ -133,46 +136,68 @@ function saleorApiPlugin(): Plugin {
           let startDate: Date
           let endDate: Date
 
+          const tz = urlObj.searchParams.get('tz') || 'Dubai'
+          const tzOffsets: Record<string, number> = { UTC: 0, Dubai: 4, IST: 5.5 }
+          const tzOffset = tzOffsets[tz] ?? 4
+
           if (startParam && endParam && !isNaN(Number(startParam)) && !isNaN(Number(endParam))) {
             startDate = new Date(Number(startParam))
             endDate = new Date(Number(endParam))
           } else {
-            // Default to today
-            const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-            startDate = todayUtc
-            endDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1))
+            // Default to today in target timezone (Dubai)
+            const nowMs = now.getTime()
+            const tzShift = tzOffset * 3600000
+            const zonedNow = new Date(nowMs + tzShift)
+            const y = zonedNow.getUTCFullYear()
+            const m = zonedNow.getUTCMonth()
+            const d = zonedNow.getUTCDate()
+            // start of today in target timezone
+            const todayStartUtc = Date.UTC(y, m, d) - tzShift
+            startDate = new Date(todayStartUtc)
+            endDate = now
           }
 
           const duration = Math.max(86400000, endDate.getTime() - startDate.getTime())
           const prevStartDate = new Date(startDate.getTime() - duration)
-          const prevEndDate = new Date(startDate.getTime())
+          const prevEndDate = new Date(endDate.getTime() - duration)
 
-          // Format date strings for Saleor (gte, lte dates)
-          const currStartStr = startDate.toISOString().split('T')[0]
-          let currEndStr = new Date(endDate.getTime() - 1000).toISOString().split('T')[0]
+          const formatDateInTz = (d: Date) => {
+            const shifted = new Date(d.getTime() + tzOffset * 3600000)
+            return shifted.toISOString().split('T')[0]
+          }
+
+          // Format date strings in reporting timezone
+          const currStartStr = formatDateInTz(startDate)
+          let currEndStr = formatDateInTz(endDate)
           if (currEndStr < currStartStr) {
             currEndStr = currStartStr
           }
 
-          const prevStartStr = prevStartDate.toISOString().split('T')[0]
-          let prevEndStr = new Date(prevEndDate.getTime() - 1000).toISOString().split('T')[0]
+          const prevStartStr = formatDateInTz(prevStartDate)
+          let prevEndStr = formatDateInTz(prevEndDate)
           if (prevEndStr < prevStartStr) {
             prevEndStr = prevStartStr
           }
-          const todayStr = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString().split('T')[0]
 
-          // Format ISO strings for Macula
+          // Start of today in reporting timezone
+          const tzShift = tzOffset * 3600000
+          const zonedNow = new Date(now.getTime() + tzShift)
+          const todayStartUtc = Date.UTC(zonedNow.getUTCFullYear(), zonedNow.getUTCMonth(), zonedNow.getUTCDate()) - tzShift
+          const todayStr = formatDateInTz(now)
+
+          // Format ISO strings for Macula OMS
           const currFromIso = startDate.toISOString()
-          const currToIso = new Date(endDate.getTime() - 1).toISOString()
+          const currToIso = endDate.toISOString()
           const prevFromIso = prevStartDate.toISOString()
-          const prevToIso = new Date(prevEndDate.getTime() - 1).toISOString()
-          const todayFromIso = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString()
+          const prevToIso = prevEndDate.toISOString()
+          const todayFromIso = new Date(todayStartUtc).toISOString()
           const todayToIso = now.toISOString()
 
           const channelIds = getChannelIds(brand, country)
           const maculaChannelGroups = getMaculaChannelGroups(brand, country)
 
-          const cacheKey = `${brand}:${country}:${currStartStr}:${currEndStr}:${maculaChannelGroups.join(',')}`
+          // Cache key includes timezone to ensure no cross-timezone pollution
+          const cacheKey = `${brand}:${country}:${tz}:${currStartStr}:${currEndStr}:${maculaChannelGroups.join(',')}`
           const cached = queryCache.get(cacheKey)
           if (cached && Date.now() - cached.time < CACHE_TTL_MS) {
             res.setHeader('Content-Type', 'application/json')
@@ -307,7 +332,11 @@ function saleorApiPlugin(): Plugin {
             recentOrders: orders(first: 100, filter: { created: $current, channels: $channels }) {
               edges {
                 node {
-                  channel { currencyCode }
+                  id
+                  number
+                  created
+                  chargeStatus
+                  channel { id slug currencyCode }
                   total { gross { amount currency } }
                 }
               }
@@ -315,23 +344,27 @@ function saleorApiPlugin(): Plugin {
             priorOrdersSample: orders(first: 100, filter: { created: $prior, channels: $channels }) {
               edges {
                 node {
-                  channel { currencyCode }
+                  id
+                  number
+                  created
+                  chargeStatus
+                  channel { id slug currencyCode }
                   total { gross { amount currency } }
                 }
               }
             }
           `
 
-          // 3. Query Saleor
+          // 3. Query Saleor with full UTC date coverage
           const query = `
             query GetOrdersSummary($current: DateRangeInput, $prior: DateRangeInput, $today: DateRangeInput, $channels: [ID!]) {
-              current: orders(first: 1, filter: { created: $current, channels: $channels }) {
+              currentSummary: orders(first: 1, filter: { created: $current, channels: $channels }) {
                 totalCount
               }
-              prior: orders(first: 1, filter: { created: $prior, channels: $channels }) {
+              priorSummary: orders(first: 1, filter: { created: $prior, channels: $channels }) {
                 totalCount
               }
-              today: orders(first: 1, filter: { created: $today, channels: $channels }) {
+              todaySummary: orders(first: 1, filter: { created: $today, channels: $channels }) {
                 totalCount
               }
               ${dayAliases}
@@ -340,6 +373,14 @@ function saleorApiPlugin(): Plugin {
               ${recentRevQuery}
             }
           `
+
+          // Ensure UTC date bounds cover the entirety of both current and prior windows without UTC cut-offs
+          const saleorCurrGte = startDate.toISOString().split('T')[0]
+          const saleorCurrLte = endDate.toISOString().split('T')[0]
+          const saleorPriorGte = prevStartDate.toISOString().split('T')[0]
+          const saleorPriorLte = prevEndDate.toISOString().split('T')[0]
+          const saleorTodayGte = new Date(todayStartUtc).toISOString().split('T')[0]
+          const saleorTodayLte = now.toISOString().split('T')[0]
 
           const sendOrderQuery = async (t: string) => {
             const res = await fetch(graphqlUrl, {
@@ -351,9 +392,9 @@ function saleorApiPlugin(): Plugin {
               body: JSON.stringify({
                 query,
                 variables: {
-                  current: { gte: currStartStr, lte: currEndStr },
-                  prior: { gte: prevStartStr, lte: prevEndStr },
-                  today: { gte: todayStr, lte: todayStr },
+                  current: { gte: saleorCurrGte, lte: saleorCurrLte },
+                  prior: { gte: saleorPriorGte, lte: saleorPriorLte },
+                  today: { gte: saleorTodayGte, lte: saleorTodayLte },
                   channels: channelIds.length > 0 ? channelIds : undefined,
                 },
               }),
@@ -377,7 +418,7 @@ function saleorApiPlugin(): Plugin {
             }
           }
 
-          if (orderJson.errors && !orderJson.data?.current) {
+          if (orderJson.errors && !orderJson.data?.currentSummary && !orderJson.data?.recentOrders) {
             console.error('Saleor query failed with error:', orderJson.errors)
             res.statusCode = 502
             res.setHeader('Content-Type', 'application/json')
@@ -385,42 +426,148 @@ function saleorApiPlugin(): Plugin {
             return
           }
 
-          const currOrders = orderJson.data?.current?.totalCount ?? 0
-          const priorOrders = orderJson.data?.prior?.totalCount ?? 0
-          const todayOrders = orderJson.data?.today?.totalCount ?? 0
+          // Exact millisecond timestamp filtering to eliminate timezone cut-off errors
+          const currentNodes = (orderJson.data?.recentOrders?.edges || []).map((e: any) => e.node)
+          const inCurrentWindow = currentNodes.filter((o: any) => {
+            const t = Date.parse(o.created)
+            return t >= startDate.getTime() && t <= endDate.getTime()
+          })
+
+          const priorNodes = (orderJson.data?.priorOrdersSample?.edges || []).map((e: any) => e.node)
+          const inPriorWindow = priorNodes.filter((o: any) => {
+            const t = Date.parse(o.created)
+            return t >= prevStartDate.getTime() && t <= prevEndDate.getTime()
+          })
+
+          const inTodayNodes = currentNodes.filter((o: any) => {
+            const t = Date.parse(o.created)
+            return t >= todayStartUtc && t <= now.getTime()
+          })
+
+          const numDays = Math.max(1, Math.round(duration / 86400000))
+
+          // Extract daily points with timezone awareness
+          const dailyPoints = dayList.map((dStr, idx) => {
+            if (dStr === todayStr && inTodayNodes.length > 0) {
+              return { date: dStr, orders: inTodayNodes.length }
+            }
+            return {
+              date: dStr,
+              orders: orderJson.data?.[`day_${idx}`]?.totalCount ?? 0,
+            }
+          })
+
+          const sumDailyOrders = dailyPoints.reduce((a, b) => a + b.orders, 0)
+          let currOrders = numDays <= 2 ? inCurrentWindow.length : sumDailyOrders
+          let priorOrders = numDays <= 2 ? inPriorWindow.length : (orderJson.data?.priorSummary?.totalCount ?? inPriorWindow.length)
+          const todayOrders = inTodayNodes.length > 0 ? inTodayNodes.length : (orderJson.data?.todaySummary?.totalCount ?? 0)
 
           let changePct = 0
           if (priorOrders > 0) {
             changePct = Math.round(((currOrders - priorOrders) / priorOrders) * 1000) / 10
           }
 
-          // Extract daily points
-          const dailyPoints = dayList.map((dStr, idx) => ({
-            date: dStr,
-            orders: orderJson.data?.[`day_${idx}`]?.totalCount ?? 0,
-          }))
-
           // Extract country breakdown
-          const countryBreakdown: Record<string, number> = {
-            SA: orderJson.data?.country_SA?.totalCount ?? 0,
-            AE: orderJson.data?.country_AE?.totalCount ?? 0,
-            EG: orderJson.data?.country_EG?.totalCount ?? 0,
-            QA: orderJson.data?.country_QA?.totalCount ?? 0,
-            KW: orderJson.data?.country_KW?.totalCount ?? 0,
+          let countryBreakdown: Record<string, number>
+          let priorCountryBreakdown: Record<string, number>
+
+          if (numDays <= 2) {
+            countryBreakdown = { SA: 0, AE: 0, EG: 0, QA: 0, KW: 0 }
+            for (const o of inCurrentWindow) {
+              const slug = o.channel?.slug || ''
+              if (slug.includes('-sa-')) countryBreakdown.SA++
+              else if (slug.includes('-ae-')) countryBreakdown.AE++
+              else if (slug.includes('-eg-')) countryBreakdown.EG++
+              else if (slug.includes('-qa-')) countryBreakdown.QA++
+              else if (slug.includes('-kw-')) countryBreakdown.KW++
+            }
+
+            priorCountryBreakdown = { SA: 0, AE: 0, EG: 0, QA: 0, KW: 0 }
+            for (const o of inPriorWindow) {
+              const slug = o.channel?.slug || ''
+              if (slug.includes('-sa-')) priorCountryBreakdown.SA++
+              else if (slug.includes('-ae-')) priorCountryBreakdown.AE++
+              else if (slug.includes('-eg-')) priorCountryBreakdown.EG++
+              else if (slug.includes('-qa-')) priorCountryBreakdown.QA++
+              else if (slug.includes('-kw-')) priorCountryBreakdown.KW++
+            }
+          } else {
+            countryBreakdown = {
+              SA: orderJson.data?.country_SA?.totalCount ?? 0,
+              AE: orderJson.data?.country_AE?.totalCount ?? 0,
+              EG: orderJson.data?.country_EG?.totalCount ?? 0,
+              QA: orderJson.data?.country_QA?.totalCount ?? 0,
+              KW: orderJson.data?.country_KW?.totalCount ?? 0,
+            }
+            priorCountryBreakdown = {
+              SA: orderJson.data?.country_prior_SA?.totalCount ?? 0,
+              AE: orderJson.data?.country_prior_AE?.totalCount ?? 0,
+              EG: orderJson.data?.country_prior_EG?.totalCount ?? 0,
+              QA: orderJson.data?.country_prior_QA?.totalCount ?? 0,
+              KW: orderJson.data?.country_prior_KW?.totalCount ?? 0,
+            }
           }
-          const priorCountryBreakdown: Record<string, number> = {
-            SA: orderJson.data?.country_prior_SA?.totalCount ?? 0,
-            AE: orderJson.data?.country_prior_AE?.totalCount ?? 0,
-            EG: orderJson.data?.country_prior_EG?.totalCount ?? 0,
-            QA: orderJson.data?.country_prior_QA?.totalCount ?? 0,
-            KW: orderJson.data?.country_prior_KW?.totalCount ?? 0,
+
+          // Build countryDailyPoints for multi-line country trend charts
+          const countryDailyPoints: Record<string, Array<{ date: string; orders: number }>> = {
+            SA: [],
+            AE: [],
+            EG: [],
+            QA: [],
+            KW: [],
+          }
+
+          const codes = ['SA', 'AE', 'EG', 'QA', 'KW'] as const
+          const totalWindowOrders = Math.max(1, currOrders)
+
+          // Distribute day orders among countries based on validated country breakdown
+          for (const dp of dailyPoints) {
+            let dayRemaining = dp.orders
+            const countryDayMap: Record<string, number> = {}
+
+            // Assign proportional orders
+            for (let i = 0; i < codes.length; i++) {
+              const code = codes[i]
+              if (i === codes.length - 1) {
+                countryDayMap[code] = Math.max(0, dayRemaining)
+              } else {
+                const share = (countryBreakdown[code] || 0) / totalWindowOrders
+                const val = Math.min(dayRemaining, Math.round(dp.orders * share))
+                countryDayMap[code] = Math.max(0, val)
+                dayRemaining -= val
+              }
+            }
+
+            for (const code of codes) {
+              countryDailyPoints[code].push({
+                date: dp.date,
+                orders: countryDayMap[code] ?? 0,
+              })
+            }
           }
 
           // Extract payment charges
-          const fullCharge = orderJson.data?.charge_FULL?.totalCount ?? 0
-          const noneCharge = orderJson.data?.charge_NONE?.totalCount ?? 0
-          const priorFullCharge = orderJson.data?.charge_prior_FULL?.totalCount ?? 0
-          const priorNoneCharge = orderJson.data?.charge_prior_NONE?.totalCount ?? 0
+          let fullCharge = 0
+          let noneCharge = 0
+          let priorFullCharge = 0
+          let priorNoneCharge = 0
+
+          if (numDays <= 2) {
+            for (const o of inCurrentWindow) {
+              if (o.chargeStatus === 'FULL') fullCharge++
+              else noneCharge++
+            }
+            for (const o of inPriorWindow) {
+              if (o.chargeStatus === 'FULL') priorFullCharge++
+              else priorNoneCharge++
+            }
+          } else {
+            fullCharge = orderJson.data?.charge_FULL?.totalCount ?? 0
+            noneCharge = orderJson.data?.charge_NONE?.totalCount ?? 0
+            priorFullCharge = orderJson.data?.charge_prior_FULL?.totalCount ?? 0
+            priorNoneCharge = orderJson.data?.charge_prior_NONE?.totalCount ?? 0
+          }
+
           const onlineRate = currOrders > 0 ? Math.round((fullCharge / currOrders) * 1000) / 10 : 0
           const priorOnlineRate = priorOrders > 0 ? Math.round((priorFullCharge / priorOrders) * 1000) / 10 : 0
           let paymentChangePct = 0
@@ -439,16 +586,16 @@ function saleorApiPlugin(): Plugin {
 
           // Extract gross revenue by currency
           const revenueByCurrency: Record<string, number> = {}
-          for (const edge of orderJson.data?.recentOrders?.edges || []) {
-            const cur = edge.node.total?.gross?.currency || edge.node.channel?.currencyCode || 'AED'
-            const amt = edge.node.total?.gross?.amount || 0
+          for (const o of (numDays <= 2 ? inCurrentWindow : currentNodes)) {
+            const cur = o.total?.gross?.currency || o.channel?.currencyCode || 'AED'
+            const amt = o.total?.gross?.amount || 0
             revenueByCurrency[cur] = Math.round(((revenueByCurrency[cur] || 0) + amt) * 100) / 100
           }
 
           const priorRevenueByCurrency: Record<string, number> = {}
-          for (const edge of orderJson.data?.priorOrdersSample?.edges || []) {
-            const cur = edge.node.total?.gross?.currency || edge.node.channel?.currencyCode || 'AED'
-            const amt = edge.node.total?.gross?.amount || 0
+          for (const o of (numDays <= 2 ? inPriorWindow : priorNodes)) {
+            const cur = o.total?.gross?.currency || o.channel?.currencyCode || 'AED'
+            const amt = o.total?.gross?.amount || 0
             priorRevenueByCurrency[cur] = Math.round(((priorRevenueByCurrency[cur] || 0) + amt) * 100) / 100
           }
 
@@ -528,8 +675,6 @@ function saleorApiPlugin(): Plugin {
             omsChangePct = Math.round(((omsOrders - omsPreviousOrders) / omsPreviousOrders) * 1000) / 10
           }
           const syncExceptions = Math.max(0, currOrders - omsOrders)
-
-          const numDays = Math.max(1, Math.round(duration / 86400000))
           let windowComparisonLabel = `previous ${numDays} days`
           if (numDays === 1) {
             windowComparisonLabel = 'previous day'
@@ -559,6 +704,7 @@ function saleorApiPlugin(): Plugin {
             changePct,
             todaySoFar: todayOrders,
             dailyPoints,
+            countryDailyPoints,
             countryBreakdown,
             priorCountryBreakdown,
             paymentBreakdown,
