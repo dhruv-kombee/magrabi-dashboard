@@ -1,66 +1,79 @@
 # MAGRABi · Commerce Intelligence Platform
 
-A dedicated, standalone real-time commerce intelligence and monitoring dashboard built with React 19, TypeScript, and Vite.
-
-This project is **completely independent** from `magrabi-deploy-portal`. It runs on its own dedicated Vite dev server on port `5174` and has zero coupling with the Azure DevOps release orchestrator or backend.
+A dedicated, standalone real-time commerce intelligence and monitoring platform built with React 19, TypeScript, Vite, and a high-performance native Node.js read-only backend.
 
 ---
 
-## Quick Start
+## 1. Quick Start
 
-### 1. Prerequisites
-- **Node.js**: v18+ (v20+ recommended)
+### Prerequisites
+- **Node.js**: v18+ (tested on Node v20/v24)
 - **npm**: v9+
 
-### 2. Installation
-Navigate to this directory and install dependencies:
+### Environment Configuration
+Copy the provided `.env.example` to `.env` and fill in credentials for your live services:
 ```powershell
 cd commerce-intelligence-platform
-npm install
+cp .env.example .env
 ```
 
-### 3. Run Development Server
-Start the dedicated development server on port **5174**:
+All credentials are parameterized and completely optional at startup:
+- If a connector's credentials are not yet entered, the dashboard displays a clear `PENDING .ENV` notice and uses deterministic sample baselines without crashing.
+- As soon as valid credentials are added to `.env` and the server restarted, the live production adapter activates immediately.
+
+### Run in Development
 ```powershell
 npm run dev
 ```
+Open [http://localhost:5174](http://localhost:5174). Both Vite frontend and live backend API routes (`/api/commerce/*`) are active.
 
-Open your browser at:
-```
-http://localhost:5174
-```
-
-### 4. Build for Production
-To create an optimized production build:
+### Run in Production
+Build the static bundle and launch the standalone production server:
 ```powershell
 npm run build
+npm start
 ```
+The production server runs on port `5174` (or whatever `PORT` is defined in `.env`), serving the compiled single-page application and all read-only API connectors.
 
-To preview the production build locally:
+### Run via Docker
 ```powershell
-npm run preview
+docker build -t magrabi-commerce-platform .
+docker run -p 5174:5174 --env-file .env magrabi-commerce-platform
 ```
 
 ---
 
-## Monitoring Modules Included
+## 2. Parameterized Connectors (`.env`)
 
-| Section | Focus Areas | Key Metrics |
+| Category | Environment Variables | Read-Only Live Capability |
 |---|---|---|
-| **Overview** | Executive summary, real-time KPI tiles | Orders, revenue, conversion rate, payment success rate |
-| **Orders & Payments** | Transaction monitoring & gateways | Success vs. Failed vs. Pending, Cash/Card split, gateway breakdown |
-| **Customer Journey** | Step-by-step funnel visualization | Drop-off rates across Search, PDP, Cart, Checkout, Confirmation |
-| **Traffic & Errors** | Traffic layers & application errors | Front Door, CDN, Ingress, Macula routing; GraphQL & timeout errors |
-| **Infrastructure & APM** | Service health & telemetry | Kubernetes pod status, memory/CPU utilization, latency (p50/p95/p99) |
-| **Data Sources** | Live dependency health check | Integration uptime, endpoint status, latency tracking |
-| **Alerts & Rules** | Active operational alerts | Severity tags (P1/P2/P3), triggered rules, incident details |
+| **Saleor Core** | `SALEOR_ENDPOINT`, `SALEOR_APP_TOKEN` (or `SALEOR_USERNAME`, `SALEOR_PASSWORD`) | Orders, daily order trends, 24-hour intraday run-rate, country breakdown, payment charge status, gross revenue by currency |
+| **Macula OMS** | `MACULA_API_URL`, `MACULA_API_KEY` (or `MACULA_USERNAME`, `MACULA_PASSWORD`) | Received OMS orders, sync delay reconciliation delta, payment gateway attribution, Apple Pay / KNET method mix |
+| **Payment Gateways** | `CHECKOUT_SECRET_KEY`, `TABBY_SECRET_KEY`, `TAMARA_API_TOKEN`, `PAYMOB_API_KEY` | 14-day rolling gateway success rates, transaction attempt volume, failure classifications |
+| **Edge & Traffic** | `AZURE_FRONT_DOOR_ENDPOINT`, `AZURE_FRONT_DOOR_API_KEY` | Real-time RPS throughput, HTTP status code distribution (2xx, 3xx, 4xx, 5xx), edge latency |
+| **APM & Infra** | `GRAFANA_URL`, `GRAFANA_SERVICE_ACCOUNT_TOKEN`, `PROMETHEUS_URL` | p50 / p95 / p99 API and checkout latency curves, database connections, pod CPU/memory utilization |
+| **Alert Notifications** | `TEAMS_WEBHOOK_URL`, `ALERT_EMAIL_RECIPIENTS`, `SMTP_*` | Automated rule evaluation with dispatch to Microsoft Teams channels and operations email lists |
 
 ---
 
-## Architecture & Features
+## 3. Operational Trend Charts
 
-- **Framework**: React 19 + TypeScript + Vite 8
-- **Styling**: Modular CSS (`CommerceDashboard.module.css`) with curated, ergonomic dark/light contrast tokens and responsive grid layout.
-- **Visualizations**: Lightweight native SVG area charts, step charts, and donut progress metrics (no bloated third-party charting libraries).
-- **Interactivity**: Timezone selector (Dubai GST, UTC, IST), Brand filter (All, Magrabi, Doctor M), Country filter (AE, SA, EG, QA, KW), interactive drill-down inspector drawer, and 1-click CSV data export.
-- **Safety**: Pure client-side telemetry and monitoring visualization; completely isolated from production live mutation paths.
+The platform includes 8 purpose-built trend charts designed for operational clarity:
+
+1. **Intraday 24-Hour Run-Rate** (*Overview*): Cumulative order trajectory comparing Today vs. Yesterday vs. 30-day baseline across hours 00:00 to 23:00.
+2. **Saleor-to-OMS Sync Reconciliation Delta** (*Overview*): Real-time delta curve tracking handoff delays between Saleor order placement and Macula OMS fulfillment intake.
+3. **Multi-Gateway 14-Day Success Rate Trend** (*Orders & Payments*): Comparative rolling success rate percentages across Checkout.com, Tabby, Tamara, and Paymob.
+4. **Native Currency Revenue Trend** (*Orders & Payments*): Gross order value trends separated by currency (AED, SAR, EGP, QAR, KWD) with zero artificial FX mixing.
+5. **End-to-End Funnel Conversion Trend** (*Customer Journey*): Daily conversion percentage tracking from Add-to-Cart to Confirmed Order.
+6. **Edge Traffic Throughput & Error Spikes** (*Traffic & Errors*): Dual-axis line chart for Edge RPS throughput alongside HTTP 5xx error rates.
+7. **API & Checkout Latency Percentiles** (*Infrastructure & APM*): Tri-curve latency tracking (p50 median, p95 degraded edge, p99 tail outliers).
+8. **Live Connector Status & Key Audit Matrix** (*Data Sources*): Real-time audit of configured environment keys, connection status (`OK` or `PENDING .ENV`), and required parameters.
+
+---
+
+## 4. Safety Invariants
+
+- **Read-Only Data Fetching**: Under NO circumstances does any code mutate, modify, update, reconfigure, or delete any resource, order, transaction, or setting on any external platform.
+- **Zero Hardcoded Credentials**: No secrets or API tokens exist in code or git history; all configuration is loaded strictly via environment variables.
+- **No Production Mutation**: Only read operations (`GET` or read-only `POST /search`) are executed.
+
