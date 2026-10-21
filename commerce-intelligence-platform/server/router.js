@@ -68,8 +68,9 @@ export async function handleApiRequest(req, res) {
         },
         azureFrontDoor: {
           name: 'Azure Front Door / Monitor',
-          configured: hasEnv('AZURE_CLIENT_ID') && hasEnv('AZURE_CLIENT_SECRET'),
-          requiredKeys: ['AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET', 'AZURE_TENANT_ID'],
+          configured: (hasEnv('AZURE_CLIENT_ID') && hasEnv('AZURE_CLIENT_SECRET')) || (hasEnv('AZURE_USERNAME') && hasEnv('AZURE_PASSWORD')),
+          authType: (hasEnv('AZURE_CLIENT_ID') && hasEnv('AZURE_CLIENT_SECRET')) ? 'ServicePrincipal' : hasEnv('AZURE_USERNAME') ? 'UserAccount (MFA Enforced)' : 'None',
+          requiredKeys: ['AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET'],
           profile: config.azure.profileName,
         },
         grafana: {

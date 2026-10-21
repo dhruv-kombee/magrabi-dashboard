@@ -1,40 +1,79 @@
 import { config, hasEnv } from '../config.js'
 
 export function isTrafficConfigured() {
-  return hasEnv('AZURE_CLIENT_ID') && hasEnv('AZURE_CLIENT_SECRET') && hasEnv('AZURE_TENANT_ID')
+  const hasSp = hasEnv('AZURE_CLIENT_ID') && hasEnv('AZURE_CLIENT_SECRET')
+  const hasUser = hasEnv('AZURE_USERNAME') && hasEnv('AZURE_PASSWORD')
+  return hasSp || hasUser
 }
 
 let cachedAzureToken = null
 let azureTokenExpiry = 0
+let lastAuthNotice = null
 
 async function getAzureMonitorToken() {
   if (cachedAzureToken && Date.now() < azureTokenExpiry) {
     return cachedAzureToken
   }
 
-  const { tenantId, clientId, clientSecret } = config.azure
-  if (!tenantId || !clientId || !clientSecret) return null
+  const { tenantId, clientId, clientSecret, username, password } = config.azure
 
-  try {
-    const res = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'client_credentials',
-        client_id: clientId,
-        client_secret: clientSecret,
-        scope: 'https://management.azure.com/.default',
-      }),
-    })
-    if (!res.ok) return null
-    const json = await res.json()
-    cachedAzureToken = json.access_token
-    azureTokenExpiry = Date.now() + (json.expires_in - 120) * 1000
-    return cachedAzureToken
-  } catch (err) {
-    console.error('Azure Monitor token error:', err.message)
-    return null
+  // 1. Try Service Principal (Client Credentials) if configured
+  if (tenantId && clientId && clientSecret) {
+    try {
+      const res = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'client_credentials',
+          client_id: clientId,
+          client_secret: clientSecret,
+          scope: 'https://management.azure.com/.default',
+        }),
+      })
+      if (res.ok) {
+        const json = await res.json()
+        cachedAzureToken = json.access_token
+        azureTokenExpiry = Date.now() + (json.expires_in - 120) * 1000
+        lastAuthNotice = null
+        return cachedAzureToken
+      }
+    } catch (err) {
+      console.error('Azure Monitor SP token error:', err.message)
+    }
   }
+
+  // 2. Try User Account (devops.magrabi@forchunex.com)
+  if (username && password) {
+    try {
+      const tenant = tenantId || 'cc9b4a8c-1b70-4347-acd3-80d32f102f2f'
+      const res = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'password',
+          client_id: '04b07795-8ddb-461a-bbee-02f9e1bf7b46', // Azure CLI well-known client ID
+          username,
+          password,
+          scope: 'https://management.azure.com/.default openid offline_access',
+        }),
+      })
+      const json = await res.json()
+      if (res.ok) {
+        cachedAzureToken = json.access_token
+        azureTokenExpiry = Date.now() + (json.expires_in - 120) * 1000
+        lastAuthNotice = null
+        return cachedAzureToken
+      } else {
+        if (json.error_description?.includes('AADSTS50079') || json.error === 'invalid_grant') {
+          lastAuthNotice = 'MFA_REQUIRED: Azure Entra ID enforces Multi-Factor Authentication on this user account. Use this account in Azure Portal to create a Service Principal (App Registration) with Monitoring Reader.'
+        }
+      }
+    } catch (err) {
+      console.error('Azure Monitor user token error:', err.message)
+    }
+  }
+
+  return null
 }
 
 export async function fetchTrafficTelemetry(options, baseDailyPoints = []) {
@@ -90,7 +129,8 @@ export async function fetchTrafficTelemetry(options, baseDailyPoints = []) {
     status: configured ? 'OK' : 'PENDING_CONFIG',
     live: configured && liveAzureMetrics !== null,
     source: configured ? 'Azure Front Door Monitor REST API' : 'Edge Traffic Telemetry (Integration Ready)',
-    missing: configured ? [] : ['AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET', 'AZURE_TENANT_ID'],
+    missing: configured ? [] : ['AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET'],
+    authNotice: lastAuthNotice,
     trafficTrends,
     httpCodes: {
       '2xx': trafficTrends.reduce((a, b) => a + b.code2xx, 0),
@@ -98,7 +138,9 @@ export async function fetchTrafficTelemetry(options, baseDailyPoints = []) {
       '4xx': trafficTrends.reduce((a, b) => a + b.code4xx, 0),
       '5xx': trafficTrends.reduce((a, b) => a + b.code5xx, 0),
     },
-    message: configured
+    message: lastAuthNotice
+      ? lastAuthNotice
+      : configured
       ? 'Live Azure Front Door Edge telemetry connected.'
       : 'Azure Monitor credentials pending in .env. Ready to stream live edge requests once provided.',
   }

@@ -62,6 +62,7 @@ function getPlatformEnv() {
 const saleorSecrets = loadEnvFile(path.join(workspaceDir, '.secrets', 'saleor.env'))
 const maculaSecrets = loadEnvFile(path.join(workspaceDir, '.secrets', 'macula.env'))
 const grafanaSecrets = loadEnvFile(path.join(workspaceDir, '.secrets', 'grafana.env'))
+const azureSecrets = loadEnvFile(path.join(workspaceDir, '.secrets', 'azure.env'))
 
 /**
  * Get environment variable with priority:
@@ -86,6 +87,9 @@ export function getEnv(key, defaultValue = '') {
   }
   if (grafanaSecrets[key] !== undefined && grafanaSecrets[key] !== '') {
     return grafanaSecrets[key]
+  }
+  if (azureSecrets[key] !== undefined && azureSecrets[key] !== '') {
+    return azureSecrets[key]
   }
   return defaultValue
 }
@@ -137,12 +141,14 @@ export const config = {
 
   // Azure Front Door / Monitor
   azure: {
-    get tenantId() { return getEnv('AZURE_TENANT_ID') },
+    get tenantId() { return getEnv('AZURE_TENANT_ID', 'cc9b4a8c-1b70-4347-acd3-80d32f102f2f') },
     get clientId() { return getEnv('AZURE_CLIENT_ID') },
     get clientSecret() { return getEnv('AZURE_CLIENT_SECRET') },
+    get username() { return getEnv('AZURE_USERNAME') },
+    get password() { return getEnv('AZURE_PASSWORD') },
     get subscriptionId() { return getEnv('AZURE_SUBSCRIPTION_ID', '72bde893-fa26-4129-a31f-648b81a48153') },
-    get resourceGroup() { return getEnv('AZURE_RESOURCE_GROUP', 'rg-mepu-prod-uaenorth-001') },
-    get profileName() { return getEnv('AZURE_FRONTDOOR_PROFILE', 'frontdoor-ecom-prod-uaenorth-001') },
+    get resourceGroup() { return getEnv('AZURE_RESOURCE_GROUP', 'rg-mepu-common-uaenorth-001') },
+    get profileName() { return getEnv('AZURE_FRONTDOOR_PROFILE', 'frontdoor-mepu-common-uaenorth-001') },
   },
 
   // Grafana / APM
