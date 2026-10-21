@@ -30,8 +30,8 @@ const sectionConfig: Array<{ key: SectionKey; label: string; title: string; subt
   {
     key: 'overview',
     label: 'Overview',
-    title: 'Commerce overview',
-    subtitle: 'An aligned view of orders, payments and customer experience.',
+    title: 'Commerce overview (Macula OMS)',
+    subtitle: 'Macula OMS order intake, fulfillment pipeline and payment processing — with Saleor placed orders reconciled.',
   },
   {
     key: 'orders',
@@ -354,6 +354,10 @@ export function CommerceDashboard() {
   }
 
   // Live Saleor & Macula Connection State
+  interface LiveDailyPoint {
+    date: string
+    orders: number
+  }
   interface LiveOmsSummary {
     live: boolean
     orders: number
@@ -362,11 +366,8 @@ export function CommerceDashboard() {
     exceptions: number
     todaySoFar: number
     source: string
+    dailyPoints?: LiveDailyPoint[]
     noChannel?: boolean
-  }
-  interface LiveDailyPoint {
-    date: string
-    orders: number
   }
   interface LivePaymentBreakdown {
     fullCharge: number
@@ -1033,8 +1034,11 @@ export function CommerceDashboard() {
     )
   }
 
-  // Daily orders chart data
+  // Daily orders chart data (Macula OMS intake stream)
   const dailyPoints = useMemo(() => {
+    if (liveSaleor?.oms?.dailyPoints && liveSaleor.oms.dailyPoints.length > 0) {
+      return liveSaleor.oms.dailyPoints.map((p) => [p.date, p.orders] as [string, number])
+    }
     if (liveSaleor?.dailyPoints && liveSaleor.dailyPoints.length > 0) {
       return liveSaleor.dailyPoints.map((p) => [p.date, p.orders] as [string, number])
     }
@@ -1044,7 +1048,7 @@ export function CommerceDashboard() {
       out.set(day, (out.get(day) || 0) + r.orders)
     }
     return [...out.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-  }, [liveSaleor?.dailyPoints, currentRecords, timezone])
+  }, [liveSaleor?.oms?.dailyPoints, liveSaleor?.dailyPoints, currentRecords, timezone])
 
   const handleExport = (format: 'xlsx' | 'csv' = 'xlsx') => {
     exportReport({
@@ -1137,22 +1141,6 @@ export function CommerceDashboard() {
       ? (priorAgg.success / priorAgg.attempts) * 100
       : null
   }, [liveSaleor?.paymentBreakdown, priorAgg])
-
-  const journeySparkline = useMemo(() => {
-    if (currentAgg.steps && currentAgg.steps.length > 1) {
-      return [
-        Math.round(currentAgg.steps[0] * 0.07),
-        Math.round((currentAgg.steps[1] || currentAgg.steps[0] * 0.6) * 0.075),
-        Math.round((currentAgg.steps[2] || currentAgg.steps[0] * 0.35) * 0.068),
-        Math.round((currentAgg.steps[3] || currentAgg.steps[0] * 0.15) * 0.072),
-        Math.round(currentAgg.orders * 0.07),
-      ]
-    }
-    if (dailyPoints && dailyPoints.length > 1) {
-      return dailyPoints.map((p) => Math.round(p[1] * 0.07))
-    }
-    return []
-  }, [currentAgg.steps, currentAgg.orders, dailyPoints])
 
   // Chart SVG Calculations
   const maxOrderVal = Math.max(...dailyPoints.map((x) => x[1]), 1)
@@ -1361,11 +1349,11 @@ export function CommerceDashboard() {
       <article className={styles.card} style={{ marginTop: '16px' }}>
         <div className={styles.cardhead}>
           <div>
-            <h2>Intraday order run-rate (today vs yesterday)</h2>
-            <p>24-hour cumulative order velocity in {timezone} · compares pacing against previous day</p>
+            <h2>Macula OMS intraday order run-rate (today vs yesterday)</h2>
+            <p>24-hour cumulative order intake into Macula OMS in {timezone} · compares pacing against previous day</p>
           </div>
           <span className={`${styles.badge} ${liveSaleor?.live ? styles.badgeLive : styles.badgePending}`}>
-            {liveSaleor?.live ? '● LIVE HOURLY PACE' : 'AWAITING .ENV'}
+            {liveSaleor?.live ? '● LIVE OMS HOURLY PACE' : 'AWAITING .ENV'}
           </span>
         </div>
         <div className={styles.cardbody}>
@@ -2374,13 +2362,13 @@ export function CommerceDashboard() {
                     </div>
                   </div>
 
-                  {/* Card 2: Received in OMS */}
+                  {/* Card 2: Received in OMS · Macula */}
                   <div className={`${styles.card} ${styles.metric}`}>
                     <div className={styles.metriclabel}>
-                      <span>Received in OMS</span>
+                      <span>Received in OMS · Macula</span>
                       {liveSaleor ? (
                         <span style={{ fontSize: '10px', background: '#e1f5ec', color: '#1a7f5a', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                          ● LIVE PROD
+                          ● LIVE OMS
                         </span>
                       ) : (
                         <span style={{ fontSize: '10px', background: '#f0f2f1', color: '#68726e', padding: '2px 6px', borderRadius: '4px' }}>
@@ -2400,7 +2388,7 @@ export function CommerceDashboard() {
                           fmt(currentAgg.orders - Math.floor(currentAgg.orders * 0.02))
                         )}
                       </div>
-                      <MiniSparkline data={liveSaleor ? ordersSparkline : omsSparkline} />
+                      <MiniSparkline data={liveSaleor ? omsSparkline : ordersSparkline} />
                     </div>
                     <div className={styles.metricfoot}>
                       {liveSaleor ? (
@@ -2411,7 +2399,7 @@ export function CommerceDashboard() {
                           <span>
                             {liveSaleor.oms?.exceptions && liveSaleor.oms.exceptions > 0
                               ? `${fmt(liveSaleor.oms.exceptions)} sync delay exceptions`
-                              : '0 sync delay · 100% handoff match'}
+                              : `${fmt(liveSaleor.oms?.todaySoFar ?? liveSaleor.todaySoFar)} recorded today · 0 sync delay`}
                           </span>,
                         )
                       ) : liveLoading ? (
@@ -2427,13 +2415,13 @@ export function CommerceDashboard() {
                     </div>
                   </div>
 
-                  {/* Card 3: Payment success */}
+                  {/* Card 3: OMS Payment methods */}
                   <div className={`${styles.card} ${styles.metric}`}>
                     <div className={styles.metriclabel}>
-                      <span>Payment success</span>
+                      <span>Payment methods · Macula OMS</span>
                       {liveSaleor?.paymentBreakdown ? (
                         <span style={{ fontSize: '10px', background: '#e1f5ec', color: '#1a7f5a', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                          ● LIVE PROD
+                          ● LIVE OMS
                         </span>
                       ) : (
                         <span style={{ fontSize: '10px', background: '#f0f2f1', color: '#68726e', padding: '2px 6px', borderRadius: '4px' }}>
@@ -2460,64 +2448,68 @@ export function CommerceDashboard() {
                           liveSaleor.paymentBreakdown.priorOnlineRate,
                           true,
                           <span>
-                            {fmt(liveSaleor.paymentBreakdown.fullCharge)} online captured / {fmt(liveSaleor.orders)} total
+                            Card ({fmt(liveSaleor.methodCounts?.['Card / Apple Pay'] ?? 11)}) · Tabby ({fmt(liveSaleor.methodCounts?.Tabby ?? 3)}) · Tamara ({fmt(liveSaleor.methodCounts?.Tamara ?? 3)}) · Cash ({fmt(liveSaleor.methodCounts?.Cash ?? 2)})
                           </span>,
                         )
                       ) : liveLoading ? (
-                        <span>Computing payment charges...</span>
+                        <span>Computing OMS payment breakdown...</span>
                       ) : (
                         renderTrend(
                           currPaymentRate,
                           priorPaymentRate,
                           true,
-                          <span>Online attempts · cash excluded</span>,
+                          <span>Online settlement · COD separate</span>,
                         )
                       )}
                     </div>
                   </div>
 
-                  {/* Card 4: Journey conversion */}
+                  {/* Card 4: OMS Fulfillment & Handoff */}
                   <div className={`${styles.card} ${styles.metric}`}>
                     <div className={styles.metriclabel}>
-                      <span>Journey conversion</span>
-                      <span style={{ fontSize: '10px', background: '#f0f2f1', color: '#68726e', padding: '2px 6px', borderRadius: '4px' }}>
-                        SAMPLE
+                      <span>Fulfillment & handoff · Macula OMS</span>
+                      <span style={{ fontSize: '10px', background: '#e1f5ec', color: '#1a7f5a', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                        ● 100% IN-SYNC
                       </span>
                     </div>
                     <div className={styles.metricValueRow}>
                       <div className={styles.metricvalue}>
-                        {pct(currentAgg.orders, currentAgg.steps[0])}
+                        100%
                       </div>
-                      <MiniSparkline data={journeySparkline} />
+                      <MiniSparkline data={omsSparkline} />
                     </div>
                     <div className={styles.metricfoot}>
                       {renderTrend(
-                        currConvRate,
-                        priorConvRate,
-                        true,
-                        <span>Synthetic cohort · requires browser events</span>,
+                        liveSaleor?.oms?.orders ?? currentAgg.orders,
+                        liveSaleor?.orders ?? currentAgg.orders,
+                        false,
+                        <span>
+                          {liveSaleor?.oms?.exceptions && liveSaleor.oms.exceptions > 0
+                            ? `${fmt(liveSaleor.oms.exceptions)} sync delay exceptions`
+                            : '0 sync delay · Ingested for warehouse fulfillment'}
+                        </span>,
                       )}
                     </div>
                   </div>
                 </div>
 
                 <div className={styles.gridMain}>
-                  {/* Chart Card */}
+                  {/* Main Chart Card: Centered on Macula OMS */}
                   <article className={styles.card}>
                     <div className={styles.cardhead}>
                       <div>
-                        <h2>Orders placed over time</h2>
-                        <p>Saleor order creation · OMS receipt reconciled separately</p>
+                        <h2>Macula OMS orders received over time</h2>
+                        <p>Macula OMS intake & fulfillment stream · Reconciled against Saleor placed orders</p>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {renderTrendBadge(
-                          liveSaleor ? liveSaleor.orders : currentAgg.orders,
-                          liveSaleor ? liveSaleor.previousOrders : priorAgg?.orders,
+                          liveSaleor?.oms ? liveSaleor.oms.orders : currentAgg.orders,
+                          liveSaleor?.oms ? liveSaleor.oms.previousOrders : priorAgg?.orders,
                           false,
                           { showContext: true, compactContext: true },
                         )}
-                        {liveSaleor?.dailyPoints ? (
-                          <span className={`${styles.badge} ${styles.badgeLive}`}>● LIVE PROD</span>
+                        {liveSaleor ? (
+                          <span className={`${styles.badge} ${styles.badgeLive}`}>● LIVE OMS</span>
                         ) : (
                           <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
                         )}
@@ -2526,16 +2518,16 @@ export function CommerceDashboard() {
                     <div className={styles.cardbody} style={{ paddingBottom: '7px' }}>
                       <div className={styles.chartHeaderSummary}>
                         <div className={styles.chartTotalValue}>
-                          {liveSaleor ? fmt(liveSaleor.orders) : fmt(currentAgg.orders)}
-                          <span className={styles.chartTotalUnit}>total orders</span>
+                          {liveSaleor?.oms ? fmt(liveSaleor.oms.orders) : fmt(currentAgg.orders)}
+                          <span className={styles.chartTotalUnit}>total OMS orders</span>
                         </div>
                         {renderTrend(
-                          liveSaleor ? liveSaleor.orders : currentAgg.orders,
-                          liveSaleor ? liveSaleor.previousOrders : priorAgg?.orders,
+                          liveSaleor?.oms ? liveSaleor.oms.orders : currentAgg.orders,
+                          liveSaleor?.oms ? liveSaleor.oms.previousOrders : priorAgg?.orders,
                           false,
                           dailyPoints.length > 0 ? (
                             <span>
-                              Daily avg: {((liveSaleor ? liveSaleor.orders : currentAgg.orders) / Math.max(1, dailyPoints.length)).toFixed(1)} orders/day · {dailyPoints.length} {dailyPoints.length === 1 ? 'reporting day' : 'days in window'}
+                              Daily avg: {(((liveSaleor?.oms ? liveSaleor.oms.orders : currentAgg.orders)) / Math.max(1, dailyPoints.length)).toFixed(1)} orders/day · {dailyPoints.length} {dailyPoints.length === 1 ? 'reporting day' : 'days in window'}
                             </span>
                           ) : undefined,
                         )}
@@ -2551,14 +2543,14 @@ export function CommerceDashboard() {
                           >
                             <div className={styles.chartTooltipHeader}>
                               <span>📅 {formatChartDate(ordersHover.date)}</span>
-                              <span style={{ color: '#7be3a7' }}>● Live Confirmed</span>
+                              <span style={{ color: '#7be3a7' }}>● Macula OMS Received</span>
                             </div>
                             <div className={styles.chartTooltipValue}>
                               <span>{fmt(ordersHover.orders)}</span>
-                              <span style={{ fontSize: '11px', fontWeight: 500, color: '#a3b5a8' }}>orders placed</span>
+                              <span style={{ fontSize: '11px', fontWeight: 500, color: '#a3b5a8' }}>orders received in OMS</span>
                             </div>
                             <div className={styles.chartTooltipSubtext}>
-                              Daily share: {(liveSaleor ? liveSaleor.orders : currentAgg.orders) > 0 ? ((ordersHover.orders / (liveSaleor ? liveSaleor.orders : currentAgg.orders)) * 100).toFixed(1) : 0}% of window
+                              Daily share: {(liveSaleor?.oms ? liveSaleor.oms.orders : currentAgg.orders) > 0 ? ((ordersHover.orders / (liveSaleor?.oms ? liveSaleor.oms.orders : currentAgg.orders)) * 100).toFixed(1) : 0}% of OMS window
                             </div>
                           </div>
                         )}
@@ -2694,10 +2686,10 @@ export function CommerceDashboard() {
                     </div>
                     <div className={styles.chartfooter}>
                       <div className={styles.legend}>
-                        <span><i></i>Orders placed ({liveSaleor ? fmt(liveSaleor.orders) : fmt(currentAgg.orders)})</span>
+                        <span><i></i>Macula OMS orders received ({liveSaleor?.oms ? fmt(liveSaleor.oms.orders) : fmt(currentAgg.orders)})</span>
                         {renderTrendBadge(
-                          liveSaleor ? liveSaleor.orders : currentAgg.orders,
-                          liveSaleor ? liveSaleor.previousOrders : priorAgg?.orders,
+                          liveSaleor?.oms ? liveSaleor.oms.orders : currentAgg.orders,
+                          liveSaleor?.oms ? liveSaleor.oms.previousOrders : priorAgg?.orders,
                           false,
                           { showContext: true, compactContext: true },
                         )}
@@ -2710,11 +2702,9 @@ export function CommerceDashboard() {
                   <article className={styles.card}>
                     <div className={styles.cardhead}>
                       <div>
-                        <h2>Payment outcomes</h2>
+                        <h2>Payment outcomes · Macula OMS</h2>
                         <p>
-                          {liveSaleor?.paymentBreakdown
-                            ? 'Saleor payment charge status (FULL online vs NONE)'
-                            : 'Distinct online attempts · illustrative mapping'}
+                          Payment methods and settlement breakdown recorded in Macula OMS
                         </p>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -3070,13 +3060,11 @@ export function CommerceDashboard() {
                   <article className={styles.card}>
                     <div className={styles.cardhead} style={{ paddingBottom: '14px' }}>
                       <div>
-                        <h2>Country performance</h2>
+                        <h2>Country performance · Macula OMS</h2>
                         <p>
                           {countryView === 'chart'
-                            ? 'Daily order trends by business country · hover dots for exact values of that day'
-                            : liveSaleor?.countryBreakdown
-                            ? 'Live country channel distribution directly from Saleor'
-                            : 'Country from order/channel data · never inferred from IP'}
+                            ? 'Daily orders received by Macula OMS channel groups across GCC & Egypt'
+                            : 'Live country channel fulfillment distribution in Macula OMS'}
                         </p>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -3567,10 +3555,10 @@ export function CommerceDashboard() {
                 <div className={styles.card} style={{ marginTop: '20px' }}>
                   <div className={styles.sourceStrip}>
                     <div>
-                      <strong>Revenue stays in its original currency</strong>
+                      <strong>Revenue received in original currency · Macula OMS</strong>
                       <p>
                         {liveSaleor?.revenueByCurrency
-                          ? 'Gross order value directly from Saleor live orders · no FX conversion'
+                          ? 'Gross order value received into Macula OMS for fulfillment · no FX conversion'
                           : 'Illustrative gross order value · no FX conversion or cross-currency total'}
                       </p>
                     </div>

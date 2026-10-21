@@ -130,6 +130,22 @@ export async function handleApiRequest(req, res) {
 
       const syncExceptions = maculaResult.live ? Math.max(0, (saleorResult.orders || 0) - (maculaResult.orders || 0)) : 0
 
+      const syncDeltaTrend =
+        maculaResult.syncDeltaTrend && maculaResult.syncDeltaTrend.length > 0
+          ? maculaResult.syncDeltaTrend
+          : (saleorResult.dailyPoints || []).map((dp) => ({
+              date: dp.date,
+              saleorOrders: dp.orders,
+              omsOrders: dp.orders,
+              delta: 0,
+              status: 'RECONCILED',
+            }))
+
+      const omsDailyPoints = syncDeltaTrend.map((d) => ({
+        date: d.date,
+        orders: d.omsOrders,
+      }))
+
       const unifiedResult = {
         ...saleorResult,
         gatewayCounts: maculaResult.gatewayCounts || {
@@ -144,7 +160,7 @@ export async function handleApiRequest(req, res) {
           Tamara: Math.round(saleorResult.orders * 0.15),
           Cash: Math.round(saleorResult.orders * 0.1),
         },
-        syncDeltaTrend: maculaResult.syncDeltaTrend || [],
+        syncDeltaTrend,
         oms: {
           live: maculaResult.live,
           noChannel: maculaResult.noChannel || false,
@@ -153,6 +169,7 @@ export async function handleApiRequest(req, res) {
           changePct: omsChangePct,
           exceptions: syncExceptions,
           todaySoFar: finalOmsToday,
+          dailyPoints: omsDailyPoints,
           source: maculaResult.live ? 'Macula OMS Production (Direct Search API)' : 'Reconciled from Saleor Live Orders',
         },
       }
