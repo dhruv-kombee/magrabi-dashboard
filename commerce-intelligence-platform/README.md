@@ -47,12 +47,13 @@ docker run -p 5174:5174 --env-file .env magrabi-commerce-platform
 
 | Category | Environment Variables | Read-Only Live Capability |
 |---|---|---|
-| **Saleor Core** | `SALEOR_ENDPOINT`, `SALEOR_APP_TOKEN` (or `SALEOR_USERNAME`, `SALEOR_PASSWORD`) | Orders, daily order trends, 24-hour intraday run-rate, country breakdown, payment charge status, gross revenue by currency |
-| **Macula OMS** | `MACULA_API_URL`, `MACULA_API_KEY` (or `MACULA_USERNAME`, `MACULA_PASSWORD`) | Received OMS orders, sync delay reconciliation delta, payment gateway attribution, Apple Pay / KNET method mix |
-| **Payment Gateways** | `CHECKOUT_SECRET_KEY`, `TABBY_SECRET_KEY`, `TAMARA_API_TOKEN`, `PAYMOB_API_KEY` | 14-day rolling gateway success rates, transaction attempt volume, failure classifications |
-| **Edge & Traffic** | `AZURE_FRONT_DOOR_ENDPOINT`, `AZURE_FRONT_DOOR_API_KEY` | Real-time RPS throughput, HTTP status code distribution (2xx, 3xx, 4xx, 5xx), edge latency |
-| **APM & Infra** | `GRAFANA_URL`, `GRAFANA_SERVICE_ACCOUNT_TOKEN`, `PROMETHEUS_URL` | p50 / p95 / p99 API and checkout latency curves, database connections, pod CPU/memory utilization |
+| **Saleor Core** | `SALEOR_GRAPHQL_URL`, `SALEOR_USERNAME`, `SALEOR_PASSWORD` | Verified orders, daily totals, country breakdown, payment charge status, gross revenue by currency |
+| **Macula OMS** | `MACULA_API_URL`, `MACULA_TOKEN` or `MACULA_USERNAME` and `MACULA_PASSWORD` | Verified OMS receipt count; payment attribution from a sample of at most 100 orders |
+| **Payment Gateways** | `CHECKOUT_SECRET_KEY`, `TABBY_SECRET_KEY`, `TAMARA_API_TOKEN`, `PAYMOB_API_KEY` | Direct connector response status where implemented; success-rate charts are illustrative until verified gateway metrics are mapped |
+| **Edge & Traffic** | `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID` | Azure Monitor connection status; the existing traffic chart is illustrative until the metric response is mapped |
+| **APM & Infra** | `ECOM_GRAFANA_TOKEN` or `ECOM_GRAFANA_USER` and `ECOM_GRAFANA_PASSWORD` | Grafana health status; the existing latency and infrastructure chart values are illustrative until metric queries are implemented |
 | **Alert Notifications** | `TEAMS_WEBHOOK_URL`, `ALERT_EMAIL_RECIPIENTS`, `SMTP_*` | Automated rule evaluation with dispatch to Microsoft Teams channels and operations email lists |
+| **Commerce Assist** | `GEMINI_API_KEY`, `GEMINI_MODEL`, `ASSISTANT_MAX_HISTORY` | Gemini 3.1 Flash-Lite answers grounded in approved platform telemetry; a built-in answer engine remains available without an API key |
 
 ---
 
@@ -74,6 +75,22 @@ The platform includes 8 purpose-built trend charts designed for operational clar
 ## 4. Safety Invariants
 
 - **Read-Only Data Fetching**: Under NO circumstances does any code mutate, modify, update, reconfigure, or delete any resource, order, transaction, or setting on any external platform.
-- **Zero Hardcoded Credentials**: No secrets or API tokens exist in code or git history; all configuration is loaded strictly via environment variables.
+- **No Hardcoded Credential Fallbacks**: Current configuration loads credentials from the environment. Previously embedded Grafana password values should be rotated.
 - **No Production Mutation**: Only read operations (`GET` or read-only `POST /search`) are executed.
+
+---
+
+## 5. Commerce Assist
+
+The dashboard includes a responsive assistant that opens from a compact launcher. Clicking outside the panel or pressing Escape minimizes it. It supports follow-up questions, copy, contextual prompts, and multiple saved conversations with search, rename, and delete. History is stored in the current browser because the dashboard does not yet have user sign-in. The active filters apply by default; explicit country, brand, or common date phrases in a question update the answer scope. Approved read-only sources are queried on the server and cached for up to 30 seconds. Only verified summary fields are returned to the browser, model, or export.
+
+Each answer includes an expandable “Sources used” panel with the connector name, exact data fields, status, and timestamp. The assistant distinguishes measured data from connector status and illustrative charts. It reports a metric as unavailable when the adapter has not mapped a verified value. It does not treat the difference between Saleor and OMS counts as a confirmed per-order sync failure. Questions outside the commerce platform are refused without querying connectors or the model.
+
+Answers with verified evidence also display key figures and a compact metric/value/source table before the conversational explanation. The visual is built from the same source facts used in the exports, including answers already saved in browser history. PDF, Excel, and Word reports include a corresponding formatted table; Excel has a dedicated filterable `Data table` sheet. Currency values retain their currency codes and are never combined across currencies.
+
+Answers can be downloaded as styled PDF, Excel, or Word files with source evidence. Add `GEMINI_API_KEY` from Google AI Studio to the server environment to enable Gemini 3.1 Flash-Lite. The key is never sent to the browser, and no web-search tool is enabled. Without the key, the assistant uses the platform answer engine.
+
+Natural wording such as “what is the todays sell,” “How are we doing today?”, or a misspelled Saudi sales question is treated as a sales request. Gemini proposes a structured intent, country, brand, and period; the server validates the proposal and gives explicit wording priority over model hints. A sales answer puts **Macula OMS received orders** first, then separately labels **Saleor placed orders and gross placed-order value**. Saleor value is not called OMS-received revenue. A question explicitly asking for Macula orders queries Macula only; if that feed is unavailable, the assistant does not substitute Saleor counts. When the user’s topic is genuinely ambiguous, the assistant asks a follow-up with selectable, scope-preserving questions before fetching data. The per-answer visual displays **Query scope** separately from **Dashboard filters** and the snapshot time. Gemini receives only verified evidence for answer wording, and unsupported numeric claims are rejected. If Gemini is unavailable, deterministic parsing and a labeled platform answer remain available. Questions outside the platform are blocked before connectors or Gemini are called.
+
+The dashboard’s country performance table and daily order series are Saleor placed-order views, and are labeled accordingly. Macula OMS status and received counts are shown only when the Macula feed is verified. “Why do Saleor and Macula differ?” receives a stage-aware comparison when both feeds are live, or an explicit availability warning otherwise. A matching Saleor and Macula count cannot be assumed without order-ID reconciliation; live snapshots can also differ by refresh time.
 

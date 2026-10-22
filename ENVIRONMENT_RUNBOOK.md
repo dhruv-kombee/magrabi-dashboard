@@ -80,3 +80,21 @@ Living architectural and environmental record of the Magrabi Deployment Portal i
   - Test backend must never discover or load live ADO write credentials (`.secrets/azuredevops.env`).
   - Reporting database for Commerce Intelligence must be dashboard-owned (e.g. dedicated PostgreSQL schema/instance), never writing to source production operational databases.
 - **Last Verified**: 2026-10-15 | Confidence: VERIFIED: LIVE
+
+---
+
+## 6. Commerce Assist Architecture
+
+- **Frontend**: Responsive React assistant panel embedded in the Commerce Intelligence Platform. It submits the active brand, country, timezone, and reporting window with each question. Versioned browser-local storage retains conversations until the user deletes them or clears browser data.
+- **Backend API**: `POST /api/commerce/assistant/query` on the existing Node service.
+- **Approved Data Scope**: Saleor Core, Macula OMS, payment-gateway telemetry, Azure edge traffic, Grafana/infrastructure telemetry, and connector configuration status exposed by the Commerce Intelligence backend.
+- **Grounding Boundary**: Answers use a server-gathered snapshot of explicit, verified fields. Raw gateway responses, secrets, URLs, and illustrative chart metrics are excluded from model input and exports. Equivalent requests share a 30-second scoped cache.
+- **Question Understanding**: Every in-platform question can be planned by Gemini as structured intent, country, brand, and period using the current text and short user-question history. The server validates this plan against allowed values; explicit current-question wording wins over model hints and old conversation context. The interpreted query scope is shown on each answer, independently of dashboard filters. Ambiguous either-or questions are not sent to connectors; the assistant asks a scoped follow-up with selectable choices. Deterministic parsing handles natural wording and common country typos when Gemini fails. Obvious outside-platform topics are rejected before model or connector calls.
+- **Optional Model Integration**: `GEMINI_API_KEY` and `GEMINI_MODEL` enable Gemini 3.1 Flash-Lite via the server-side `generateContent` endpoint. No browser receives the API key and no web-search tool is enabled. Without the key, the built-in platform answer engine remains active.
+- **Fallback Visibility**: Transient Gemini errors are retried; the response and UI identify whether Gemini interpreted the request and whether Gemini answered or a verified platform answer was used, without exposing credential values. Answer-generation input contains only the reference answer, scope, and verified evidence; numbers absent from that material cause a fallback to the deterministic answer.
+- **Source Provenance**: Each answer includes explicit source evidence with the connector, field values used, feed status, and snapshot time. Out-of-platform questions are refused before connector or model access.
+- **Answer Presentation & Exports**: Verified source facts drive key-figure cards and a metric/value/source table in the chat, including previously saved browser-local answers. The same table is formatted into PDF, XLSX (including a filterable data-table sheet), and DOCX reports; reports are not persisted by the backend.
+- **Order-Stage Provenance**: Sales answers lead with verified Macula OMS received orders, then show Saleor placed orders and gross placed-order value separately. Explicit Macula-only requests never substitute Saleor. The dashboard country performance and daily-order views are Saleor placed-order views. Macula count failures remain unavailable rather than zero; no daily sync trend or 100% reconciliation claim is generated without verified OMS daily points and matched order IDs.
+- **Current Macula Status (2026-10-22)**: VERIFIED: LIVE local probe: credentials are configured, but the login response did not provide a token and the Macula summary returned `FAIL`. The exact cause (credentials versus changed login flow) is unverified. Do not describe Macula as connected until a new read-only probe succeeds.
+- **External Permissions**: All connectors remain read-only. Commerce Assist has no mutation or notification tools.
+- **Last Verified**: 2026-10-22 | Confidence: VERIFIED: LOCAL BUILD + LIVE ASSISTANT/MACULA PROBES + TARGETED UNIT TESTS + DESKTOP/MOBILE AND PDF/XLSX/DOCX QA
