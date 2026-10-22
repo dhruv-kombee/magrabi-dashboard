@@ -2581,7 +2581,7 @@ export function CommerceDashboard() {
                           })}
                           {/* X-axis date labels */}
                           {dailyPoints.map((p, i) => {
-                            const step = dailyPoints.length > 14 ? 3 : dailyPoints.length > 7 ? 2 : 1
+                            const step = dailyPoints.length > 60 ? 8 : dailyPoints.length > 30 ? 4 : dailyPoints.length > 14 ? 3 : dailyPoints.length > 7 ? 2 : 1
                             if (i % step !== 0 && i !== dailyPoints.length - 1) return null
                             const dayPart = p[0].split('-').slice(1).join('/')
                             return (
@@ -2791,7 +2791,7 @@ export function CommerceDashboard() {
 
                             {/* X axis dates */}
                             {paymentDailyPoints.map((p, i) => {
-                              const step = paymentDailyPoints.length > 14 ? 3 : paymentDailyPoints.length > 7 ? 2 : 1
+                              const step = paymentDailyPoints.length > 60 ? 8 : paymentDailyPoints.length > 30 ? 4 : paymentDailyPoints.length > 14 ? 3 : paymentDailyPoints.length > 7 ? 2 : 1
                               if (i % step !== 0 && i !== paymentDailyPoints.length - 1) return null
                               const dayPart = p.date.split('-').slice(1).join('/')
                               return (
@@ -3223,7 +3223,7 @@ export function CommerceDashboard() {
 
                             {/* X-axis date labels */}
                             {countryDates.map((dStr, i) => {
-                              const step = countryDates.length > 14 ? 3 : countryDates.length > 7 ? 2 : 1
+                              const step = countryDates.length > 60 ? 8 : countryDates.length > 30 ? 4 : countryDates.length > 14 ? 3 : countryDates.length > 7 ? 2 : 1
                               if (i % step !== 0 && i !== countryDates.length - 1) return null
                               const dayPart = dStr.split('-').slice(1).join('/')
                               return (
