@@ -351,11 +351,11 @@ async function exportWord(message: Message) {
   downloadBlob(blob, `Magrabi_Commerce_Assist_${stamp()}.docx`)
 }
 
-function MessageContent({ content }: { content: string }) {
+function MessageContent({ content, answer = false }: { content: string; answer?: boolean }) {
   return (
-    <div className={styles.messageText}>
+    <div className={`${styles.messageText} ${answer ? styles.answerText : ''}`}>
       {content.split('\n').map((line, index) => (
-        <p key={`${line}-${index}`}>{line || '\u00A0'}</p>
+        <p key={`${line}-${index}`} className={answer && index === 0 ? styles.answerLead : undefined}>{line || '\u00A0'}</p>
       ))}
     </div>
   )
@@ -383,18 +383,21 @@ function AnswerVisual({ message }: { message: Message }) {
           ))}
         </div>
       )}
-      <div className={styles.dataTableWrap}>
-        <table className={styles.dataTable}>
-          <thead><tr><th scope="col">Metric / source</th><th scope="col">Value</th></tr></thead>
-          <tbody>{presentation.rows.map((row, index) => (
-            <tr key={`${row.source}-${row.metric}-${index}`}>
-              <td><strong>{row.metric}</strong><small>{row.source}</small></td>
-              <td>{row.value}</td>
-            </tr>
-          ))}</tbody>
-        </table>
-      </div>
-      <p className={styles.visualNote}>{presentation.note}</p>
+      <details className={styles.dataDisclosure}>
+        <summary>View supporting data <span>{presentation.rows.length} metrics</span></summary>
+        <div className={styles.dataTableWrap}>
+          <table className={styles.dataTable}>
+            <thead><tr><th scope="col">Metric / source</th><th scope="col">Value</th></tr></thead>
+            <tbody>{presentation.rows.map((row, index) => (
+              <tr key={`${row.source}-${row.metric}-${index}`}>
+                <td><strong>{row.metric}</strong><small>{row.source}</small></td>
+                <td>{row.value}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+        <p className={styles.visualNote}>{presentation.note}</p>
+      </details>
     </section>
   )
 }
@@ -494,9 +497,9 @@ export function ChatAssistant({ filters }: ChatAssistantProps) {
 
   useEffect(() => {
     const latest = messages[messages.length - 1]
-    if (latest?.role === 'assistant' && buildAssistantPresentation(latest)) {
-      const visuals = panelRef.current?.querySelectorAll<HTMLElement>(`.${styles.answerVisual}`)
-      visuals?.[visuals.length - 1]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    if (latest?.role === 'assistant' && latest.question) {
+      const leads = panelRef.current?.querySelectorAll<HTMLElement>(`.${styles.answerLead}`)
+      leads?.[leads.length - 1]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     } else {
       endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     }
@@ -681,8 +684,8 @@ export function ChatAssistant({ filters }: ChatAssistantProps) {
               <div key={message.id} className={`${styles.messageRow} ${message.role === 'user' ? styles.messageRowUser : ''}`}>
                 {message.role === 'assistant' && <div className={styles.miniAvatar}>✦</div>}
                 <div className={`${styles.bubble} ${message.role === 'user' ? styles.userBubble : styles.assistantBubble}`}>
+                  <MessageContent content={message.content} answer={message.role === 'assistant' && !!message.question} />
                   <AnswerVisual message={message} />
-                  <MessageContent content={message.content} />
                   {message.clarification?.length ? (
                     <div className={styles.clarificationChoices} aria-label="Choose a question to clarify">
                       {message.clarification.map((choice) => <button type="button" key={choice} disabled={loading} onClick={() => submit(choice)}>{choice}</button>)}
