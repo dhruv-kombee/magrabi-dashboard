@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { answerCommerceQuestion, classifyQuestion, deterministicAnswer, interpretQuestionWithModel, modelAnswer, resolveScope } from './assistant.js'
+import { answerCommerceQuestion, classifyQuestion, deterministicAnswer, interpretQuestionWithModel, modelAnswer, parseAnswerNeeds, resolveScope } from './assistant.js'
 
 const now = Date.parse('2026-10-22T10:00:00Z')
 
@@ -37,6 +37,36 @@ test('natural sales wording resolves to a today sales question', () => {
   const scope = resolveScope({}, 'what is the todays sell', now)
   assert.equal(scope.start, Date.parse('2026-10-21T20:00:00Z'))
   assert.equal(scope.end, now)
+})
+
+test('two-part last-month question receives a direct count, comparison, and plain-language definitions', () => {
+  const question = 'can you provide me the exact number of the order between last month? Can you explain me what is the meaning of saleor order and prior window orders'
+  const hints = parseAnswerNeeds(question)
+  assert.equal(classifyQuestion(question), 'orders')
+  assert.equal(hints.compare, true)
+  assert.equal(hints.saleorDefinition, true)
+  assert.equal(hints.priorDefinition, true)
+  assert.equal(hints.includeCountryBreakdown, false)
+  const scope = resolveScope({ timezone: 'Dubai' }, question, now)
+  assert.equal(scope.start, now - 30 * 86_400_000)
+  const answer = deterministicAnswer({
+    intent: 'orders', scope, responseHints: hints,
+    orders: { live: true, orders: 1735, previousOrders: 1987, changePct: -12.7, period: '30 days' },
+  })
+  assert.match(answer, /^Saleor recorded 1,735 placed orders in the last 30 days/)
+  assert.match(answer, /prior comparable window had 1,987 orders/)
+  assert.match(answer, /252 fewer \(-12\.7%\)/)
+  assert.match(answer, /A Saleor order is created through the storefront/)
+  assert.match(answer, /“Prior-window orders” counts the immediately preceding period/)
+  assert.match(answer, /rolling 30-day window, not the previous calendar month/)
+  assert.doesNotMatch(answer, /Country counts:/)
+})
+
+test('question parsing can use validated Gemini facets without inventing definitions', () => {
+  const hints = parseAnswerNeeds('Show orders', { compare: true, explain: ['prior_window_orders', 'unknown'] })
+  assert.equal(hints.compare, true)
+  assert.equal(hints.priorDefinition, true)
+  assert.equal(hints.saleorDefinition, false)
 })
 
 test('a sales answer puts Macula receipts first and separates Saleor placed value', () => {

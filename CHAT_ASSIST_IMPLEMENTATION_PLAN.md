@@ -57,7 +57,16 @@ Add a natural-language assistant to the Commerce Intelligence Platform that answ
 - Dependency/security review and credential-pattern scan.
 - Focused tests for scope, follow-ups, unavailable metrics, and OMS count wording.
 - Tests for Gemini request structure, out-of-topic refusal, and conversation history persistence.
-- Browser visual QA remains unverified because this session has no browser-control surface.
+- Browser visual QA is verified for the answer-first layout on desktop and 390px mobile; all three export formats passed local smoke checks.
+
+### Phase 7 — Answer-first enterprise response (implemented 2026-10-22)
+
+- Parse multi-part requests into the requested metric, prior-window comparison, and requested term definitions; use validated Gemini planning hints with deterministic wording as a reliable fallback.
+- State rolling-period assumptions explicitly. “Last month” follows the platform's rolling 30-day window, not the prior calendar month.
+- Show the answer before compact key figures; collapse the full supporting table and source details until opened.
+- Limit query evidence and export audit fields to relevant metrics. Include country breakdown only when asked.
+- Preserve PDF/XLSX/DOCX quality and browser history; verify the screenshot question in the live API and desktop/mobile browser.
+- Continue to refuse unsupported data and to ask a follow-up when the required metric or scope cannot be determined.
 
 ## Explicit boundaries
 

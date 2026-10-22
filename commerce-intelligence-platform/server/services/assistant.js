@@ -135,6 +135,23 @@ function percent(value) {
   return n === null ? 'unavailable' : `${n.toFixed(1)}%`
 }
 
+export function parseAnswerNeeds(query, interpretation = {}) {
+  const asksMeaning = /\b(?:explain|meaning|means?|define|definition|what\s+(?:is|does))\b/i.test(query)
+  const modelTerms = Array.isArray(interpretation.explain) ? interpretation.explain : []
+  return {
+    compare: /\b(?:compare|comparison|versus|vs|prior|previous|change|difference|between)\b/i.test(query) || interpretation.compare === true,
+    saleorDefinition: (asksMeaning && /\b(?:saleor|placed)\s+orders?\b/i.test(query)) || modelTerms.includes('saleor_order'),
+    priorDefinition: (asksMeaning && /\b(?:prior|previous)[-\s]+window\s+orders?\b/i.test(query)) || modelTerms.includes('prior_window_orders'),
+    includeCountryBreakdown: /\b(?:by country|per country|country breakdown|countries)\b/i.test(query),
+    rollingMonth: /\b(?:last|past)\s+month\b/i.test(query),
+  }
+}
+
+function scopeDate(value, zone) {
+  const timeZone = { Dubai: 'Asia/Dubai', UTC: 'UTC', IST: 'Asia/Kolkata' }[zone] || 'UTC'
+  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone }).format(new Date(value))
+}
+
 function projectedOrders(result) {
   if (result?.status !== 'OK' || result.live !== true) return { status: result?.status || 'UNAVAILABLE', live: false }
   return {
@@ -220,7 +237,7 @@ export async function gatherAssistantContext(rawFilters = {}, query = '', intent
 
 async function loadAssistantContext(scope, intent) {
   const needOrders = ['orders', 'sales', 'revenue', 'reconciliation', 'payments', 'sources'].includes(intent)
-  const needOms = ['orders', 'oms_orders', 'sales', 'reconciliation', 'payments', 'sources'].includes(intent)
+  const needOms = ['oms_orders', 'sales', 'reconciliation', 'payments', 'sources'].includes(intent)
 
   const [saleorRaw, gatewayRaw, trafficRaw, infraRaw] = await Promise.all([
     needOrders ? fetchSaleorSummary(scope).catch(() => null) : null,
@@ -288,7 +305,7 @@ function evidenceList(context) {
         { label: 'Orders', value: count(orders.orders) },
         { label: 'Prior-window orders', value: count(orders.previousOrders) },
         { label: 'Change', value: percent(orders.changePct) },
-        ...Object.entries(orders.countryBreakdown || {}).map(([code, value]) => ({ label: `${countryNames[code] || code} orders`, value: count(value) })),
+        ...(context.includeCountryBreakdown ? Object.entries(orders.countryBreakdown || {}).map(([code, value]) => ({ label: `${countryNames[code] || code} orders`, value: count(value) })) : []),
       ], orders.live ? `Window: ${orders.period || 'selected dates'}` : 'Live order data was unavailable.')
     }
   }
@@ -348,6 +365,26 @@ export function deterministicAnswer(context) {
   }
 
   if (!orders?.live) return 'I cannot verify the requested order data for this scope. Please check the Saleor connector and try again; I will not substitute sample dashboard figures.'
+
+  if (intent === 'orders' && context.responseHints) {
+    const hints = context.responseHints
+    const window = hints.rollingMonth && context.scope
+      ? `the last 30 days (${scopeDate(context.scope.start, context.scope.tz)}–${scopeDate(context.scope.end, context.scope.tz)}, ${context.scope.tz} time)`
+      : period
+    const lines = [`Saleor recorded ${count(orders.orders)} placed orders in ${window}.`]
+    if (hints.compare && numeric(orders.previousOrders) !== null && numeric(orders.orders) !== null) {
+      const difference = orders.orders - orders.previousOrders
+      const direction = difference < 0 ? 'fewer' : difference > 0 ? 'more' : 'the same number of'
+      const comparison = difference === 0 ? 'no change' : `${count(Math.abs(difference))} ${direction} (${difference > 0 ? '+' : ''}${percent(orders.changePct)})`
+      lines.push(`The prior comparable window had ${count(orders.previousOrders)} orders, so this window had ${comparison}.`)
+    }
+    const definitions = []
+    if (hints.saleorDefinition) definitions.push('A Saleor order is created through the storefront and recorded by Saleor; it may not yet be received by Macula OMS.')
+    if (hints.priorDefinition) definitions.push('“Prior-window orders” counts the immediately preceding period of the same length, not an additional set of current orders.')
+    if (definitions.length) lines.push(definitions.join(' '))
+    if (hints.rollingMonth) lines.push('Here “last month” means a rolling 30-day window, not the previous calendar month.')
+    return lines.join('\n')
+  }
 
   if (intent === 'revenue') {
     const entries = Object.entries(orders.revenueByCurrency || {})
@@ -435,7 +472,7 @@ export async function interpretQuestionWithModel(query, history = [], filters = 
     `Prior questions: ${prior || 'none'}`,
     `Current question: ${query}`,
   ].join('\n') }] }], [
-    'Plan a read-only commerce dashboard query. Do not answer it. Return JSON only with keys intent, country, brand, period, days.',
+    'Plan a read-only commerce dashboard query. Do not answer it. Return JSON only with keys intent, country, brand, period, days, compare, explain.',
     'intent: sales|revenue|orders|oms_orders|reconciliation|payments|traffic|infrastructure|sources|unavailable|outside|clarify.',
     'reconciliation means comparing Saleor placed orders with Macula OMS received orders, without asserting a sync failure.',
     'oms_orders means an explicit Macula OMS received-order request without Saleor comparison.',
@@ -443,6 +480,7 @@ export async function interpretQuestionWithModel(query, history = [], filters = 
     'country: AE|SA|EG|QA|KW|all|null. Saudi Arabia, Saudi Arebia, and Soudi Arebia mean SA.',
     'brand: Magrabi|DoctorM|all|null. period: today|yesterday|rolling_days|selected|null.',
     'days: 1-90 only for rolling_days, otherwise null. Null means no override of dashboard filters.',
+    'compare is true only when a comparison or prior period is requested. explain is an array containing only saleor_order and/or prior_window_orders when the user asks what those terms mean.',
     'Use prior questions only for follow-ups. Outside means unrelated to this commerce platform. Never invent a filter.',
   ].join(' '), 240, 2, { json: true, timeoutMs: 12_000 })
   if (!result.text) return { intent: null, country: null, brand: null, period: null, days: null, status: result.status }
@@ -457,6 +495,8 @@ export async function interpretQuestionWithModel(query, history = [], filters = 
       brand: BRANDS.has(parsed.brand) ? parsed.brand : null,
       period: periods.has(parsed.period) ? parsed.period : null,
       days: Number.isInteger(parsed.days) && parsed.days >= 1 && parsed.days <= 90 ? parsed.days : null,
+      compare: parsed.compare === true,
+      explain: Array.isArray(parsed.explain) ? parsed.explain.filter((item) => item === 'saleor_order' || item === 'prior_window_orders') : [],
       status: 'ready',
     }
   } catch {
@@ -522,10 +562,13 @@ export async function answerCommerceQuestion({ query, history = [], filters = {}
   const context = intent === 'outside' || intent === 'unavailable' || intent === 'clarify'
     ? { generatedAt: new Date().toISOString(), scope: resolveScope(filters, safeQuery, Date.now(), interpretation), intent }
     : await gatherAssistantContext(filters, safeQuery, intent, history, interpretation)
+  const responseHints = parseAnswerNeeds(safeQuery, interpretation)
+  const answerContext = { ...context, responseHints, includeCountryBreakdown: responseHints.includeCountryBreakdown }
   const diagnostics = {}
   // Keep mixed-stage sales figures in a fixed, source-attributed order. Gemini still plans the query.
-  const modelResponse = ['sales', 'oms_orders', 'reconciliation'].includes(intent) ? null : await modelAnswer(safeQuery, history, context, diagnostics)
-  const answer = modelResponse || deterministicAnswer(context)
+  const modelResponse = ['sales', 'oms_orders', 'reconciliation', 'orders'].includes(intent) ? null : await modelAnswer(safeQuery, history, answerContext, diagnostics)
+  const answer = modelResponse || deterministicAnswer(answerContext)
+  const evidence = evidenceList(answerContext)
   const countrySuffix = context.scope.country === 'all' ? '' : ` in ${countryNames[context.scope.country]}`
   const periodSuffix = /\byesterday\b/i.test(safeQuery) ? ' yesterday'
     : safeQuery.match(/\b(?:last|past)\s+\d{1,2}\s+days?\b/i)?.[0]
@@ -543,7 +586,10 @@ export async function answerCommerceQuestion({ query, history = [], filters = {}
       `Payment status${countrySuffix}${periodSuffix}`,
     ] : [],
     sources: sourceList(context), scope: context.scope, generatedAt: context.generatedAt,
-    evidence: evidenceList(context),
-    exportData: context,
+    evidence,
+    exportData: {
+      intent, scope: context.scope, generatedAt: context.generatedAt,
+      evidence: evidence.map(({ name, status, updatedAt, facts }) => ({ source: name, status, updatedAt, facts })),
+    },
   }
 }
