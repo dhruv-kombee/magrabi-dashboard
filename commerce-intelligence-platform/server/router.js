@@ -4,10 +4,36 @@ import { fetchGatewayTelemetry, getGatewaysConfigurationStatus } from './service
 import { fetchTrafficTelemetry } from './services/traffic.js'
 import { fetchInfraTelemetry } from './services/infra.js'
 import { evaluateAlertRule, isAlertChannelConfigured } from './services/alerts.js'
+import { answerCommerceQuestion } from './services/assistant.js'
 import { config, hasEnv } from './config.js'
 
 const queryCache = new Map()
 const CACHE_TTL_MS = 60 * 1000
+
+function readJsonBody(req, maxBytes = 128 * 1024) {
+  return new Promise((resolve, reject) => {
+    let body = ''
+    let size = 0
+    let tooLarge = false
+    req.on('data', (chunk) => {
+      size += chunk.length
+      if (size > maxBytes) {
+        tooLarge = true
+        return
+      }
+      if (!tooLarge) body += chunk
+    })
+    req.on('end', () => {
+      if (tooLarge) { reject(new Error('Request body is too large.')); return }
+      try {
+        resolve(JSON.parse(body || '{}'))
+      } catch {
+        reject(new Error('Request body must be valid JSON.'))
+      }
+    })
+    req.on('error', reject)
+  })
+}
 
 export async function handleApiRequest(req, res) {
   const urlObj = new URL(req.url, `http://localhost:${config.port}`)
@@ -84,6 +110,13 @@ export async function handleApiRequest(req, res) {
           configured: hasEnv('TEAMS_WEBHOOK_URL') || hasEnv('SMTP_HOST'),
           requiredKeys: ['TEAMS_WEBHOOK_URL', 'SMTP_HOST'],
         },
+        assistant: {
+          name: 'Commerce Assist (Gemini AI Studio)',
+          configured: hasEnv('GEMINI_API_KEY') || hasEnv('GOOGLE_API_KEY'),
+          requiredKeys: ['GEMINI_API_KEY'],
+          model: config.assistant.model,
+          fallback: 'Built-in platform answer engine',
+        },
       },
     }
     res.end(JSON.stringify(health))
@@ -114,10 +147,7 @@ export async function handleApiRequest(req, res) {
       }
 
       // 2. Fetch Macula OMS Live Summary (with sync delta)
-      const maculaResult = await fetchMaculaSummary(
-        { brand, country, start, end, tz },
-        saleorResult.dailyPoints || [],
-      )
+      const maculaResult = await fetchMaculaSummary({ brand, country, start, end, tz })
 
       // 3. Reconcile Counts
       const finalOmsOrders = maculaResult.live && maculaResult.orders > 0 ? maculaResult.orders : saleorResult.orders
@@ -129,18 +159,8 @@ export async function handleApiRequest(req, res) {
         omsChangePct = Math.round(((finalOmsOrders - finalOmsPrior) / finalOmsPrior) * 1000) / 10
       }
 
-      const syncExceptions = maculaResult.live ? Math.max(0, (saleorResult.orders || 0) - (maculaResult.orders || 0)) : 0
-
-      const syncDeltaTrend =
-        maculaResult.syncDeltaTrend && maculaResult.syncDeltaTrend.length > 0
-          ? maculaResult.syncDeltaTrend
-          : (saleorResult.dailyPoints || []).map((dp) => ({
-              date: dp.date,
-              saleorOrders: dp.orders,
-              omsOrders: dp.orders,
-              delta: 0,
-              status: 'RECONCILED',
-            }))
+      // No per-order IDs or verified OMS daily points are available for a sync trend.
+      const syncDeltaTrend = []
 
       const omsDailyPoints = syncDeltaTrend.map((d) => ({
         date: d.date,
@@ -168,10 +188,10 @@ export async function handleApiRequest(req, res) {
           orders: finalOmsOrders,
           previousOrders: finalOmsPrior,
           changePct: omsChangePct,
-          exceptions: syncExceptions,
+          exceptions: null,
           todaySoFar: finalOmsToday,
           dailyPoints: omsDailyPoints,
-          source: maculaResult.live ? 'Macula OMS Production (Direct Search API)' : 'Reconciled from Saleor Live Orders',
+          source: maculaResult.live ? 'Macula OMS Production (Direct Search API)' : 'Macula OMS unavailable; numeric compatibility fields are Saleor placed orders, not OMS receipts',
         },
       }
 
@@ -225,6 +245,19 @@ export async function handleApiRequest(req, res) {
   }
 
   // 6. Alert Rule Evaluation Endpoint
+  if (pathname === '/api/commerce/assistant/query' && req.method === 'POST') {
+    try {
+      const parsed = await readJsonBody(req)
+      const result = await answerCommerceQuestion(parsed)
+      res.end(JSON.stringify(result))
+    } catch (err) {
+      res.statusCode = /too large/i.test(err.message) ? 413 : /enter a question|valid JSON|valid date window/i.test(err.message) ? 400 : 500
+      res.end(JSON.stringify({ status: 'FAIL', error: res.statusCode === 500 ? 'Assistant request failed. Please try again.' : err.message }))
+    }
+    return true
+  }
+
+  // 7. Alert Rule Evaluation Endpoint
   if (pathname === '/api/commerce/alerts/evaluate' && req.method === 'POST') {
     let body = ''
     req.on('data', (chunk) => (body += chunk))

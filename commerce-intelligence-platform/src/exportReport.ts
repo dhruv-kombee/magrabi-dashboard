@@ -21,7 +21,7 @@ export interface LiveOmsSummary {
   orders: number
   previousOrders: number
   changePct: number
-  exceptions: number
+  exceptions: number | null
 }
 
 export interface LiveSaleorSummary {

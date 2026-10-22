@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { exportReport } from './exportReport'
+import { ChatAssistant } from './ChatAssistant'
 import type {
   BrandFilter,
   CountryFilter,
@@ -30,8 +30,8 @@ const sectionConfig: Array<{ key: SectionKey; label: string; title: string; subt
   {
     key: 'overview',
     label: 'Overview',
-    title: 'Commerce overview (Macula OMS)',
-    subtitle: 'Macula OMS order intake, fulfillment pipeline and payment processing — with Saleor placed orders reconciled.',
+    title: 'Commerce overview (Saleor + Macula OMS)',
+    subtitle: 'Saleor placed orders and value, with Macula OMS receipts shown only when verified.',
   },
   {
     key: 'orders',
@@ -363,7 +363,7 @@ export function CommerceDashboard() {
     orders: number
     previousOrders: number
     changePct: number
-    exceptions: number
+    exceptions: number | null
     todaySoFar: number
     source: string
     dailyPoints?: LiveDailyPoint[]
@@ -1034,11 +1034,8 @@ export function CommerceDashboard() {
     )
   }
 
-  // Daily orders chart data (Macula OMS intake stream)
+  // Daily placed-order chart data from Saleor; OMS daily receipts are not mapped.
   const dailyPoints = useMemo(() => {
-    if (liveSaleor?.oms?.dailyPoints && liveSaleor.oms.dailyPoints.length > 0) {
-      return liveSaleor.oms.dailyPoints.map((p) => [p.date, p.orders] as [string, number])
-    }
     if (liveSaleor?.dailyPoints && liveSaleor.dailyPoints.length > 0) {
       return liveSaleor.dailyPoints.map((p) => [p.date, p.orders] as [string, number])
     }
@@ -1050,8 +1047,9 @@ export function CommerceDashboard() {
     return [...out.entries()].sort((a, b) => a[0].localeCompare(b[0]))
   }, [liveSaleor?.oms?.dailyPoints, liveSaleor?.dailyPoints, currentRecords, timezone])
 
-  const handleExport = (format: 'xlsx' | 'csv' = 'xlsx') => {
-    exportReport({
+  const handleExport = async (format: 'xlsx' | 'csv' = 'xlsx') => {
+    const { exportReport } = await import('./exportReport')
+    await exportReport({
       format,
       section,
       source,
@@ -1349,11 +1347,11 @@ export function CommerceDashboard() {
       <article className={styles.card} style={{ marginTop: '16px' }}>
         <div className={styles.cardhead}>
           <div>
-            <h2>Macula OMS intraday order run-rate (today vs yesterday)</h2>
-            <p>24-hour cumulative order intake into Macula OMS in {timezone} · compares pacing against previous day</p>
+            <h2>Saleor placed-order intraday run-rate (today vs yesterday)</h2>
+            <p>24-hour cumulative placed-order pace from Saleor in {timezone} · not an OMS receipt series</p>
           </div>
           <span className={`${styles.badge} ${liveSaleor?.live ? styles.badgeLive : styles.badgePending}`}>
-            {liveSaleor?.live ? '● LIVE OMS HOURLY PACE' : 'AWAITING .ENV'}
+            {liveSaleor?.live ? '● LIVE SALEOR HOURLY PACE' : 'AWAITING .ENV'}
           </span>
         </div>
         <div className={styles.cardbody}>
@@ -2295,7 +2293,7 @@ export function CommerceDashboard() {
               <span>
                 {liveSaleor ? (
                   <span style={{ color: '#186348' }}>
-                    🟢 <strong>Live Saleor & Macula OMS Connected</strong> ({liveSaleor.period}) · Refreshed {new Date(liveSaleor.lastUpdated).toLocaleTimeString()}
+                    🟢 <strong>{liveSaleor.oms?.live ? 'Live Saleor and Macula OMS' : 'Live Saleor; Macula OMS unavailable'}</strong> ({liveSaleor.period}) · Refreshed {new Date(liveSaleor.lastUpdated).toLocaleTimeString()}
                   </span>
                 ) : (
                   <span>
@@ -2366,51 +2364,42 @@ export function CommerceDashboard() {
                   <div className={`${styles.card} ${styles.metric}`}>
                     <div className={styles.metriclabel}>
                       <span>Received in OMS · Macula</span>
-                      {liveSaleor ? (
+                      {liveSaleor?.oms?.live ? (
                         <span style={{ fontSize: '10px', background: '#e1f5ec', color: '#1a7f5a', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
                           ● LIVE OMS
                         </span>
                       ) : (
                         <span style={{ fontSize: '10px', background: '#f0f2f1', color: '#68726e', padding: '2px 6px', borderRadius: '4px' }}>
-                          {liveLoading ? 'LOADING...' : 'FIXTURE'}
+                          {liveLoading ? 'LOADING...' : 'OMS UNAVAILABLE'}
                         </span>
                       )}
                     </div>
                     <div className={styles.metricValueRow}>
                       <div className={styles.metricvalue}>
                         {liveSaleor ? (
-                          liveSaleor.oms && liveSaleor.oms.orders > 0
+                          liveSaleor.oms?.live && !liveSaleor.oms.noChannel
                             ? fmt(liveSaleor.oms.orders)
-                            : fmt(liveSaleor.orders)
+                            : '—'
                         ) : liveLoading ? (
                           <span className={styles.skeletonPulse}>—</span>
                         ) : (
-                          fmt(currentAgg.orders - Math.floor(currentAgg.orders * 0.02))
+                          '—'
                         )}
                       </div>
-                      <MiniSparkline data={liveSaleor ? omsSparkline : ordersSparkline} />
+                      {liveSaleor?.oms?.live && <MiniSparkline data={omsSparkline} />}
                     </div>
                     <div className={styles.metricfoot}>
-                      {liveSaleor ? (
+                      {liveSaleor?.oms?.live && !liveSaleor.oms.noChannel ? (
                         renderTrend(
-                          liveSaleor.oms && liveSaleor.oms.orders > 0 ? liveSaleor.oms.orders : liveSaleor.orders,
-                          liveSaleor.oms && liveSaleor.oms.previousOrders > 0 ? liveSaleor.oms.previousOrders : liveSaleor.previousOrders,
+                          liveSaleor.oms.orders,
+                          liveSaleor.oms.previousOrders,
                           false,
-                          <span>
-                            {liveSaleor.oms?.exceptions && liveSaleor.oms.exceptions > 0
-                              ? `${fmt(liveSaleor.oms.exceptions)} sync delay exceptions`
-                              : `${fmt(liveSaleor.oms?.todaySoFar ?? liveSaleor.todaySoFar)} recorded today · 0 sync delay`}
-                          </span>,
+                          <span>{fmt(liveSaleor.oms.todaySoFar)} recorded today in OMS</span>,
                         )
                       ) : liveLoading ? (
                         <span>Connecting live Macula OMS feed...</span>
                       ) : (
-                        renderTrend(
-                          currentAgg.orders - Math.floor(currentAgg.orders * 0.02),
-                          priorAgg ? priorAgg.orders - Math.floor(priorAgg.orders * 0.02) : null,
-                          false,
-                          <span>{fmt(Math.floor(currentAgg.orders * 0.02))} sample handoff exceptions</span>,
-                        )
+                        <span>Macula receipt count could not be verified; Saleor is not substituted.</span>
                       )}
                     </div>
                   </div>
@@ -2418,10 +2407,10 @@ export function CommerceDashboard() {
                   {/* Card 3: OMS Payment methods */}
                   <div className={`${styles.card} ${styles.metric}`}>
                     <div className={styles.metriclabel}>
-                      <span>Payment methods · Macula OMS</span>
+                      <span>Charge status · Saleor Core</span>
                       {liveSaleor?.paymentBreakdown ? (
                         <span style={{ fontSize: '10px', background: '#e1f5ec', color: '#1a7f5a', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                          ● LIVE OMS
+                          ● LIVE SALEOR
                         </span>
                       ) : (
                         <span style={{ fontSize: '10px', background: '#f0f2f1', color: '#68726e', padding: '2px 6px', borderRadius: '4px' }}>
@@ -2467,28 +2456,19 @@ export function CommerceDashboard() {
                   {/* Card 4: OMS Fulfillment & Handoff */}
                   <div className={`${styles.card} ${styles.metric}`}>
                     <div className={styles.metriclabel}>
-                      <span>Fulfillment & handoff · Macula OMS</span>
-                      <span style={{ fontSize: '10px', background: '#e1f5ec', color: '#1a7f5a', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                        ● 100% IN-SYNC
+                      <span>Placed vs received · Saleor / Macula</span>
+                      <span style={{ fontSize: '10px', background: '#f0f2f1', color: '#68726e', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                        ORDER IDS NOT RECONCILED
                       </span>
                     </div>
                     <div className={styles.metricValueRow}>
                       <div className={styles.metricvalue}>
-                        100%
+                        {liveSaleor?.oms?.live ? fmt(Math.abs(liveSaleor.orders - liveSaleor.oms.orders)) : '—'}
                       </div>
-                      <MiniSparkline data={omsSparkline} />
+                      {liveSaleor?.oms?.live && <MiniSparkline data={omsSparkline} />}
                     </div>
                     <div className={styles.metricfoot}>
-                      {renderTrend(
-                        liveSaleor?.oms?.orders ?? currentAgg.orders,
-                        liveSaleor?.orders ?? currentAgg.orders,
-                        false,
-                        <span>
-                          {liveSaleor?.oms?.exceptions && liveSaleor.oms.exceptions > 0
-                            ? `${fmt(liveSaleor.oms.exceptions)} sync delay exceptions`
-                            : '0 sync delay · Ingested for warehouse fulfillment'}
-                        </span>,
-                      )}
+                      <span>{liveSaleor?.oms?.live ? 'Count difference only; this does not prove a sync failure.' : 'Macula receipt count unavailable; sync status cannot be verified.'}</span>
                     </div>
                   </div>
                 </div>
@@ -2498,18 +2478,18 @@ export function CommerceDashboard() {
                   <article className={styles.card}>
                     <div className={styles.cardhead}>
                       <div>
-                        <h2>Macula OMS orders received over time</h2>
-                        <p>Macula OMS intake & fulfillment stream · Reconciled against Saleor placed orders</p>
+                        <h2>Saleor placed orders over time</h2>
+                        <p>Verified Saleor daily order series; Macula OMS daily receipt series is not mapped</p>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {renderTrendBadge(
-                          liveSaleor?.oms ? liveSaleor.oms.orders : currentAgg.orders,
-                          liveSaleor?.oms ? liveSaleor.oms.previousOrders : priorAgg?.orders,
+                          liveSaleor?.orders ?? currentAgg.orders,
+                          liveSaleor?.previousOrders ?? priorAgg?.orders,
                           false,
                           { showContext: true, compactContext: true },
                         )}
-                        {liveSaleor ? (
-                          <span className={`${styles.badge} ${styles.badgeLive}`}>● LIVE OMS</span>
+                        {liveSaleor?.live ? (
+                          <span className={`${styles.badge} ${styles.badgeLive}`}>● LIVE SALEOR</span>
                         ) : (
                           <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE</span>
                         )}
@@ -2518,16 +2498,16 @@ export function CommerceDashboard() {
                     <div className={styles.cardbody} style={{ paddingBottom: '7px' }}>
                       <div className={styles.chartHeaderSummary}>
                         <div className={styles.chartTotalValue}>
-                          {liveSaleor?.oms ? fmt(liveSaleor.oms.orders) : fmt(currentAgg.orders)}
-                          <span className={styles.chartTotalUnit}>total OMS orders</span>
+                          {fmt(liveSaleor?.orders ?? currentAgg.orders)}
+                          <span className={styles.chartTotalUnit}>total Saleor placed orders</span>
                         </div>
                         {renderTrend(
-                          liveSaleor?.oms ? liveSaleor.oms.orders : currentAgg.orders,
-                          liveSaleor?.oms ? liveSaleor.oms.previousOrders : priorAgg?.orders,
+                          liveSaleor?.orders ?? currentAgg.orders,
+                          liveSaleor?.previousOrders ?? priorAgg?.orders,
                           false,
                           dailyPoints.length > 0 ? (
                             <span>
-                              Daily avg: {(((liveSaleor?.oms ? liveSaleor.oms.orders : currentAgg.orders)) / Math.max(1, dailyPoints.length)).toFixed(1)} orders/day · {dailyPoints.length} {dailyPoints.length === 1 ? 'reporting day' : 'days in window'}
+                              Daily avg: {((liveSaleor?.orders ?? currentAgg.orders) / Math.max(1, dailyPoints.length)).toFixed(1)} orders/day · {dailyPoints.length} {dailyPoints.length === 1 ? 'reporting day' : 'days in window'}
                             </span>
                           ) : undefined,
                         )}
@@ -2543,14 +2523,14 @@ export function CommerceDashboard() {
                           >
                             <div className={styles.chartTooltipHeader}>
                               <span>📅 {formatChartDate(ordersHover.date)}</span>
-                              <span style={{ color: '#7be3a7' }}>● Macula OMS Received</span>
+                              <span style={{ color: '#7be3a7' }}>● Saleor Placed</span>
                             </div>
                             <div className={styles.chartTooltipValue}>
                               <span>{fmt(ordersHover.orders)}</span>
-                              <span style={{ fontSize: '11px', fontWeight: 500, color: '#a3b5a8' }}>orders received in OMS</span>
+                              <span style={{ fontSize: '11px', fontWeight: 500, color: '#a3b5a8' }}>orders placed in Saleor</span>
                             </div>
                             <div className={styles.chartTooltipSubtext}>
-                              Daily share: {(liveSaleor?.oms ? liveSaleor.oms.orders : currentAgg.orders) > 0 ? ((ordersHover.orders / (liveSaleor?.oms ? liveSaleor.oms.orders : currentAgg.orders)) * 100).toFixed(1) : 0}% of OMS window
+                              Daily share: {(liveSaleor?.orders ?? currentAgg.orders) > 0 ? ((ordersHover.orders / (liveSaleor?.orders ?? currentAgg.orders)) * 100).toFixed(1) : 0}% of selected window
                             </div>
                           </div>
                         )}
@@ -2686,10 +2666,10 @@ export function CommerceDashboard() {
                     </div>
                     <div className={styles.chartfooter}>
                       <div className={styles.legend}>
-                        <span><i></i>Macula OMS orders received ({liveSaleor?.oms ? fmt(liveSaleor.oms.orders) : fmt(currentAgg.orders)})</span>
+                        <span><i></i>Saleor placed ({fmt(liveSaleor?.orders ?? currentAgg.orders)})</span>
                         {renderTrendBadge(
-                          liveSaleor?.oms ? liveSaleor.oms.orders : currentAgg.orders,
-                          liveSaleor?.oms ? liveSaleor.oms.previousOrders : priorAgg?.orders,
+                          liveSaleor?.orders ?? currentAgg.orders,
+                          liveSaleor?.previousOrders ?? priorAgg?.orders,
                           false,
                           { showContext: true, compactContext: true },
                         )}
@@ -3060,11 +3040,11 @@ export function CommerceDashboard() {
                   <article className={styles.card}>
                     <div className={styles.cardhead} style={{ paddingBottom: '14px' }}>
                       <div>
-                        <h2>Country performance · Macula OMS</h2>
+                        <h2>Country performance · Saleor placed orders</h2>
                         <p>
                           {countryView === 'chart'
-                            ? 'Daily orders received by Macula OMS channel groups across GCC & Egypt'
-                            : 'Live country channel fulfillment distribution in Macula OMS'}
+                            ? 'Daily placed-order country trends from Saleor across GCC & Egypt'
+                            : 'Live country distribution of placed orders from Saleor Core'}
                         </p>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -3555,10 +3535,10 @@ export function CommerceDashboard() {
                 <div className={styles.card} style={{ marginTop: '20px' }}>
                   <div className={styles.sourceStrip}>
                     <div>
-                      <strong>Revenue received in original currency · Macula OMS</strong>
+                      <strong>Gross placed-order value in original currency · Saleor Core</strong>
                       <p>
                         {liveSaleor?.revenueByCurrency
-                          ? 'Gross order value received into Macula OMS for fulfillment · no FX conversion'
+                          ? 'Saleor gross placed-order value; not verified as received in Macula OMS · no FX conversion'
                           : 'Illustrative gross order value · no FX conversion or cross-currency total'}
                       </p>
                     </div>
@@ -4492,6 +4472,8 @@ export function CommerceDashboard() {
 
       {/* Toast Notification */}
       {toastMessage && <div className={styles.toast}>{toastMessage}</div>}
+
+      <ChatAssistant filters={{ brand, country, timezone, start, end }} />
     </div>
   )
 }
