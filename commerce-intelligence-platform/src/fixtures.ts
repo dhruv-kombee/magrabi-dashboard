@@ -15,7 +15,7 @@ export const offsets: Record<TimezoneKey, number> = {
 }
 
 export const fixtureStart = Date.parse('2026-09-01T00:00:00Z')
-export const fixtureEnd = Date.parse('2026-10-15T00:00:00Z')
+export const fixtureEnd = Date.parse('2026-10-31T23:59:59Z')
 
 const hash = (n: number) => {
   const v = Math.sin(n * 12.9898 + 78.233) * 43758.5453

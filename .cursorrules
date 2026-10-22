@@ -9,3 +9,4 @@ AGENTS.md
 3. Apply adversarial verification before declaring tasks complete.
 4. Never print or log secret values; verify configuration by SHA-256 fingerprint hash.
 5. All durable facts belong in ENVIRONMENT_RUNBOOK.md; logs belong in work_log/.
+6. Absolute Invariant: Strictly READ-ONLY data fetching. Never mutate, update, reconfigure, or delete anything on external platforms (Saleor, OMS, Checkout.com, Paymob, Tabby, Tamara, Azure, AKS, Grafana, Sentry, GA4, Clarity).

@@ -2,6 +2,7 @@
 .secrets/
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 *.cert
@@ -43,3 +44,5 @@ ENV/
 *.tar.gz
 *.tgz
 
+# Scratch and test files
+scratch/

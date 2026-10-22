@@ -29,6 +29,27 @@
   display: flex;
   flex-direction: column;
   z-index: 30;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  align-self: start;
+  flex-shrink: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
 }
 
 .brand {
@@ -185,6 +206,12 @@
 .badgeGreen {
   color: var(--green);
   background: #e9f5ee;
+}
+
+.badgeLive {
+  color: #1a7f5a;
+  background: #e1f5ec;
+  border: 1px solid #c3ebd9;
 }
 
 .badgeRed {
@@ -425,6 +452,134 @@
   color: var(--red);
 }
 
+.metricValueRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 10px 0 10px;
+}
+
+.miniSparkline {
+  flex-shrink: 0;
+  display: block;
+}
+
+.trendRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.trendMain {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.trendBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.trendBadgeUp {
+  background: #e1f5ec;
+  color: #1a7f5a;
+  border: 1px solid #c2ebda;
+}
+
+.trendBadgeDown {
+  background: #fbeceb;
+  color: #b13736;
+  border: 1px solid #f6cfce;
+}
+
+.trendBadgeNeutral {
+  background: #f0f2f1;
+  color: #68726e;
+  border: 1px solid #dde2df;
+}
+
+.trendArrow {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.trendContext {
+  font-size: 10px;
+  color: #5a665f;
+}
+
+.trendPrior {
+  font-weight: 600;
+  color: #3b4640;
+}
+
+.trendSubtext {
+  font-size: 10px;
+  color: #78837b;
+  margin-top: 1px;
+  line-height: 1.4;
+}
+
+.quickPresetsBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.quickPresetsLabel {
+  font-size: 10px;
+  font-weight: 700;
+  color: #69756c;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-right: 4px;
+}
+
+.quickPresetPill {
+  background: #ffffff;
+  border: 1px solid #d8dfda;
+  color: #3e4a42;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.quickPresetPill:hover {
+  background: #f0f5f2;
+  border-color: #29372e;
+  color: #18231c;
+}
+
+.quickPresetPillActive {
+  background: #29372e;
+  border-color: #29372e;
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.quickPresetPillActive:hover {
+  background: #394b3f;
+  color: #ffffff;
+}
+
 .gridMain {
   display: grid;
   grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr);
@@ -658,7 +813,7 @@
   display: flex;
   align-items: flex-end;
   gap: 9px;
-  height: 160px;
+  min-height: 175px;
   padding: 5px 0 0;
 }
 
@@ -725,6 +880,360 @@
   font-weight: 600;
   margin-top: 4px;
 }
+
+.currencyFilterPills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.currencyPill {
+  background: #f0f4f1;
+  border: 1px solid #dce4de;
+  color: #4a594f;
+  padding: 4px 11px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.currencyPill:hover {
+  background: #e4ebe6;
+  color: #202b24;
+  border-color: #c7d5cc;
+}
+
+.currencyPillActive {
+  background: #247a60 !important;
+  border-color: #247a60 !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(36, 122, 96, 0.2);
+}
+
+.currencyGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 6px;
+}
+
+@media (max-width: 1400px) {
+  .currencyGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .currencyGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .currencyGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.currencyCard {
+  background: #ffffff;
+  border: 1px solid #e1e7e4;
+  border-radius: 10px;
+  padding: 16px 18px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px rgba(18, 30, 22, 0.03);
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.currencyCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: transparent;
+  transition: background 0.2s ease;
+}
+
+.currencyCard:hover {
+  border-color: #b8c8be;
+  box-shadow: 0 6px 18px rgba(18, 30, 22, 0.08);
+  transform: translateY(-2px);
+}
+
+.currencyCard:hover::before {
+  background: #247a60;
+}
+
+.currencyCardActive {
+  border-color: #247a60 !important;
+  background: #fbfdfc;
+  box-shadow: 0 0 0 1px #247a60, 0 6px 18px rgba(36, 122, 96, 0.09) !important;
+}
+
+.currencyCardActive::before {
+  background: #247a60 !important;
+}
+
+.currencyCardTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.currencyCountry {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.countryFlagBadge {
+  display: inline-flex;
+  width: 25px;
+  height: 19px;
+  background: #edf2ee;
+  color: #3b5042;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  border: 1px solid #dae3dc;
+  flex-shrink: 0;
+}
+
+.countryName {
+  font-size: 11px;
+  font-weight: 600;
+  color: #4b5750;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.currencyBadge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #1a5e46;
+  background: #e6f3ec;
+  border: 1px solid #c9e5d6;
+  padding: 2px 7px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.currencyValueWrap {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-bottom: 14px;
+}
+
+.currencyCodePrefix {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6d7b72;
+}
+
+.currencyAmount {
+  font-size: 24px;
+  font-weight: 700;
+  color: #172a1e;
+  letter-spacing: -0.6px;
+  line-height: 1.1;
+}
+
+.currencyMetaRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #edf2ee;
+  margin-bottom: 10px;
+}
+
+.currencyStat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.currencyStatLabel {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #839187;
+  text-transform: uppercase;
+}
+
+.currencyStatValue {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2b3930;
+}
+
+.currencyShareBarWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.currencyShareHeader {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #6c7971;
+}
+
+.currencyShareHeader b {
+  color: #247a60;
+  font-weight: 600;
+}
+
+.currencyProgressTrack {
+  height: 4px;
+  background: #ebf0ec;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.currencyProgressFill {
+  height: 100%;
+  background: linear-gradient(90deg, #3aa37b 0%, #247a60 100%);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.currencyCardFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed #e9eeea;
+  font-size: 9.5px;
+  color: #7b887f;
+}
+
+.currencyNativeSymbol {
+  font-weight: 600;
+  color: #4f6356;
+}
+
+.currencyFilterNotice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f4f8f5;
+  border: 1px solid #dce8df;
+  padding: 8px 14px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 11px;
+  color: #3b4e42;
+}
+
+.currencyResetBtn {
+  background: none;
+  border: none;
+  color: #247a60;
+  font-weight: 600;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.methodCardsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.methodCard {
+  background: #fbfdfc;
+  border: 1px solid #e1e8e4;
+  border-radius: 9px;
+  padding: 13px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.methodCard:hover {
+  background: #ffffff;
+  border-color: #b8c8be;
+  box-shadow: 0 4px 12px rgba(18, 30, 22, 0.05);
+  transform: translateY(-1px);
+}
+
+.methodCardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.methodName {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2b3930;
+}
+
+.methodCount {
+  font-size: 18px;
+  font-weight: 700;
+  color: #172a1e;
+}
+
+.methodBarTrack {
+  height: 4px;
+  background: #ebf0ec;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.methodBarFill {
+  height: 100%;
+  background: linear-gradient(90deg, #3aa37b 0%, #247a60 100%);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.methodShareText {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  color: #6c7971;
+}
+
+.methodShareText b {
+  color: #247a60;
+  font-weight: 600;
+}
+
 
 .sourceStrip {
   display: flex;
@@ -1207,3 +1716,435 @@
   border-radius: 7px;
   margin-bottom: 15px;
 }
+
+.skeletonPulse {
+  display: inline-block;
+  color: #aab5ae;
+  animation: pulseOpacity 1.2s ease-in-out infinite;
+}
+
+@keyframes pulseOpacity {
+  0%, 100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.trendInlineWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.trendInlineContext {
+  font-size: 11px;
+  color: #727e77;
+  font-weight: 450;
+  white-space: nowrap;
+}
+
+.chartHeaderSummary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px 14px;
+  border-bottom: 1px solid #edf1ec;
+  margin-bottom: 12px;
+}
+
+.chartTotalValue {
+  font-size: 22px;
+  font-weight: 700;
+  color: #202524;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.chartTotalUnit {
+  font-size: 12px;
+  font-weight: 500;
+  color: #727e77;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.currencyTrendRow {
+  margin: 6px 0 10px;
+  padding-top: 6px;
+}
+
+/* Interactive Chart Tooltip & Multi-line Trend Chart Styles */
+.chartWrapper {
+  position: relative;
+  width: 100%;
+}
+
+.chartTooltip {
+  position: absolute;
+  pointer-events: none;
+  background: #18231c;
+  color: #f7faf8;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28), 0 2px 6px rgba(0, 0, 0, 0.15);
+  border: 1px solid #2f3e34;
+  z-index: 100;
+  min-width: 130px;
+  max-width: 260px;
+  transform: translate(var(--tt-x, -50%), var(--tt-y, -100%));
+  margin-top: var(--tt-my, -12px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.chartTooltip::after {
+  content: '';
+  position: absolute;
+  top: var(--tt-arrow-top, 100%);
+  bottom: var(--tt-arrow-bottom, auto);
+  left: var(--tt-arrow-left, 50%);
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: var(--tt-arrow-color, #18231c transparent transparent transparent);
+}
+
+.chartTooltipBottom {
+  --tt-y: 0px;
+  --tt-my: 14px;
+  --tt-arrow-top: auto;
+  --tt-arrow-bottom: 100%;
+  --tt-arrow-color: transparent transparent #18231c transparent;
+}
+
+.chartTooltipRight {
+  --tt-x: -90%;
+  --tt-arrow-left: 90%;
+}
+
+.chartTooltipLeft {
+  --tt-x: -10%;
+  --tt-arrow-left: 10%;
+}
+
+.chartTooltipHeader {
+  font-size: 10px;
+  font-weight: 600;
+  color: #a3b5a8;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid #2c3a30;
+  padding-bottom: 3px;
+}
+
+.chartTooltipValue {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.chartTooltipSubtext {
+  font-size: 10px;
+  color: #8da093;
+  margin-top: 3px;
+}
+
+.chartTooltipCountryRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 0;
+  font-size: 11px;
+}
+
+.chartTooltipCountryFlag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.chartTooltipCountryDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* View Toggle Buttons */
+.viewToggleGroup {
+  display: inline-flex;
+  align-items: center;
+  background: #f0f3f1;
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid #d8dfdb;
+}
+
+.viewToggleBtn {
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #55625b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.viewToggleBtn:hover {
+  color: #1a241e;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.viewToggleBtnActive {
+  background: #ffffff;
+  color: #18231c;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Country Trend Chart Legend */
+.countryLegendBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 18px 10px;
+  border-bottom: 1px solid #edf1ec;
+  background: #fafbf9;
+}
+
+.countryLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #435148;
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: 6px;
+  transition: background 0.12s ease;
+  border: 1px solid transparent;
+}
+
+.countryLegendItem:hover {
+  background: #eef3ef;
+  border-color: #dbe4dc;
+}
+
+.countryLegendDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.countryLegendCount {
+  font-size: 10px;
+  color: #727e77;
+  font-weight: 500;
+}
+
+/* Table inline sparkline with hover dots */
+.tableSparkline {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+.chartHitArea {
+  cursor: crosshair;
+  pointer-events: all;
+}
+
+/* Styled Export Action Buttons */
+.btnPrimaryExcel {
+  background: #0f5132 !important;
+  color: #ffffff !important;
+  border-color: #0d4229 !important;
+  font-weight: 600 !important;
+  box-shadow: 0 1px 3px rgba(15, 81, 50, 0.25);
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+}
+
+.btnPrimaryExcel:hover {
+  background: #146c43 !important;
+  border-color: #0f5132 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(15, 81, 50, 0.35);
+  transform: translateY(-1px);
+}
+
+.btnSecondaryCsv {
+  background: #ffffff !important;
+  color: #475569 !important;
+  border-color: #cbd5e1 !important;
+  font-weight: 600 !important;
+  transition: all 0.15s ease;
+}
+
+.btnSecondaryCsv:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border-color: #94a3b8 !important;
+}
+
+/* Configuration & Credentials State Banner */
+.configBanner {
+  background: #fefce8;
+  border: 1px solid #fde047;
+  border-left: 4px solid #ca8a04;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.configBannerTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #854d0e;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.configBannerHint {
+  font-size: 12px;
+  color: #713f12;
+  line-height: 1.4;
+}
+
+.configBannerHint code {
+  background: #fef08a;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-weight: 600;
+  color: #713f12;
+}
+
+/* Trend Charts Shared Styling */
+.chartLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+
+.chartLegendBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  background: #f8fafc;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+}
+
+.chartLegendDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.chartSubtitle {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 2px;
+  margin-bottom: 14px;
+}
+
+/* Dynamic Connector Health Grid */
+.connectorGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.connectorCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.connectorHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.connectorName {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.connectorEndpoint {
+  font-size: 11px;
+  font-family: monospace;
+  color: #64748b;
+  word-break: break-all;
+  margin-bottom: 10px;
+  background: #f8fafc;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+.connectorKeys {
+  font-size: 11px;
+  color: #64748b;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.keyChip {
+  display: inline-block;
+  background: #f1f5f9;
+  color: #334155;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-weight: 600;
+  font-size: 10px;
+  width: fit-content;
+}
+
