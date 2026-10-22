@@ -1,1 +1,0 @@
-Open START_HERE.html in a browser. Read the complete guide and source-snapshot/READ_BEFORE_RUNNING.txt before starting any backend. This package does not authorize live changes. Extract outside the operational workspace.
