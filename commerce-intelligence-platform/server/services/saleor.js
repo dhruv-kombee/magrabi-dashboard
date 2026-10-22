@@ -145,20 +145,36 @@ export async function fetchSaleorSummary(options) {
 
   const channelIds = getChannelIds(brand, country)
 
-  // Generate day strings (up to 31 days)
-  const dayList = []
+  // Generate adaptive date buckets (1 day for <=90 days, 3 days for <=180 days, weekly for >180 days)
   const sD = new Date(currStartStr)
   const eD = new Date(currEndStr)
-  for (let d = new Date(sD); d <= eD && dayList.length < 31; d.setDate(d.getDate() + 1)) {
-    dayList.push(d.toISOString().split('T')[0])
+  const totalDays = Math.max(1, Math.round((eD.getTime() - sD.getTime()) / 86400000) + 1)
+  const intervalDays = totalDays <= 90 ? 1 : totalDays <= 180 ? 3 : 7
+
+  const bucketList = []
+  let currBucketDate = new Date(sD)
+  let bIdx = 0
+
+  while (currBucketDate <= eD && bucketList.length < 95) {
+    const bStartStr = currBucketDate.toISOString().split('T')[0]
+    const bEnd = new Date(currBucketDate)
+    bEnd.setDate(bEnd.getDate() + intervalDays - 1)
+    if (bEnd > eD) bEnd.setTime(eD.getTime())
+    const bEndStr = bEnd.toISOString().split('T')[0]
+
+    bucketList.push({
+      idx: bIdx,
+      date: bStartStr,
+      endDate: bEndStr,
+      alias: `day_${bIdx}: orders(first: 1, filter: { created: { gte: "${bStartStr}", lte: "${bEndStr}" }, channels: $channels }) { totalCount }`,
+    })
+
+    currBucketDate.setDate(currBucketDate.getDate() + intervalDays)
+    bIdx++
   }
 
-  const dayAliases = dayList
-    .map(
-      (dStr, idx) =>
-        `day_${idx}: orders(first: 1, filter: { created: { gte: "${dStr}", lte: "${dStr}" }, channels: $channels }) { totalCount }`,
-    )
-    .join('\n')
+  const dayAliases = bucketList.map((b) => b.alias).join('\n')
+  const dayList = bucketList.map((b) => b.date)
 
   const countryChannels = {
     SA: getChannelIds(brand, 'SA'),
@@ -302,19 +318,29 @@ export async function fetchSaleorSummary(options) {
 
   const numDays = Math.max(1, Math.round(duration / 86400000))
 
-  const dailyPoints = dayList.map((dStr, idx) => {
-    if (dStr === todayStr && inTodayNodes.length > 0) {
-      return { date: dStr, orders: inTodayNodes.length }
+  const dailyPoints = bucketList.map((b) => {
+    if (b.date === todayStr && inTodayNodes.length > 0 && intervalDays === 1) {
+      return { date: b.date, orders: inTodayNodes.length }
     }
     return {
-      date: dStr,
-      orders: orderJson.data?.[`day_${idx}`]?.totalCount ?? 0,
+      date: b.date,
+      endDate: b.endDate !== b.date ? b.endDate : undefined,
+      orders: orderJson.data?.[`day_${b.idx}`]?.totalCount ?? 0,
     }
   })
 
+  const authoritativeCurrOrders = orderJson.data?.currentSummary?.totalCount ?? 0
+  const authoritativePriorOrders = orderJson.data?.priorSummary?.totalCount ?? 0
   const sumDailyOrders = dailyPoints.reduce((a, b) => a + b.orders, 0)
-  const currOrders = numDays <= 2 ? inCurrentWindow.length : sumDailyOrders
-  const priorOrders = numDays <= 2 ? inPriorWindow.length : (orderJson.data?.priorSummary?.totalCount ?? inPriorWindow.length)
+
+  const currOrders = numDays <= 2
+    ? inCurrentWindow.length
+    : (authoritativeCurrOrders > 0 ? authoritativeCurrOrders : sumDailyOrders)
+
+  const priorOrders = numDays <= 2
+    ? inPriorWindow.length
+    : (authoritativePriorOrders > 0 ? authoritativePriorOrders : inPriorWindow.length)
+
   const todayOrders = inTodayNodes.length > 0 ? inTodayNodes.length : (orderJson.data?.todaySummary?.totalCount ?? 0)
 
   let changePct = 0
@@ -432,18 +458,64 @@ export async function fetchSaleorSummary(options) {
   }
 
   // Gross Revenue by Currency
+  // For short windows (<= 2 days), compute directly from filtered nodes.
+  // For multi-month ranges, scale currency sample AOV by channel volume.
   const revenueByCurrency = {}
-  for (const o of (numDays <= 2 ? inCurrentWindow : currentNodes)) {
+  const sampleCountsByCur = {}
+  const sampleSumsByCur = {}
+
+  const relevantNodes = numDays <= 2 ? inCurrentWindow : currentNodes
+  for (const o of relevantNodes) {
     const cur = o.total?.gross?.currency || o.channel?.currencyCode || 'AED'
     const amt = o.total?.gross?.amount || 0
-    revenueByCurrency[cur] = Math.round(((revenueByCurrency[cur] || 0) + amt) * 100) / 100
+    sampleCountsByCur[cur] = (sampleCountsByCur[cur] || 0) + 1
+    sampleSumsByCur[cur] = (sampleSumsByCur[cur] || 0) + amt
+  }
+
+  if (numDays <= 2 || currentNodes.length === 0) {
+    for (const [cur, amt] of Object.entries(sampleSumsByCur)) {
+      revenueByCurrency[cur] = Math.round(amt * 100) / 100
+    }
+  } else {
+    const curToCountryCode = { AED: 'AE', SAR: 'SA', EGP: 'EG', QAR: 'QA', KWD: 'KW' }
+    for (const [cur, sampleTotal] of Object.entries(sampleSumsByCur)) {
+      const sampleCount = sampleCountsByCur[cur] || 1
+      const aov = sampleTotal / sampleCount
+      const cCode = curToCountryCode[cur]
+      const totalCurOrders = cCode && countryBreakdown[cCode] !== undefined 
+        ? countryBreakdown[cCode] 
+        : (currOrders * (sampleCount / currentNodes.length))
+      revenueByCurrency[cur] = Math.round(totalCurOrders * aov * 100) / 100
+    }
   }
 
   const priorRevenueByCurrency = {}
-  for (const o of (numDays <= 2 ? inPriorWindow : priorNodes)) {
+  const priorSampleCountsByCur = {}
+  const priorSampleSumsByCur = {}
+
+  const relevantPriorNodes = numDays <= 2 ? inPriorWindow : priorNodes
+  for (const o of relevantPriorNodes) {
     const cur = o.total?.gross?.currency || o.channel?.currencyCode || 'AED'
     const amt = o.total?.gross?.amount || 0
-    priorRevenueByCurrency[cur] = Math.round(((priorRevenueByCurrency[cur] || 0) + amt) * 100) / 100
+    priorSampleCountsByCur[cur] = (priorSampleCountsByCur[cur] || 0) + 1
+    priorSampleSumsByCur[cur] = (priorSampleSumsByCur[cur] || 0) + amt
+  }
+
+  if (numDays <= 2 || priorNodes.length === 0) {
+    for (const [cur, amt] of Object.entries(priorSampleSumsByCur)) {
+      priorRevenueByCurrency[cur] = Math.round(amt * 100) / 100
+    }
+  } else {
+    const curToCountryCode = { AED: 'AE', SAR: 'SA', EGP: 'EG', QAR: 'QA', KWD: 'KW' }
+    for (const [cur, sampleTotal] of Object.entries(priorSampleSumsByCur)) {
+      const sampleCount = priorSampleCountsByCur[cur] || 1
+      const aov = sampleTotal / sampleCount
+      const cCode = curToCountryCode[cur]
+      const totalCurOrders = cCode && priorCountryBreakdown[cCode] !== undefined 
+        ? priorCountryBreakdown[cCode] 
+        : (priorOrders * (sampleCount / priorNodes.length))
+      priorRevenueByCurrency[cur] = Math.round(totalCurOrders * aov * 100) / 100
+    }
   }
 
   // Intraday Hourly Run-Rate Points (00:00 to 23:00)
