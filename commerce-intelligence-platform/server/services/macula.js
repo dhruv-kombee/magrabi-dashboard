@@ -85,9 +85,10 @@ async function fetchMaculaCount(token, fromDate, toDate, channelGroups) {
       headers,
       body: JSON.stringify({ page: 1, limit: 1, fromDate, toDate }),
     })
-    if (!res.ok) return 0
+    if (!res.ok) throw new Error(`Macula count request returned HTTP ${res.status}`)
     const data = await res.json()
-    return typeof data.totalElements === 'number' ? data.totalElements : 0
+    if (typeof data.totalElements !== 'number') throw new Error('Macula count response has no verified total')
+    return data.totalElements
   }
 
   const counts = await Promise.all(
@@ -97,15 +98,16 @@ async function fetchMaculaCount(token, fromDate, toDate, channelGroups) {
         headers,
         body: JSON.stringify({ page: 1, limit: 1, fromDate, toDate, channelGroup: cg }),
       })
-      if (!res.ok) return 0
+      if (!res.ok) throw new Error(`Macula channel count returned HTTP ${res.status}`)
       const data = await res.json()
-      return typeof data.totalElements === 'number' ? data.totalElements : 0
+      if (typeof data.totalElements !== 'number') throw new Error('Macula channel response has no verified total')
+      return data.totalElements
     }),
   )
   return counts.reduce((a, b) => a + b, 0)
 }
 
-export async function fetchMaculaSummary(options, saleorDailyPoints = []) {
+export async function fetchMaculaSummary(options) {
   const { brand = 'all', country = 'all', start, end, tz = 'Dubai' } = options
 
   if (!isMaculaConfigured()) {
@@ -228,20 +230,6 @@ export async function fetchMaculaSummary(options, saleorDailyPoints = []) {
       }
     }
 
-    // Build Sync Reconciliation Delta Trend (Saleor Placed - OMS Ingested per date)
-    const syncDeltaTrend = saleorDailyPoints.map((dp) => {
-      // Reconciled delta: on live, 100% match or slight 0-1 minute queue settling
-      const omsEst = Math.max(0, dp.orders)
-      const delta = dp.orders - omsEst
-      return {
-        date: dp.date,
-        saleorOrders: dp.orders,
-        omsOrders: omsEst,
-        delta,
-        status: delta === 0 ? 'RECONCILED' : delta > 0 ? 'IN_TRANSIT' : 'EXCEPTION',
-      }
-    })
-
     return {
       status: 'OK',
       live: true,
@@ -250,7 +238,7 @@ export async function fetchMaculaSummary(options, saleorDailyPoints = []) {
       todaySoFar: resToday,
       gatewayCounts,
       methodCounts,
-      syncDeltaTrend,
+      syncDeltaTrend: [],
       source: 'Macula OMS Production (Direct Search API)',
     }
   } catch (err) {

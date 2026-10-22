@@ -155,12 +155,19 @@ export const config = {
   grafana: {
     get ecomUrl() { return getEnv('ECOM_GRAFANA_URL', 'https://ecom-grafana.test-magrabi.com') },
     get ecomUser() { return getEnv('ECOM_GRAFANA_USER', 'digitalworks') },
-    get ecomPassword() { return getEnv('ECOM_GRAFANA_PASSWORD', 'digitalworks@2025') },
+    get ecomPassword() { return getEnv('ECOM_GRAFANA_PASSWORD') },
     get ecomToken() { return getEnv('ECOM_GRAFANA_TOKEN') },
     get maculaUrl() { return getEnv('MACULA_GRAFANA_URL', 'http://20.174.44.78/') },
     get maculaUser() { return getEnv('MACULA_GRAFANA_USER', 'admin') },
-    get maculaPassword() { return getEnv('MACULA_GRAFANA_PASSWORD', 'macula@!@#2026') },
+    get maculaPassword() { return getEnv('MACULA_GRAFANA_PASSWORD') },
     get prometheusUid() { return getEnv('PROMETHEUS_DATASOURCE_UID') },
+  },
+
+  // Natural-language assistant (server-side only; never exposed to the browser)
+  assistant: {
+    get geminiApiKey() { return getEnv('GEMINI_API_KEY') || getEnv('GOOGLE_API_KEY') },
+    get model() { return getEnv('GEMINI_MODEL', 'gemini-3.1-flash-lite') },
+    get maxHistoryMessages() { return parseInt(getEnv('ASSISTANT_MAX_HISTORY', '8'), 10) },
   },
 
   // Alerts
