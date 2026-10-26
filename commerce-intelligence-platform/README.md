@@ -17,7 +17,19 @@ cd commerce-intelligence-platform
 cp .env.example .env
 ```
 
-All credentials are parameterized and optional at startup. Missing credentials produce `NOT_CONFIGURED`; non-empty credentials produce only `CONFIGURED_BUT_NOT_VERIFIED` until a read-only source request succeeds and required fields are validated. Synthetic fixtures remain in explicitly labelled demo panels and are never substituted into live connector responses.
+Connector credentials are parameterized and optional. Missing connector credentials produce `NOT_CONFIGURED`; non-empty credentials produce only `CONFIGURED_BUT_NOT_VERIFIED` until a read-only source request succeeds and required fields are validated. Dashboard authentication is required: without the username, password hash, and session-signing secret, every commerce API responds with `503` and no dashboard data is exposed. Synthetic fixtures remain in explicitly labelled demo panels and are never substituted into live connector responses.
+
+### Configure Dashboard Login
+
+Run the interactive setup once from a real terminal:
+
+```powershell
+npm run auth:configure
+```
+
+The command asks for a username and a password of at least 12 characters. Password input is hidden; only a scrypt hash is stored in the workspace's gitignored `.secrets/dashboard-auth.env`. It also generates a private session-signing secret and fixes the idle timeout at 10 minutes. Restart the app after changing credentials.
+
+For containers or hosted environments, provide `AUTH_USERNAME`, `AUTH_PASSWORD_HASH`, `AUTH_SESSION_SECRET` (at least 32 characters), and `AUTH_SESSION_TIMEOUT_MINUTES=10` through the platform's secret-management mechanism. Never bake these values into the image or repository.
 
 ### Run in Development
 ```powershell
@@ -45,6 +57,7 @@ docker run -p 5174:5174 --env-file .env magrabi-commerce-platform
 
 | Category | Environment Variables | Read-Only Live Capability |
 |---|---|---|
+| **Dashboard Login** | `AUTH_USERNAME`, `AUTH_PASSWORD_HASH`, `AUTH_SESSION_SECRET`, `AUTH_SESSION_TIMEOUT_MINUTES` | Server-enforced login, signed HTTP-only session cookie, failed-login throttling, and 10-minute inactivity expiry |
 | **Saleor Core** | `SALEOR_GRAPHQL_URL`, `SALEOR_USERNAME`, `SALEOR_PASSWORD` | Diagnostic-only placed-order data for explicit reconciliation checks |
 | **Macula OMS** | `MACULA_API_URL`, `MACULA_TOKEN` or `MACULA_USERNAME` and `MACULA_PASSWORD` | Verified OMS receipt count; payment attribution from a sample of at most 100 orders |
 | **Payment Gateways** | Provider credential plus an approved read-only `*_REPORT_PATH` where no stable default exists | Authentication and response-shape verification; success metrics remain unavailable until provider fields are mapped |
@@ -81,7 +94,7 @@ The platform includes 8 purpose-built trend charts designed for operational clar
 
 ## 5. Commerce Assist
 
-The dashboard includes a responsive assistant that opens from a compact launcher. Clicking outside the panel or pressing Escape minimizes it. It supports follow-up questions, copy, contextual prompts, and multiple saved conversations with search, rename, and delete. History is stored in the current browser because the dashboard does not yet have user sign-in. The active filters apply by default; explicit country, brand, or common date phrases in a question update the answer scope. Approved read-only sources are queried on the server and cached for up to 30 seconds. Only verified summary fields are returned to the browser, model, or export.
+The dashboard includes a responsive assistant that opens from a compact launcher. Clicking outside the panel or pressing Escape minimizes it. It supports follow-up questions, copy, contextual prompts, and multiple saved conversations with search, rename, and delete. History is stored in the authenticated user's current browser and is not synchronized between users. The active filters apply by default; explicit country, brand, or common date phrases in a question update the answer scope. Approved read-only sources are queried on the server and cached for up to 30 seconds. Only verified summary fields are returned to the browser, model, or export.
 
 Each answer includes an expandable “Sources used” panel with the connector name, exact data fields, status, and timestamp. The assistant distinguishes measured data from connector status and illustrative charts. It reports a metric as unavailable when the adapter has not mapped a verified value. It does not treat the difference between Saleor and OMS counts as a confirmed per-order sync failure. Questions outside the commerce platform are refused without querying connectors or the model.
 

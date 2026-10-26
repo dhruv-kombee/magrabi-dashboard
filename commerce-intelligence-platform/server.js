@@ -21,6 +21,12 @@ const MIME_TYPES = {
 }
 
 const server = http.createServer(async (req, res) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('X-Frame-Options', 'DENY')
+  res.setHeader('Referrer-Policy', 'no-referrer')
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'")
+
   // 1. Try API routes
   if (req.url && req.url.startsWith('/api/commerce/')) {
     const handled = await handleApiRequest(req, res)
@@ -47,6 +53,7 @@ const server = http.createServer(async (req, res) => {
     const ext = path.extname(filePath).toLowerCase()
     const contentType = MIME_TYPES[ext] || 'application/octet-stream'
 
+    if (ext === '.html') res.setHeader('Cache-Control', 'no-store')
     res.writeHead(200, { 'Content-Type': contentType })
     const stream = fs.createReadStream(filePath)
     stream.pipe(res)
