@@ -435,6 +435,15 @@ export function CommerceDashboard() {
     sampledGatewayCounts?: Record<string, number> | null
     sampledMethodCounts?: Record<string, number> | null
     gatewaySample?: { status: string; size: number; limit: number } | null
+    reconciliation?: {
+      status: string
+      matchedOrderIds: boolean
+      saleorCohortOrders: number | null
+      receivedInMacula: number | null
+      missingFromMacula: number | null
+      maculaOutsideSaleorCohort: number | null
+      priorReceivedInMacula: number | null
+    }
     saleor?: {
       status: string
       live: boolean
@@ -2383,7 +2392,7 @@ export function CommerceDashboard() {
                   {/* Primary KPI: Macula OMS received orders */}
                   <div className={`${styles.card} ${styles.metric}`}>
                     <div className={styles.metriclabel}>
-                      <span>Orders received · Macula OMS</span>
+                      <span>Saleor cohort received · Macula OMS</span>
                       {liveSaleor ? (
                         <span style={{ fontSize: '10px', background: '#e1f5ec', color: '#1a7f5a', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
                           ● LIVE OMS
@@ -2396,8 +2405,8 @@ export function CommerceDashboard() {
                     </div>
                     <div className={styles.metricValueRow}>
                       <div className={styles.metricvalue}>
-                        {liveSaleor ? (
-                          fmt(liveSaleor.orders)
+                        {liveSaleor?.reconciliation?.matchedOrderIds && liveSaleor.reconciliation.receivedInMacula !== null ? (
+                          fmt(liveSaleor.reconciliation.receivedInMacula)
                         ) : liveLoading ? (
                           <span className={styles.skeletonPulse}>—</span>
                         ) : (
@@ -2407,26 +2416,19 @@ export function CommerceDashboard() {
                       <MiniSparkline data={ordersSparkline} />
                     </div>
                     <div className={styles.metricfoot}>
-                      {liveSaleor ? (
+                      {liveSaleor?.reconciliation?.matchedOrderIds && liveSaleor.reconciliation.receivedInMacula !== null ? (
                         renderTrend(
-                          liveSaleor.orders,
-                          liveSaleor.previousOrders,
+                          liveSaleor.reconciliation.receivedInMacula,
+                          liveSaleor.reconciliation.priorReceivedInMacula,
                           false,
                           <span>
-                            {comparisonWindowLabel === 'previous day'
-                              ? `${fmt(liveSaleor.todaySoFar)} recorded today`
-                              : `${fmt(liveSaleor.todaySoFar)} today`}
+                            {fmt(liveSaleor.reconciliation.missingFromMacula ?? 0)} Saleor-cohort orders not found in Macula
                           </span>,
                         )
                       ) : liveLoading ? (
-                        <span>Connecting live Macula OMS feed...</span>
+                        <span>Matching Saleor and Macula order IDs...</span>
                       ) : (
-                        renderTrend(
-                          currentAgg.orders,
-                          priorAgg?.orders,
-                          false,
-                          <span>Sample fixture baseline</span>,
-                        )
+                        <span>Same-window order-ID reconciliation unavailable.</span>
                       )}
                     </div>
                   </div>

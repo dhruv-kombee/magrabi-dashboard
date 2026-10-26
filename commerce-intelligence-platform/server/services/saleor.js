@@ -596,6 +596,8 @@ export async function fetchSaleorSummary(options) {
     endDate: currEndStr,
     orders: currOrders,
     previousOrders: priorOrders,
+    reconciliationOrderIds: detailCurrent.complete ? inCurrentWindow.map((order) => order.id).filter(Boolean) : null,
+    priorReconciliationOrderIds: detailPrior.complete ? inPriorWindow.map((order) => order.id).filter(Boolean) : null,
     changePct,
     todaySoFar: todayOrders,
     dailyPoints,

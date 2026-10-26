@@ -81,6 +81,12 @@ export function buildUnifiedOrders(saleorResult, maculaResult, checkedAt = new D
   const sampledOnline = sampledMethods ? (sampledMethods['Card / Apple Pay'] || 0) + (sampledMethods.Tabby || 0) + (sampledMethods.Tamara || 0) : 0
   const sampledCash = sampledMethods?.Cash || 0
   const sampledTotal = sampledOnline + sampledCash
+  const saleorIds = Array.isArray(saleorResult.reconciliationOrderIds) ? new Set(saleorResult.reconciliationOrderIds.map(String)) : null
+  const priorSaleorIds = Array.isArray(saleorResult.priorReconciliationOrderIds) ? new Set(saleorResult.priorReconciliationOrderIds.map(String)) : null
+  const maculaIds = Array.isArray(maculaResult.reconciliationOrderIds) ? new Set(maculaResult.reconciliationOrderIds.map(String)) : null
+  const priorMaculaIds = Array.isArray(maculaResult.priorReconciliationOrderIds) ? new Set(maculaResult.priorReconciliationOrderIds.map(String)) : null
+  const matchedOrders = saleorIds && maculaIds ? [...saleorIds].filter((id) => maculaIds.has(id)).length : null
+  const priorMatchedOrders = priorSaleorIds && priorMaculaIds ? [...priorSaleorIds].filter((id) => priorMaculaIds.has(id)).length : null
   const startMs = Number(scope.start)
   const endMs = Number(scope.end)
   const windowDays = Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs
@@ -139,7 +145,16 @@ export function buildUnifiedOrders(saleorResult, maculaResult, checkedAt = new D
     sampledMethodCounts: omsLive ? maculaResult.methodCounts : null,
     gatewaySample: omsLive ? { status: 'SAMPLED', size: maculaResult.sampleSize, limit: maculaResult.sampleLimit } : null,
     syncDeltaTrend: [],
-    reconciliation: { status: omsLive ? 'COUNT_COMPARISON_ONLY' : 'METRICS_UNAVAILABLE', matchedOrderIds: false, checkedAt },
+    reconciliation: {
+      status: matchedOrders !== null ? 'ORDER_ID_MATCHED' : 'METRICS_UNAVAILABLE',
+      matchedOrderIds: matchedOrders !== null,
+      saleorCohortOrders: saleorIds?.size ?? null,
+      receivedInMacula: matchedOrders,
+      missingFromMacula: saleorIds && matchedOrders !== null ? saleorIds.size - matchedOrders : null,
+      maculaOutsideSaleorCohort: maculaIds && matchedOrders !== null ? maculaIds.size - matchedOrders : null,
+      priorReceivedInMacula: priorMatchedOrders,
+      checkedAt,
+    },
     oms: {
       status: maculaResult.status, live: omsLive, noChannel: Boolean(maculaResult.noChannel), orders: omsOrders, previousOrders: omsPrior,
       changePct: omsChangePct, exceptions: null, todaySoFar: omsLive ? maculaResult.todaySoFar : null, dailyPoints: omsLive ? maculaResult.dailyPoints || [] : [],

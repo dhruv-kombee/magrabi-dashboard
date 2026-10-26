@@ -120,6 +120,33 @@ async function mapWithConcurrency(items, limit, mapper) {
   return results
 }
 
+async function fetchMaculaOrderRefs(token, fromDate, toDate, channelGroups) {
+  const groups = channelGroups?.length ? channelGroups : [null]
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'User-Agent': 'Mozilla/5.0' }
+  const results = await mapWithConcurrency(groups, 3, async (channelGroup) => {
+    const fetchPage = async (page) => {
+      const url = new URL(config.macula.apiUrl)
+      url.searchParams.set('page', String(page))
+      url.searchParams.set('size', '100')
+      const body = { fromDate, toDate, ...(channelGroup ? { channelGroup } : {}) }
+      const { response, payload } = await fetchJson(url.toString(), {
+        method: 'POST', headers, body: JSON.stringify(body),
+      }, config.requestTimeoutMs)
+      if (!response.ok || !Array.isArray(payload?.content)) throw new Error('Macula reconciliation page is unavailable')
+      return payload
+    }
+    const first = await fetchPage(0)
+    const remaining = Array.from({ length: Math.max(0, Number(first.totalPages || 1) - 1) }, (_, index) => index + 1)
+    const pages = await mapWithConcurrency(remaining, 5, fetchPage)
+    return [first, ...pages].flatMap((page) => page.content)
+  })
+  const records = results.flat()
+  return {
+    orderIds: [...new Set(records.map((order) => order.saleorOrderId).filter(Boolean).map(String))],
+    sample: records.slice(0, 100),
+  }
+}
+
 function buildCountBuckets(startDate, endDate, tzOffset) {
   const totalDays = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / 86_400_000))
   const intervalDays = Math.max(1, Math.ceil(totalDays / 31))
@@ -224,19 +251,12 @@ export async function fetchMaculaSummary(options) {
   const countryCodes = country === 'all' ? ['SA', 'AE', 'EG', 'QA', 'KW'] : [country.toUpperCase()]
 
   try {
-    const [resCurr, resPrior, resToday, resSample, dailyPoints, countryRows] = await Promise.all([
+    const [resCurr, resPrior, resToday, currentRefs, priorRefs, dailyPoints, countryRows] = await Promise.all([
       fetchMaculaCount(token, currFromIso, currToIso, maculaChannelGroups),
       fetchMaculaCount(token, prevFromIso, prevToIso, maculaChannelGroups),
       fetchMaculaCount(token, todayFromIso, todayToIso, maculaChannelGroups),
-      fetchJson(config.macula.apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-          'User-Agent': 'Mozilla/5.0',
-        },
-        body: JSON.stringify({ page: 1, limit: 100, fromDate: currFromIso, toDate: currToIso }),
-      }, config.requestTimeoutMs).then(({ response, payload }) => response.ok ? payload : null),
+      fetchMaculaOrderRefs(token, currFromIso, currToIso, maculaChannelGroups),
+      fetchMaculaOrderRefs(token, prevFromIso, prevToIso, maculaChannelGroups),
       mapWithConcurrency(countBuckets, 5, async (bucket) => ({
         date: bucket.date,
         orders: await fetchMaculaCount(token, bucket.from, bucket.to, maculaChannelGroups),
@@ -252,8 +272,8 @@ export async function fetchMaculaSummary(options) {
       }),
     ])
 
-    if (resSample && Array.isArray(resSample.content)) {
-      for (const o of resSample.content) {
+    if (currentRefs.sample.length) {
+      for (const o of currentRefs.sample) {
         for (const p of o.payments || []) {
           const b = (p.paymentBackendSystem || '').toLowerCase()
           const pt = (p.paymentType || '').toLowerCase()
@@ -281,6 +301,8 @@ export async function fetchMaculaSummary(options) {
       metricsAvailable: true,
       orders: resCurr,
       previousOrders: resPrior,
+      reconciliationOrderIds: currentRefs.orderIds,
+      priorReconciliationOrderIds: priorRefs.orderIds,
       todaySoFar: resToday,
       dailyPoints,
       countryBreakdown: Object.fromEntries(countryRows.map((row) => [row.code, row.current])),
@@ -289,7 +311,7 @@ export async function fetchMaculaSummary(options) {
       methodCounts,
       gatewayCountsStatus: 'SAMPLED',
       methodCountsStatus: 'SAMPLED',
-      sampleSize: Array.isArray(resSample?.content) ? resSample.content.length : 0,
+      sampleSize: currentRefs.sample.length,
       sampleLimit: 100,
       syncDeltaTrend: [],
       source: 'Macula OMS Production (Direct Search API)',

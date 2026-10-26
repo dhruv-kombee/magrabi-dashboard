@@ -106,6 +106,17 @@ test('Saleor and Macula values remain isolated in both directions', () => {
   assert.equal(saleorOnly.oms.orders, null)
 })
 
+test('same-window reconciliation compares exact Saleor order IDs', () => {
+  const result = buildUnifiedOrders(
+    { status: 'OK', live: true, orders: 3, previousOrders: 2, reconciliationOrderIds: ['s1', 's2', 's3'], priorReconciliationOrderIds: ['p1', 'p2'] },
+    { status: 'OK', live: true, orders: 3, previousOrders: 2, reconciliationOrderIds: ['s1', 's2', 'old'], priorReconciliationOrderIds: ['p1', 'p2'] },
+  )
+  assert.equal(result.reconciliation.receivedInMacula, 2)
+  assert.equal(result.reconciliation.missingFromMacula, 1)
+  assert.equal(result.reconciliation.maculaOutsideSaleorCohort, 1)
+  assert.equal(result.reconciliation.priorReceivedInMacula, 2)
+})
+
 test('Azure MFA is distinct from invalid service-principal authentication', () => {
   assert.equal(classifyAzureAuthFailure({ error: 'invalid_grant', error_description: 'AADSTS50079 MFA required' }, 'UserAccount', 400), 'MFA_UNSUPPORTED')
   assert.equal(classifyAzureAuthFailure({ error: 'invalid_client' }, 'ServicePrincipal', 401), 'AUTHENTICATION_FAILED')
