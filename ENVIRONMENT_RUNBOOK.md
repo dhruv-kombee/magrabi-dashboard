@@ -98,3 +98,14 @@ Living architectural and environmental record of the Magrabi Deployment Portal i
 - **Current Macula Status (2026-10-22)**: VERIFIED: LIVE local probe: credentials are configured, but the login response did not provide a token and the Macula summary returned `FAIL`. The exact cause (credentials versus changed login flow) is unverified. Do not describe Macula as connected until a new read-only probe succeeds.
 - **External Permissions**: All connectors remain read-only. Commerce Assist has no mutation or notification tools.
 - **Last Verified**: 2026-10-22 | Confidence: VERIFIED: LOCAL BUILD + LIVE ASSISTANT/MACULA PROBES + TARGETED UNIT TESTS + DESKTOP/MOBILE AND PDF/XLSX/DOCX QA
+
+---
+
+## 7. Commerce Intelligence Dashboard Authentication
+
+- **Access Boundary**: All `/api/commerce/*` data endpoints require a valid dashboard session. Static application assets remain public but contain no connector credentials or operational data.
+- **Credential Storage**: The login username, scrypt password hash, and session-signing secret are server-side only. Local interactive setup writes them to the gitignored `.secrets/dashboard-auth.env`; hosted environments must inject the same values through their secret-management mechanism.
+- **Session Controls**: Authentication uses a signed `HttpOnly`, `SameSite=Strict` cookie. The idle timeout is 10 minutes and is renewed only by real browser activity; automatic dashboard requests do not renew it. Logout clears the cookie, invalid or tampered cookies are rejected, and failed login attempts are throttled.
+- **Response Security**: API responses are marked `no-store`; the production server adds frame, MIME-sniffing, referrer, permissions, and content-security-policy headers.
+- **Deployment State**: Code and local HTTP behavior are verified. Operator-chosen credentials are not yet configured and no deployment has occurred.
+- **Last Verified**: 2026-10-26 | Confidence: VERIFIED: LOCAL UNIT TESTS + PRODUCTION BUILD + HTTP AUTH FLOW

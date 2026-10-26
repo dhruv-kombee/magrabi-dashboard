@@ -63,6 +63,7 @@ const saleorSecrets = loadEnvFile(path.join(workspaceDir, '.secrets', 'saleor.en
 const maculaSecrets = loadEnvFile(path.join(workspaceDir, '.secrets', 'macula.env'))
 const grafanaSecrets = loadEnvFile(path.join(workspaceDir, '.secrets', 'grafana.env'))
 const azureSecrets = loadEnvFile(path.join(workspaceDir, '.secrets', 'azure.env'))
+const dashboardAuthSecrets = loadEnvFile(path.join(workspaceDir, '.secrets', 'dashboard-auth.env'))
 
 /**
  * Get environment variable with priority:
@@ -91,6 +92,9 @@ export function getEnv(key, defaultValue = '') {
   if (azureSecrets[key] !== undefined && azureSecrets[key] !== '') {
     return azureSecrets[key]
   }
+  if (dashboardAuthSecrets[key] !== undefined && dashboardAuthSecrets[key] !== '') {
+    return dashboardAuthSecrets[key]
+  }
   return defaultValue
 }
 
@@ -104,6 +108,17 @@ export const config = {
   get isProd() { return getEnv('NODE_ENV') === 'production' },
   get requestTimeoutMs() { return Math.max(1000, parseInt(getEnv('CONNECTOR_TIMEOUT_MS', '12000'), 10) || 12000) },
   get corsOrigins() { return getEnv('CORS_ALLOWED_ORIGINS', '').split(',').map((v) => v.trim()).filter(Boolean) },
+
+  // Dashboard authentication (server-side only)
+  auth: {
+    get username() { return getEnv('AUTH_USERNAME') },
+    get passwordHash() { return getEnv('AUTH_PASSWORD_HASH') },
+    get sessionSecret() { return getEnv('AUTH_SESSION_SECRET') },
+    get sessionTimeoutSeconds() {
+      const minutes = parseInt(getEnv('AUTH_SESSION_TIMEOUT_MINUTES', '10'), 10)
+      return Math.min(60, Math.max(1, Number.isFinite(minutes) ? minutes : 10)) * 60
+    },
+  },
   
   // Saleor
   saleor: {

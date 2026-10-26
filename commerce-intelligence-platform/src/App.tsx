@@ -1,5 +1,6 @@
 import { CommerceDashboard } from './CommerceDashboard'
+import { AuthGate } from './AuthGate'
 
 export default function App() {
-  return <CommerceDashboard />
+  return <AuthGate><CommerceDashboard /></AuthGate>
 }
