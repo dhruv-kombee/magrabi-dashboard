@@ -2467,39 +2467,38 @@ export function CommerceDashboard() {
                     </div>
                   </div>
 
-                  {/* Macula prior-window baseline. */}
+                  {/* Journey conversion is not yet backed by live instrumentation. */}
                   <div className={`${styles.card} ${styles.metric}`}>
                     <div className={styles.metriclabel}>
-                      <span>Previous window · Macula OMS</span>
-                      {liveSaleor?.live ? (
-                        <span style={{ fontSize: '10px', background: '#e1f5ec', color: '#1a7f5a', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                          ● LIVE OMS
+                      <span>Journey conversion</span>
+                      {!liveSaleor && !liveLoading ? (
+                        <span style={{ fontSize: '10px', background: '#fff0e5', color: '#a55216', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                          DEMO · NOT LIVE
                         </span>
                       ) : (
                         <span style={{ fontSize: '10px', background: '#f0f2f1', color: '#68726e', padding: '2px 6px', borderRadius: '4px' }}>
-                          {liveLoading ? 'LOADING...' : 'OMS UNAVAILABLE'}
+                          {liveLoading ? 'LOADING...' : 'METRIC UNAVAILABLE'}
                         </span>
                       )}
                     </div>
                     <div className={styles.metricValueRow}>
                       <div className={styles.metricvalue}>
-                        {liveSaleor?.live ? (
-                          fmt(liveSaleor.previousOrders)
-                        ) : liveLoading ? (
+                        {liveLoading ? (
                           <span className={styles.skeletonPulse}>—</span>
-                        ) : (
+                        ) : liveSaleor ? (
                           '—'
+                        ) : (
+                          `${currConvRate.toFixed(1)}%`
                         )}
                       </div>
-                      {liveSaleor?.live && <MiniSparkline data={ordersSparkline} />}
                     </div>
                     <div className={styles.metricfoot}>
-                      {liveSaleor?.live ? (
-                        <span>{comparisonWindowLabel} · Macula received orders only</span>
-                      ) : liveLoading ? (
-                        <span>Connecting live Macula OMS feed...</span>
+                      {liveLoading ? (
+                        <span>Checking journey instrumentation...</span>
+                      ) : liveSaleor ? (
+                        <span>Requires consented browser and server-confirmed journey events.</span>
                       ) : (
-                        <span>Macula previous-window count unavailable.</span>
+                        <span>Demo confirmed / add-to-cart cohort · not live telemetry</span>
                       )}
                     </div>
                   </div>
