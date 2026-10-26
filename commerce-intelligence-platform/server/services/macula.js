@@ -1,4 +1,5 @@
 import { config, hasEnv } from '../config.js'
+import { connectorError, fetchJson, redactError } from './http.js'
 
 export const MACULA_CHANNEL_MAP = {
   'Magrabi:SA': '653a0168f66d966a3c6c06f2',
@@ -43,7 +44,7 @@ export async function getOrRefreshMaculaToken() {
   }
 
   try {
-    const loginRes = await fetch(dashboardUrl, {
+    const { response: loginRes } = await fetchJson(dashboardUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'text/plain;charset=UTF-8',
@@ -52,7 +53,8 @@ export async function getOrRefreshMaculaToken() {
         'User-Agent': 'Mozilla/5.0',
       },
       body: JSON.stringify([{ username, password }]),
-    })
+    }, config.requestTimeoutMs)
+    if (!loginRes.ok) return null
 
     const setCookie = loginRes.headers.get('set-cookie') || ''
     const tokenMatch = setCookie.match(/token=([^;]+)/)
@@ -62,7 +64,7 @@ export async function getOrRefreshMaculaToken() {
       return cachedMaculaToken
     }
   } catch (err) {
-    console.error('Macula login error:', err.message)
+    console.error('Macula login error:', redactError(err))
   }
   return null
 }
@@ -80,26 +82,24 @@ async function fetchMaculaCount(token, fromDate, toDate, channelGroups) {
   }
 
   if (!channelGroups || channelGroups.length === 0) {
-    const res = await fetch(url, {
+    const { response: res, payload: data } = await fetchJson(url, {
       method: 'POST',
       headers,
       body: JSON.stringify({ page: 1, limit: 1, fromDate, toDate }),
-    })
+    }, config.requestTimeoutMs)
     if (!res.ok) throw new Error(`Macula count request returned HTTP ${res.status}`)
-    const data = await res.json()
     if (typeof data.totalElements !== 'number') throw new Error('Macula count response has no verified total')
     return data.totalElements
   }
 
   const counts = await Promise.all(
     channelGroups.map(async (cg) => {
-      const res = await fetch(url, {
+      const { response: res, payload: data } = await fetchJson(url, {
         method: 'POST',
         headers,
         body: JSON.stringify({ page: 1, limit: 1, fromDate, toDate, channelGroup: cg }),
-      })
+      }, config.requestTimeoutMs)
       if (!res.ok) throw new Error(`Macula channel count returned HTTP ${res.status}`)
-      const data = await res.json()
       if (typeof data.totalElements !== 'number') throw new Error('Macula channel response has no verified total')
       return data.totalElements
     }),
@@ -107,12 +107,67 @@ async function fetchMaculaCount(token, fromDate, toDate, channelGroups) {
   return counts.reduce((a, b) => a + b, 0)
 }
 
+async function mapWithConcurrency(items, limit, mapper) {
+  const results = new Array(items.length)
+  let next = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next++
+      results[index] = await mapper(items[index], index)
+    }
+  })
+  await Promise.all(workers)
+  return results
+}
+
+async function fetchMaculaOrderRefs(token, fromDate, toDate, channelGroups) {
+  const groups = channelGroups?.length ? channelGroups : [null]
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'User-Agent': 'Mozilla/5.0' }
+  const results = await mapWithConcurrency(groups, 3, async (channelGroup) => {
+    const fetchPage = async (page) => {
+      const url = new URL(config.macula.apiUrl)
+      url.searchParams.set('page', String(page))
+      url.searchParams.set('size', '100')
+      const body = { fromDate, toDate, ...(channelGroup ? { channelGroup } : {}) }
+      const { response, payload } = await fetchJson(url.toString(), {
+        method: 'POST', headers, body: JSON.stringify(body),
+      }, config.requestTimeoutMs)
+      if (!response.ok || !Array.isArray(payload?.content)) throw new Error('Macula reconciliation page is unavailable')
+      return payload
+    }
+    const first = await fetchPage(0)
+    const remaining = Array.from({ length: Math.max(0, Number(first.totalPages || 1) - 1) }, (_, index) => index + 1)
+    const pages = await mapWithConcurrency(remaining, 5, fetchPage)
+    return [first, ...pages].flatMap((page) => page.content)
+  })
+  const records = results.flat()
+  return {
+    orderIds: [...new Set(records.map((order) => order.saleorOrderId).filter(Boolean).map(String))],
+    sample: records.slice(0, 100),
+  }
+}
+
+function buildCountBuckets(startDate, endDate, tzOffset) {
+  const totalDays = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / 86_400_000))
+  const intervalDays = Math.max(1, Math.ceil(totalDays / 31))
+  const buckets = []
+  let cursor = startDate.getTime()
+  while (cursor < endDate.getTime()) {
+    const bucketEnd = Math.min(endDate.getTime(), cursor + intervalDays * 86_400_000)
+    const label = new Date(cursor + tzOffset * 3_600_000).toISOString().slice(0, 10)
+    buckets.push({ date: label, from: new Date(cursor).toISOString(), to: new Date(bucketEnd).toISOString() })
+    cursor = bucketEnd
+  }
+  return buckets
+}
+
 export async function fetchMaculaSummary(options) {
   const { brand = 'all', country = 'all', start, end, tz = 'Dubai' } = options
 
   if (!isMaculaConfigured()) {
     return {
-      status: 'PENDING_CONFIG',
+      status: 'NOT_CONFIGURED',
+      configured: false,
       live: false,
       missing: ['MACULA_USERNAME', 'MACULA_PASSWORD'],
       message: 'Macula OMS credentials not configured in environment (.env). Provide MACULA_USERNAME/MACULA_PASSWORD to activate OMS fulfillment feed.',
@@ -122,7 +177,8 @@ export async function fetchMaculaSummary(options) {
   const token = await getOrRefreshMaculaToken()
   if (!token) {
     return {
-      status: 'FAIL',
+      status: 'AUTHENTICATION_FAILED',
+      configured: true,
       live: false,
       error: 'Macula OMS authentication failed. Verify credentials in .env.',
     }
@@ -167,6 +223,7 @@ export async function fetchMaculaSummary(options) {
   if (noMaculaChannel) {
     return {
       status: 'OK',
+      configured: true,
       live: true,
       noChannel: true,
       orders: 0,
@@ -190,26 +247,42 @@ export async function fetchMaculaSummary(options) {
     Cash: 0,
   }
 
+  const countBuckets = buildCountBuckets(startDate, endDate, tzOffset)
+  const countryCodes = country === 'all' ? ['SA', 'AE', 'EG', 'QA', 'KW'] : [country.toUpperCase()]
+
   try {
-    const [resCurr, resPrior, resToday, resSample] = await Promise.all([
+    const [resCurr, resPrior, resToday, currentRefs, priorRefs, dailyPoints, countryRows, countryDailyPoints] = await Promise.all([
       fetchMaculaCount(token, currFromIso, currToIso, maculaChannelGroups),
       fetchMaculaCount(token, prevFromIso, prevToIso, maculaChannelGroups),
       fetchMaculaCount(token, todayFromIso, todayToIso, maculaChannelGroups),
-      fetch(config.macula.apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-          'User-Agent': 'Mozilla/5.0',
-        },
-        body: JSON.stringify({ page: 1, limit: 100, fromDate: currFromIso, toDate: currToIso }),
-      })
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null),
+      fetchMaculaOrderRefs(token, currFromIso, currToIso, maculaChannelGroups),
+      fetchMaculaOrderRefs(token, prevFromIso, prevToIso, maculaChannelGroups),
+      mapWithConcurrency(countBuckets, 5, async (bucket) => ({
+        date: bucket.date,
+        orders: await fetchMaculaCount(token, bucket.from, bucket.to, maculaChannelGroups),
+      })),
+      mapWithConcurrency(countryCodes, 5, async (code) => {
+        const groups = getMaculaChannelGroups(brand, code)
+        if (!groups.length) return { code, current: 0, prior: 0 }
+        const [current, prior] = await Promise.all([
+          fetchMaculaCount(token, currFromIso, currToIso, groups),
+          fetchMaculaCount(token, prevFromIso, prevToIso, groups),
+        ])
+        return { code, current, prior }
+      }),
+      mapWithConcurrency(countryCodes, 3, async (code) => {
+        const groups = getMaculaChannelGroups(brand, code)
+        if (!groups.length) return { code, points: [] }
+        const points = await mapWithConcurrency(countBuckets, 5, async (bucket) => ({
+          date: bucket.date,
+          orders: await fetchMaculaCount(token, bucket.from, bucket.to, groups),
+        }))
+        return { code, points }
+      }),
     ])
 
-    if (resSample && Array.isArray(resSample.content)) {
-      for (const o of resSample.content) {
+    if (currentRefs.sample.length) {
+      for (const o of currentRefs.sample) {
         for (const p of o.payments || []) {
           const b = (p.paymentBackendSystem || '').toLowerCase()
           const pt = (p.paymentType || '').toLowerCase()
@@ -232,21 +305,36 @@ export async function fetchMaculaSummary(options) {
 
     return {
       status: 'OK',
+      configured: true,
       live: true,
+      metricsAvailable: true,
       orders: resCurr,
       previousOrders: resPrior,
+      reconciliationOrderIds: currentRefs.orderIds,
+      priorReconciliationOrderIds: priorRefs.orderIds,
       todaySoFar: resToday,
+      dailyPoints,
+      countryDailyPoints: Object.fromEntries(countryDailyPoints.map((row) => [row.code, row.points])),
+      countryBreakdown: Object.fromEntries(countryRows.map((row) => [row.code, row.current])),
+      priorCountryBreakdown: Object.fromEntries(countryRows.map((row) => [row.code, row.prior])),
       gatewayCounts,
       methodCounts,
+      gatewayCountsStatus: 'SAMPLED',
+      methodCountsStatus: 'SAMPLED',
+      sampleSize: currentRefs.sample.length,
+      sampleLimit: 100,
       syncDeltaTrend: [],
       source: 'Macula OMS Production (Direct Search API)',
+      checkedAt: new Date().toISOString(),
     }
   } catch (err) {
-    console.error('Macula summary query error:', err.message)
+    console.error('Macula summary query error:', redactError(err))
     return {
-      status: 'FAIL',
+      ...connectorError(err),
+      configured: true,
       live: false,
-      error: err.message,
+      source: 'Macula OMS',
+      checkedAt: new Date().toISOString(),
     }
   }
 }

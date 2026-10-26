@@ -102,6 +102,8 @@ export function hasEnv(key) {
 export const config = {
   get port() { return parseInt(getEnv('PORT', '5174'), 10) },
   get isProd() { return getEnv('NODE_ENV') === 'production' },
+  get requestTimeoutMs() { return Math.max(1000, parseInt(getEnv('CONNECTOR_TIMEOUT_MS', '12000'), 10) || 12000) },
+  get corsOrigins() { return getEnv('CORS_ALLOWED_ORIGINS', '').split(',').map((v) => v.trim()).filter(Boolean) },
   
   // Saleor
   saleor: {
@@ -109,6 +111,7 @@ export const config = {
     get username() { return getEnv('SALEOR_USERNAME') },
     get password() { return getEnv('SALEOR_PASSWORD') },
     get cacheTtlMs() { return parseInt(getEnv('SALEOR_CACHE_TTL', '60'), 10) * 1000 },
+    get maxRevenuePages() { return Math.max(1, parseInt(getEnv('SALEOR_MAX_REVENUE_PAGES', '250'), 10) || 250) },
   },
 
   // Macula OMS
@@ -125,18 +128,22 @@ export const config = {
     get apiUrl() { return getEnv('CHECKOUT_API_URL', 'https://api.checkout.com') },
     get secretKey() { return getEnv('CHECKOUT_SECRET_KEY') },
     get channelId() { return getEnv('CHECKOUT_PROCESSING_CHANNEL_ID') },
+    get reportPath() { return getEnv('CHECKOUT_REPORT_PATH', '') },
   },
   tabby: {
     get apiUrl() { return getEnv('TABBY_API_URL', 'https://api.tabby.ai/api/v2') },
     get secretKey() { return getEnv('TABBY_SECRET_KEY') },
+    get reportPath() { return getEnv('TABBY_REPORT_PATH', '/payments') },
   },
   tamara: {
     get apiUrl() { return getEnv('TAMARA_API_URL', 'https://api.tamara.co') },
     get apiToken() { return getEnv('TAMARA_API_TOKEN') },
+    get reportPath() { return getEnv('TAMARA_REPORT_PATH', '/orders') },
   },
   paymob: {
     get apiUrl() { return getEnv('PAYMOB_API_URL', 'https://accept.paymob.com/api') },
     get apiKey() { return getEnv('PAYMOB_API_KEY') },
+    get reportPath() { return getEnv('PAYMOB_REPORT_PATH', '') },
   },
 
   // Azure Front Door / Monitor
@@ -149,6 +156,7 @@ export const config = {
     get subscriptionId() { return getEnv('AZURE_SUBSCRIPTION_ID', '72bde893-fa26-4129-a31f-648b81a48153') },
     get resourceGroup() { return getEnv('AZURE_RESOURCE_GROUP', 'rg-mepu-common-uaenorth-001') },
     get profileName() { return getEnv('AZURE_FRONTDOOR_PROFILE', 'frontdoor-mepu-common-uaenorth-001') },
+    get metricNames() { return getEnv('AZURE_MONITOR_METRIC_NAMES', 'RequestCount,ClientLatency') },
   },
 
   // Grafana / APM
@@ -161,6 +169,9 @@ export const config = {
     get maculaUser() { return getEnv('MACULA_GRAFANA_USER', 'admin') },
     get maculaPassword() { return getEnv('MACULA_GRAFANA_PASSWORD') },
     get prometheusUid() { return getEnv('PROMETHEUS_DATASOURCE_UID') },
+    get latencyQuery() { return getEnv('GRAFANA_LATENCY_QUERY') },
+    get cpuQuery() { return getEnv('GRAFANA_CPU_QUERY') },
+    get memoryQuery() { return getEnv('GRAFANA_MEMORY_QUERY') },
   },
 
   // Natural-language assistant (server-side only; never exposed to the browser)
@@ -172,6 +183,7 @@ export const config = {
 
   // Alerts
   alerts: {
+    get deliveryEnabled() { return getEnv('ALERT_DELIVERY_ENABLED', 'false').toLowerCase() === 'true' },
     get teamsWebhookUrl() { return getEnv('TEAMS_WEBHOOK_URL') },
     get smtpHost() { return getEnv('SMTP_HOST') },
     get smtpPort() { return parseInt(getEnv('SMTP_PORT', '587'), 10) },
