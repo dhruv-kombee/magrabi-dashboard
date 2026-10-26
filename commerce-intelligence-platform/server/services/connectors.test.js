@@ -87,6 +87,25 @@ test('Macula gateway attribution stays explicitly sampled', () => {
   assert.equal(result.gatewayCounts, null)
 })
 
+test('Saleor and Macula values remain isolated in both directions', () => {
+  const maculaOnly = buildUnifiedOrders(
+    { status: 'AUTHENTICATION_FAILED', live: false, orders: null, hourlyPoints: [{ hour: 1, todayCumulative: 999 }] },
+    { status: 'OK', live: true, orders: 17, previousOrders: 14, todaySoFar: 17, dailyPoints: [{ date: '2026-10-26', orders: 17 }] },
+  )
+  assert.equal(maculaOnly.orders, 17)
+  assert.equal(maculaOnly.saleor.orders, null)
+  assert.equal('hourlyPoints' in maculaOnly, false)
+
+  const saleorOnly = buildUnifiedOrders(
+    { status: 'OK', live: true, orders: 42, previousOrders: 40 },
+    { status: 'NOT_CONFIGURED', live: false, orders: null },
+  )
+  assert.equal(saleorOnly.orders, null)
+  assert.equal(saleorOnly.previousOrders, null)
+  assert.equal(saleorOnly.saleor.orders, 42)
+  assert.equal(saleorOnly.oms.orders, null)
+})
+
 test('Azure MFA is distinct from invalid service-principal authentication', () => {
   assert.equal(classifyAzureAuthFailure({ error: 'invalid_grant', error_description: 'AADSTS50079 MFA required' }, 'UserAccount', 400), 'MFA_UNSUPPORTED')
   assert.equal(classifyAzureAuthFailure({ error: 'invalid_client' }, 'ServicePrincipal', 401), 'AUTHENTICATION_FAILED')

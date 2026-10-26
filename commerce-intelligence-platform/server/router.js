@@ -72,7 +72,7 @@ function healthPayload() {
   }
 }
 
-export function buildUnifiedOrders(saleorResult, maculaResult, checkedAt = new Date().toISOString()) {
+export function buildUnifiedOrders(saleorResult, maculaResult, checkedAt = new Date().toISOString(), scope = {}) {
   const omsLive = maculaResult.status === 'OK' && maculaResult.live === true
   const omsOrders = omsLive ? maculaResult.orders : null
   const omsPrior = omsLive ? maculaResult.previousOrders : null
@@ -81,13 +81,28 @@ export function buildUnifiedOrders(saleorResult, maculaResult, checkedAt = new D
   const sampledOnline = sampledMethods ? (sampledMethods['Card / Apple Pay'] || 0) + (sampledMethods.Tabby || 0) + (sampledMethods.Tamara || 0) : 0
   const sampledCash = sampledMethods?.Cash || 0
   const sampledTotal = sampledOnline + sampledCash
+  const startMs = Number(scope.start)
+  const endMs = Number(scope.end)
+  const windowDays = Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs
+    ? Math.max(1, Math.ceil((endMs - startMs) / 86_400_000))
+    : null
+  const windowComparisonLabel = windowDays === 1 ? 'previous day'
+    : windowDays === 7 ? 'previous week'
+      : windowDays === 14 ? 'previous 2 weeks'
+        : windowDays === 30 ? 'previous month'
+          : windowDays ? `previous ${windowDays} days` : 'previous comparable window'
   return {
-    ...saleorResult,
     status: omsLive ? 'OK' : maculaResult.status,
     configured: maculaResult.configured,
     live: omsLive,
     metricsAvailable: omsLive,
     source: 'Macula OMS read-only search API',
+    brand: scope.brand || 'all',
+    country: scope.country || 'all',
+    period: windowDays ? `${windowDays} ${windowDays === 1 ? 'day' : 'days'}` : 'selected window',
+    windowDays,
+    windowComparisonLabel,
+    date: Number.isFinite(endMs) ? new Date(endMs).toISOString().slice(0, 10) : null,
     orders: omsOrders,
     previousOrders: omsPrior,
     changePct: omsChangePct,
@@ -156,7 +171,7 @@ export async function handleApiRequest(req, res) {
     try {
       const [saleorResult, maculaResult] = await Promise.all([fetchSaleorSummary(options), fetchMaculaSummary(options)])
       const checkedAt = new Date().toISOString()
-      const data = buildUnifiedOrders(saleorResult, maculaResult, checkedAt)
+       const data = buildUnifiedOrders(saleorResult, maculaResult, checkedAt, options)
       queryCache.set(cacheKey, { time: Date.now(), cachedAt: checkedAt, data })
       sendJson(res, data)
     } catch (error) { sendJson(res, { status: 'ERROR', error: redactError(error) }, 500) }
