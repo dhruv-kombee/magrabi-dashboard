@@ -7,11 +7,21 @@ import { evaluateAlertRule, isAlertChannelConfigured } from './services/alerts.j
 import { answerCommerceQuestion } from './services/assistant.js'
 import { redactError } from './services/http.js'
 import { config, hasEnv } from './config.js'
+import {
+  authConfigurationStatus,
+  clearSessionCookie,
+  createSessionToken,
+  getRequestSession,
+  loginRateLimit,
+  refreshSession,
+  setSessionCookie,
+  verifyPassword,
+} from './auth.js'
 
 const queryCache = new Map()
 const CACHE_TTL_MS = 60 * 1000
-const GET_ROUTES = new Set(['/api/commerce/health', '/api/commerce/orders/summary', '/api/commerce/gateways/telemetry', '/api/commerce/traffic/edge', '/api/commerce/infra/apm'])
-const POST_ROUTES = new Set(['/api/commerce/assistant/query', '/api/commerce/alerts/evaluate'])
+const GET_ROUTES = new Set(['/api/commerce/auth/session', '/api/commerce/health', '/api/commerce/orders/summary', '/api/commerce/gateways/telemetry', '/api/commerce/traffic/edge', '/api/commerce/infra/apm'])
+const POST_ROUTES = new Set(['/api/commerce/auth/login', '/api/commerce/auth/logout', '/api/commerce/auth/activity', '/api/commerce/assistant/query', '/api/commerce/alerts/evaluate'])
 
 function readJsonBody(req, maxBytes = 128 * 1024) {
   return new Promise((resolve, reject) => {
@@ -32,6 +42,7 @@ function readJsonBody(req, maxBytes = 128 * 1024) {
 function sendJson(res, payload, statusCode = 200) {
   res.statusCode = statusCode
   res.setHeader('Content-Type', 'application/json; charset=UTF-8')
+  res.setHeader('Cache-Control', 'no-store')
   res.end(JSON.stringify(payload))
 }
 
@@ -172,6 +183,56 @@ export async function handleApiRequest(req, res) {
   if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return true }
   const methodAllowed = (GET_ROUTES.has(pathname) && req.method === 'GET') || (POST_ROUTES.has(pathname) && req.method === 'POST')
   if (!methodAllowed) { res.setHeader('Allow', GET_ROUTES.has(pathname) ? 'GET, OPTIONS' : 'POST, OPTIONS'); sendJson(res, { status: 'ERROR', error: 'Method not allowed.' }, 405); return true }
+
+  const authStatus = authConfigurationStatus()
+  if (!authStatus.configured) {
+    sendJson(res, { status: 'ERROR', authenticated: false, error: 'Dashboard authentication is not configured.', missing: authStatus.missing }, 503)
+    return true
+  }
+
+  if (pathname === '/api/commerce/auth/login') {
+    const limit = loginRateLimit(req)
+    if (!limit.allowed) {
+      res.setHeader('Retry-After', String(limit.retryAfterSeconds))
+      sendJson(res, { status: 'ERROR', authenticated: false, error: 'Too many login attempts. Try again later.' }, 429)
+      return true
+    }
+    let body
+    try { body = await readJsonBody(req, 8 * 1024) } catch { sendJson(res, { status: 'ERROR', authenticated: false, error: 'Invalid login request.' }, 400); return true }
+    const validUsername = typeof body.username === 'string' && body.username === config.auth.username
+    const validPassword = await verifyPassword(body.password)
+    if (!validUsername || !validPassword) {
+      limit.recordFailure()
+      sendJson(res, { status: 'ERROR', authenticated: false, error: 'Invalid username or password.' }, 401)
+      return true
+    }
+    limit.clear()
+    const now = Date.now()
+    setSessionCookie(req, res, createSessionToken(config.auth.username, now))
+    sendJson(res, { status: 'OK', authenticated: true, username: config.auth.username, expiresAt: now + config.auth.sessionTimeoutSeconds * 1000, timeoutSeconds: config.auth.sessionTimeoutSeconds })
+    return true
+  }
+
+  const session = getRequestSession(req)
+  if (pathname === '/api/commerce/auth/logout') {
+    clearSessionCookie(req, res)
+    sendJson(res, { status: 'OK', authenticated: false })
+    return true
+  }
+  if (!session) {
+    clearSessionCookie(req, res)
+    sendJson(res, { status: 'ERROR', authenticated: false, error: 'Your session has expired. Sign in again.' }, 401)
+    return true
+  }
+  if (pathname === '/api/commerce/auth/session') {
+    sendJson(res, { status: 'OK', authenticated: true, username: session.username, expiresAt: session.expiresAt, timeoutSeconds: config.auth.sessionTimeoutSeconds })
+    return true
+  }
+  if (pathname === '/api/commerce/auth/activity') {
+    const refreshed = refreshSession(req, res, session)
+    sendJson(res, { status: 'OK', authenticated: true, username: refreshed.username, expiresAt: refreshed.expiresAt, timeoutSeconds: config.auth.sessionTimeoutSeconds })
+    return true
+  }
 
   if (pathname === '/api/commerce/health') { sendJson(res, healthPayload()); return true }
 
