@@ -114,7 +114,7 @@ export function buildUnifiedOrders(saleorResult, maculaResult, checkedAt = new D
     changePct: omsChangePct,
     todaySoFar: omsLive ? maculaResult.todaySoFar : null,
     dailyPoints: omsLive ? maculaResult.dailyPoints || [] : [],
-    countryDailyPoints: {},
+    countryDailyPoints: omsLive ? maculaResult.countryDailyPoints || {} : {},
     countryBreakdown: omsLive ? maculaResult.countryBreakdown || {} : {},
     priorCountryBreakdown: omsLive ? maculaResult.priorCountryBreakdown || {} : {},
     paymentBreakdown: sampledTotal > 0 ? {

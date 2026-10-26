@@ -251,7 +251,7 @@ export async function fetchMaculaSummary(options) {
   const countryCodes = country === 'all' ? ['SA', 'AE', 'EG', 'QA', 'KW'] : [country.toUpperCase()]
 
   try {
-    const [resCurr, resPrior, resToday, currentRefs, priorRefs, dailyPoints, countryRows] = await Promise.all([
+    const [resCurr, resPrior, resToday, currentRefs, priorRefs, dailyPoints, countryRows, countryDailyPoints] = await Promise.all([
       fetchMaculaCount(token, currFromIso, currToIso, maculaChannelGroups),
       fetchMaculaCount(token, prevFromIso, prevToIso, maculaChannelGroups),
       fetchMaculaCount(token, todayFromIso, todayToIso, maculaChannelGroups),
@@ -269,6 +269,15 @@ export async function fetchMaculaSummary(options) {
           fetchMaculaCount(token, prevFromIso, prevToIso, groups),
         ])
         return { code, current, prior }
+      }),
+      mapWithConcurrency(countryCodes, 3, async (code) => {
+        const groups = getMaculaChannelGroups(brand, code)
+        if (!groups.length) return { code, points: [] }
+        const points = await mapWithConcurrency(countBuckets, 5, async (bucket) => ({
+          date: bucket.date,
+          orders: await fetchMaculaCount(token, bucket.from, bucket.to, groups),
+        }))
+        return { code, points }
       }),
     ])
 
@@ -305,6 +314,7 @@ export async function fetchMaculaSummary(options) {
       priorReconciliationOrderIds: priorRefs.orderIds,
       todaySoFar: resToday,
       dailyPoints,
+      countryDailyPoints: Object.fromEntries(countryDailyPoints.map((row) => [row.code, row.points])),
       countryBreakdown: Object.fromEntries(countryRows.map((row) => [row.code, row.current])),
       priorCountryBreakdown: Object.fromEntries(countryRows.map((row) => [row.code, row.prior])),
       gatewayCounts,
