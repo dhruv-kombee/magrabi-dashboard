@@ -172,13 +172,20 @@
 @keyframes bounce { 0%, 70%, 100% { transform: translateY(0); opacity: .4; } 35% { transform: translateY(-4px); opacity: 1; } }
 
 @media (max-width: 750px) {
-  .panel { right: 8px; bottom: 8px; width: calc(100vw - 16px); height: min(720px, calc(100dvh - 16px)); border-radius: 14px; }
+  .panel { inset: 0; width: 100vw; height: 100vh; height: 100dvh; border: 0; border-radius: 0; }
   .historyRail { position: absolute; z-index: 3; top: 0; bottom: 0; left: 0; flex-basis: auto; width: min(260px, 82vw); box-shadow: 8px 0 24px rgba(20, 31, 26, .15); transform: translateX(-108%); transition: transform 220ms ease; }
   .historyRailOpen { flex-basis: auto; width: min(260px, 82vw); transform: translateX(0); }
-  .header { gap: 7px; padding: 0 10px; }
+  .header { min-height: calc(58px + env(safe-area-inset-top)); gap: 7px; padding: env(safe-area-inset-top) 10px 0; }
   .newChatHeader { padding: 0 7px; }
   .messages { padding: 16px 12px 10px; }
-  .launcher { right: 14px; bottom: 14px; }
+  .composer { margin: 8px 10px max(6px, env(safe-area-inset-bottom)); }
+  .composer textarea { font-size: 16px; }
+  .chatArea footer { display: none; }
+  .launcher { right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); min-height: 52px; }
+  .iconButton, .newChatHeader { min-height: 42px; }
+  .iconButton { width: 42px; }
+  .scopeBar { min-height: 44px; }
+  .suggestions button, .clarificationChoices button, .exportBar button { min-height: 40px; }
 }
 
 /* Some dashboard pages retain a wide layout viewport on a narrow mobile screen. */
@@ -194,10 +201,20 @@
 .compactPanel .metricCard:last-child:nth-child(odd) { grid-column: 1 / -1; }
 
 @media (max-width: 430px) {
+  .avatar { display: none; }
   .headerCopy span { display: none; }
-  .suggestions { grid-template-columns: 1fr 1fr; padding: 8px 10px 2px; }
-  .suggestions button { font-size: 9px; }
+  .newChatHeader { width: 42px; padding: 0; overflow: hidden; font-size: 0; }
+  .newChatHeader::before { content: '+'; font-size: 20px; line-height: 1; }
+  .suggestions { grid-template-columns: 1fr; max-height: 144px; padding: 8px 10px 2px; overflow-y: auto; }
+  .suggestions button { font-size: 10px; text-align: left; }
   .scopeBar { padding: 0 10px; }
+  .messages { padding-inline: 10px; }
+  .bubble { max-width: calc(100% - 28px); }
+  .metricGrid { grid-template-columns: 1fr; }
+  .compactPanel .metricGrid { grid-template-columns: 1fr; }
+  .exportBar { gap: 5px; }
+  .launcher { width: 54px; padding: 0; justify-content: center; }
+  .launcher > span:last-child { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

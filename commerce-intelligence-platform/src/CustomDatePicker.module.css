@@ -424,3 +424,117 @@
 .doneBtn:hover {
   background: #13523b;
 }
+
+@media (max-width: 640px) {
+  .popover,
+  .popoverLeft,
+  .popoverRight {
+    position: fixed;
+    z-index: 1200;
+    inset: auto 8px max(8px, env(safe-area-inset-bottom));
+    width: auto;
+    max-height: calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    padding: 13px 14px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-radius: 16px;
+    box-shadow: 0 22px 70px rgba(8, 27, 17, 0.28);
+  }
+
+  .trigger {
+    min-height: 44px;
+    font-size: 13px;
+  }
+
+  .presetBtn,
+  .navBtn,
+  .dayBtn,
+  .timeChip,
+  .doneBtn {
+    min-height: 40px;
+  }
+
+  .presetsRow {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .presetLabel,
+  .presetBtn {
+    flex: 0 0 auto;
+  }
+
+  .navBtn {
+    width: 40px;
+  }
+
+  .dayBtn {
+    height: 40px;
+    font-size: 13px;
+  }
+
+  .timeCard {
+    padding: 10px;
+  }
+
+  .stepperBtn {
+    width: 24px;
+    height: 18px;
+    font-size: 9px;
+  }
+
+  .timeChipsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .timeChip {
+    white-space: normal;
+  }
+
+  .footer {
+    gap: 10px;
+  }
+
+  .selectedSummary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .doneBtn {
+    padding-inline: 20px;
+  }
+}
+
+@media (max-width: 360px) {
+  .popover,
+  .popoverLeft,
+  .popoverRight {
+    inset-inline: 4px;
+    padding-inline: 10px;
+  }
+
+  .weekdaysGrid,
+  .daysGrid {
+    gap: 2px;
+  }
+
+  .timeCardHeader {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .digitalClock {
+    align-self: stretch;
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .popover {
+    animation: none;
+  }
+}

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { ChatAssistant } from './ChatAssistant'
 import type {
   BrandFilter,
@@ -217,6 +217,8 @@ function formatChartDate(dateStr: string): string {
 
 export function CommerceDashboard() {
   const [section, setSection] = useState<SectionKey>('overview')
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const mobileNavCloseRef = useRef<HTMLButtonElement>(null)
   const [brand, setBrand] = useState<BrandFilter>('all')
   const [country, setCountry] = useState<CountryFilter>('all')
   const [selectedRevenueCurrency, setSelectedRevenueCurrency] = useState<string>('all')
@@ -348,6 +350,30 @@ export function CommerceDashboard() {
     text: string
     subtext: string
   } | null>(null)
+
+  useEffect(() => {
+    if (!mobileNavOpen) return
+
+    const previousOverflow = document.body.style.overflow
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileNavOpen(false)
+    }
+    const closeAtDesktopWidth = (event: MediaQueryListEvent) => {
+      if (event.matches) setMobileNavOpen(false)
+    }
+    const desktopQuery = window.matchMedia('(min-width: 901px)')
+
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', closeOnEscape)
+    desktopQuery.addEventListener('change', closeAtDesktopWidth)
+    mobileNavCloseRef.current?.focus()
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', closeOnEscape)
+      desktopQuery.removeEventListener('change', closeAtDesktopWidth)
+    }
+  }, [mobileNavOpen])
 
   const showToast = (msg: string) => {
     setToastMessage(msg)
@@ -2097,10 +2123,32 @@ export function CommerceDashboard() {
     <div className={styles.pageWrapper}>
       <div className={styles.app}>
         {/* Sidebar Workspace Navigation */}
-        <aside className={styles.sidebar}>
-          <div className={styles.brand}>
-            MAGRABi
-            <small>COMMERCE INTELLIGENCE</small>
+        <button
+          type="button"
+          className={`${styles.mobileNavBackdrop} ${mobileNavOpen ? styles.mobileNavBackdropVisible : ''}`}
+          onClick={() => setMobileNavOpen(false)}
+          aria-label="Close workspace navigation"
+          tabIndex={mobileNavOpen ? 0 : -1}
+        />
+        <aside
+          id="workspace-navigation"
+          className={`${styles.sidebar} ${mobileNavOpen ? styles.sidebarOpen : ''}`}
+          aria-label="Workspace navigation"
+        >
+          <div className={styles.mobileSidebarHeader}>
+            <div className={styles.brand}>
+              MAGRABi
+              <small>COMMERCE INTELLIGENCE</small>
+            </div>
+            <button
+              ref={mobileNavCloseRef}
+              type="button"
+              className={styles.sidebarClose}
+              onClick={() => setMobileNavOpen(false)}
+              aria-label="Close navigation"
+            >
+              <span aria-hidden="true">&times;</span>
+            </button>
           </div>
           <div className={styles.navlabel}>WORKSPACE</div>
           <nav className={styles.nav}>
@@ -2109,7 +2157,12 @@ export function CommerceDashboard() {
                 key={s.key}
                 type="button"
                 className={`${styles.navBtn} ${section === s.key ? styles.navBtnActive : ''}`}
-                onClick={() => setSection(s.key)}
+                onClick={() => {
+                  setSection(s.key)
+                  setMobileNavOpen(false)
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }}
+                aria-current={section === s.key ? 'page' : undefined}
               >
                 {s.label}
               </button>
@@ -2132,6 +2185,18 @@ export function CommerceDashboard() {
         {/* Main Content Area */}
         <div className={styles.content}>
           <header className={styles.topbar}>
+            <button
+              type="button"
+              className={styles.mobileNavButton}
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Open workspace navigation"
+              aria-controls="workspace-navigation"
+              aria-expanded={mobileNavOpen}
+            >
+              <span aria-hidden="true"></span>
+              <span aria-hidden="true"></span>
+              <span aria-hidden="true"></span>
+            </button>
             <span className={styles.crumb}>
               COMMERCE <span>/ <b>{activeSectionMeta.label}</b></span>
             </span>
