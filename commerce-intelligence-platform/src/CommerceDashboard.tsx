@@ -435,6 +435,14 @@ export function CommerceDashboard() {
     sampledGatewayCounts?: Record<string, number> | null
     sampledMethodCounts?: Record<string, number> | null
     gatewaySample?: { status: string; size: number; limit: number } | null
+    saleor?: {
+      status: string
+      live: boolean
+      orders: number | null
+      previousOrders: number | null
+      source: string
+      checkedAt: string
+    }
     oms?: LiveOmsSummary
     error?: string
     message?: string
@@ -1100,6 +1108,13 @@ export function CommerceDashboard() {
     }
     return []
   }, [liveSaleor?.dailyPoints, liveSaleor?.previousOrders, liveSaleor?.orders, dailyPoints, priorAgg, currentAgg])
+
+  const saleorSparkline = useMemo(() => {
+    if (liveSaleor?.saleor?.live && liveSaleor.saleor.orders !== null && liveSaleor.saleor.previousOrders !== null) {
+      return [liveSaleor.saleor.previousOrders, liveSaleor.saleor.orders]
+    }
+    return []
+  }, [liveSaleor?.saleor])
 
   const omsSparkline = useMemo(() => {
     if (liveSaleor?.oms?.dailyPoints && liveSaleor.oms.dailyPoints.length > 1) {
@@ -2323,6 +2338,48 @@ export function CommerceDashboard() {
             {section === 'overview' && (
               <>
                 <div className={styles.metrics}>
+                  {/* The only Saleor-backed overview KPI. */}
+                  <div className={`${styles.card} ${styles.metric}`}>
+                    <div className={styles.metriclabel}>
+                      <span>Orders received in Saleor</span>
+                      {liveSaleor?.saleor?.live ? (
+                        <span style={{ fontSize: '10px', background: '#e1f5ec', color: '#1a7f5a', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                          ● LIVE SALEOR
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '10px', background: '#f0f2f1', color: '#68726e', padding: '2px 6px', borderRadius: '4px' }}>
+                          {liveLoading ? 'LOADING...' : 'SALEOR UNAVAILABLE'}
+                        </span>
+                      )}
+                    </div>
+                    <div className={styles.metricValueRow}>
+                      <div className={styles.metricvalue}>
+                        {liveSaleor?.saleor?.live && liveSaleor.saleor.orders !== null ? (
+                          fmt(liveSaleor.saleor.orders)
+                        ) : liveLoading ? (
+                          <span className={styles.skeletonPulse}>—</span>
+                        ) : (
+                          '—'
+                        )}
+                      </div>
+                      {saleorSparkline.length > 0 && <MiniSparkline data={saleorSparkline} />}
+                    </div>
+                    <div className={styles.metricfoot}>
+                      {liveSaleor?.saleor?.live && liveSaleor.saleor.orders !== null ? (
+                        renderTrend(
+                          liveSaleor.saleor.orders,
+                          liveSaleor.saleor.previousOrders,
+                          false,
+                          <span>Saleor data only</span>,
+                        )
+                      ) : liveLoading ? (
+                        <span>Connecting live Saleor feed...</span>
+                      ) : (
+                        <span>Saleor count unavailable; Macula is not substituted.</span>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Primary KPI: Macula OMS received orders */}
                   <div className={`${styles.card} ${styles.metric}`}>
                     <div className={styles.metriclabel}>
@@ -2406,6 +2463,43 @@ export function CommerceDashboard() {
                         <span>Computing OMS payment breakdown...</span>
                       ) : (
                         <span>Macula payment sample unavailable.</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Macula prior-window baseline. */}
+                  <div className={`${styles.card} ${styles.metric}`}>
+                    <div className={styles.metriclabel}>
+                      <span>Previous window · Macula OMS</span>
+                      {liveSaleor?.live ? (
+                        <span style={{ fontSize: '10px', background: '#e1f5ec', color: '#1a7f5a', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                          ● LIVE OMS
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '10px', background: '#f0f2f1', color: '#68726e', padding: '2px 6px', borderRadius: '4px' }}>
+                          {liveLoading ? 'LOADING...' : 'OMS UNAVAILABLE'}
+                        </span>
+                      )}
+                    </div>
+                    <div className={styles.metricValueRow}>
+                      <div className={styles.metricvalue}>
+                        {liveSaleor?.live ? (
+                          fmt(liveSaleor.previousOrders)
+                        ) : liveLoading ? (
+                          <span className={styles.skeletonPulse}>—</span>
+                        ) : (
+                          '—'
+                        )}
+                      </div>
+                      {liveSaleor?.live && <MiniSparkline data={ordersSparkline} />}
+                    </div>
+                    <div className={styles.metricfoot}>
+                      {liveSaleor?.live ? (
+                        <span>{comparisonWindowLabel} · Macula received orders only</span>
+                      ) : liveLoading ? (
+                        <span>Connecting live Macula OMS feed...</span>
+                      ) : (
+                        <span>Macula previous-window count unavailable.</span>
                       )}
                     </div>
                   </div>
