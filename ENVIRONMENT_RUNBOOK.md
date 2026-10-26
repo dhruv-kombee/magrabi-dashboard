@@ -106,6 +106,7 @@ Living architectural and environmental record of the Magrabi Deployment Portal i
 - **Access Boundary**: All `/api/commerce/*` data endpoints require a valid dashboard session. Static application assets remain public but contain no connector credentials or operational data.
 - **Credential Storage**: The login username, scrypt password hash, and session-signing secret are server-side only. Local interactive setup writes them to the gitignored `.secrets/dashboard-auth.env`; hosted environments must inject the same values through their secret-management mechanism.
 - **Session Controls**: Authentication uses a signed `HttpOnly`, `SameSite=Strict` cookie. The idle timeout is 10 minutes and is renewed only by real browser activity; automatic dashboard requests do not renew it. Logout clears the cookie, invalid or tampered cookies are rejected, and failed login attempts are throttled.
+- **Sign-In UX**: The responsive sign-in form provides an accessible keyboard-operable Show/Hide password control with a visible focus state. The control changes browser display only and does not alter server-side hashing or verification.
 - **Response Security**: API responses are marked `no-store`; the production server adds frame, MIME-sniffing, referrer, permissions, and content-security-policy headers.
 - **Deployment State**: Code and local HTTP behavior are verified. Operator-chosen credentials are not yet configured and no deployment has occurred.
 - **Last Verified**: 2026-10-26 | Confidence: VERIFIED: LOCAL UNIT TESTS + PRODUCTION BUILD + HTTP AUTH FLOW
