@@ -219,6 +219,8 @@ export function CommerceDashboard() {
   const [section, setSection] = useState<SectionKey>('overview')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const mobileNavCloseRef = useRef<HTMLButtonElement>(null)
+  const mobileNavButtonRef = useRef<HTMLButtonElement>(null)
+  const mobileNavRef = useRef<HTMLElement>(null)
   const [brand, setBrand] = useState<BrandFilter>('all')
   const [country, setCountry] = useState<CountryFilter>('all')
   const [selectedRevenueCurrency, setSelectedRevenueCurrency] = useState<string>('all')
@@ -335,6 +337,7 @@ export function CommerceDashboard() {
 
   // Drawer / Overlay
   const [activeError, setActiveError] = useState<ErrorKind | null>(null)
+  const drawerCloseRef = useRef<HTMLButtonElement>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
   // Simulation form
@@ -355,8 +358,26 @@ export function CommerceDashboard() {
     if (!mobileNavOpen) return
 
     const previousOverflow = document.body.style.overflow
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMobileNavOpen(false)
+    const handleNavigationKeys = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMobileNavOpen(false)
+        return
+      }
+      if (event.key !== 'Tab' || !mobileNavRef.current) return
+
+      const focusable = Array.from(
+        mobileNavRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'),
+      )
+      if (!focusable.length) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
     }
     const closeAtDesktopWidth = (event: MediaQueryListEvent) => {
       if (event.matches) setMobileNavOpen(false)
@@ -364,16 +385,37 @@ export function CommerceDashboard() {
     const desktopQuery = window.matchMedia('(min-width: 901px)')
 
     document.body.style.overflow = 'hidden'
-    document.addEventListener('keydown', closeOnEscape)
+    document.addEventListener('keydown', handleNavigationKeys)
     desktopQuery.addEventListener('change', closeAtDesktopWidth)
-    mobileNavCloseRef.current?.focus()
+    window.requestAnimationFrame(() => mobileNavCloseRef.current?.focus())
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', handleNavigationKeys)
+      desktopQuery.removeEventListener('change', closeAtDesktopWidth)
+      mobileNavButtonRef.current?.focus()
+    }
+  }, [mobileNavOpen])
+
+  useEffect(() => {
+    if (!activeError) return
+
+    const previousOverflow = document.body.style.overflow
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setActiveError(null)
+    }
+
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', closeOnEscape)
+    drawerCloseRef.current?.focus()
 
     return () => {
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', closeOnEscape)
-      desktopQuery.removeEventListener('change', closeAtDesktopWidth)
+      window.requestAnimationFrame(() => previouslyFocused?.focus())
     }
-  }, [mobileNavOpen])
+  }, [activeError])
 
   const showToast = (msg: string) => {
     setToastMessage(msg)
@@ -2128,9 +2170,10 @@ export function CommerceDashboard() {
           className={`${styles.mobileNavBackdrop} ${mobileNavOpen ? styles.mobileNavBackdropVisible : ''}`}
           onClick={() => setMobileNavOpen(false)}
           aria-label="Close workspace navigation"
-          tabIndex={mobileNavOpen ? 0 : -1}
+          tabIndex={-1}
         />
         <aside
+          ref={mobileNavRef}
           id="workspace-navigation"
           className={`${styles.sidebar} ${mobileNavOpen ? styles.sidebarOpen : ''}`}
           aria-label="Workspace navigation"
@@ -2186,9 +2229,13 @@ export function CommerceDashboard() {
         <div className={styles.content}>
           <header className={styles.topbar}>
             <button
+              ref={mobileNavButtonRef}
               type="button"
               className={styles.mobileNavButton}
-              onClick={() => setMobileNavOpen(true)}
+              onClick={() => {
+                setMobileNavOpen(true)
+                window.setTimeout(() => mobileNavCloseRef.current?.focus(), 0)
+              }}
               aria-label="Open workspace navigation"
               aria-controls="workspace-navigation"
               aria-expanded={mobileNavOpen}
@@ -3422,7 +3469,7 @@ export function CommerceDashboard() {
                       </div>
                     ) : (
                       /* TABULAR COUNTRY VIEW WITH MINI SPARKLINES AND DOTS */
-                      <div className={styles.tablewrap}>
+                      <div className={styles.tablewrap} role="region" aria-label="Country order metrics table" tabIndex={0}>
                         <table className={styles.table}>
                           <thead>
                             <tr>
@@ -3751,7 +3798,7 @@ export function CommerceDashboard() {
                       <span className={`${styles.badge} ${styles.badgePending}`}>INTEGRATION PENDING</span>
                     )}
                   </div>
-                  <div className={styles.tablewrap}>
+                  <div className={styles.tablewrap} role="region" aria-label="Payment gateway metrics table" tabIndex={0}>
                     <table className={styles.table}>
                       <thead>
                         <tr>
@@ -4097,7 +4144,7 @@ export function CommerceDashboard() {
                     </div>
                     <span className={`${styles.badge} ${styles.badgeGray}`}>DRILL-DOWN CONCEPT</span>
                   </div>
-                  <div className={styles.tablewrap}>
+                  <div className={styles.tablewrap} role="region" aria-label="Infrastructure metrics table" tabIndex={0}>
                     <table className={styles.table}>
                       <thead>
                         <tr>
@@ -4444,7 +4491,7 @@ export function CommerceDashboard() {
                       <h2>Proposed alert catalogue</h2>
                       <span className={`${styles.badge} ${styles.badgePending}`}>NOT ACTIVE</span>
                     </div>
-                    <div className={styles.tablewrap}>
+                    <div className={styles.tablewrap} role="region" aria-label="Proposed alert catalogue table" tabIndex={0}>
                       <table className={styles.table}>
                         <thead>
                           <tr>
@@ -4488,17 +4535,25 @@ export function CommerceDashboard() {
       {/* Detail Overlay Drawer */}
       {activeError && (
         <div className={styles.overlay} onClick={() => setActiveError(null)}>
-          <section className={styles.drawer} onClick={(e) => e.stopPropagation()}>
+          <section
+            className={styles.drawer}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="error-drawer-title"
+          >
             <div className={styles.drawerhead}>
               <div>
                 <div className={styles.eyebrow}>SANITIZED SAMPLE · NOT A LIVE LOG</div>
-                <h2>{errorDetails[activeError].title}</h2>
+                <h2 id="error-drawer-title">{errorDetails[activeError].title}</h2>
                 <span className={`${styles.badge} ${styles.badgePending}`}>Drill-down concept</span>
               </div>
               <button
+                ref={drawerCloseRef}
                 type="button"
                 className={styles.drawerclose}
                 onClick={() => setActiveError(null)}
+                aria-label="Close error details"
               >
                 ×
               </button>

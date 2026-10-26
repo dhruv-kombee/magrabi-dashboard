@@ -86,6 +86,8 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
 
   const selected = useMemo(() => parseDateTimeString(value), [value])
 
@@ -120,6 +122,20 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         setIsOpen(false)
+        return
+      }
+      if (event.key !== 'Tab' || !dialogRef.current) return
+
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLButtonElement>('button:not([disabled])'))
+      if (!focusable.length) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
       }
     }
     if (isOpen) {
@@ -127,6 +143,20 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
     }
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const previousOverflow = document.body.style.overflow
+    const compactQuery = window.matchMedia('(max-width: 900px)')
+    if (compactQuery.matches) document.body.style.overflow = 'hidden'
+    window.requestAnimationFrame(() => dialogRef.current?.querySelector<HTMLButtonElement>('button')?.focus())
+
+    return () => {
+      if (compactQuery.matches) document.body.style.overflow = previousOverflow
+      window.requestAnimationFrame(() => triggerRef.current?.focus())
     }
   }, [isOpen])
 
@@ -271,6 +301,7 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
 
       {/* Styled Trigger Button */}
       <button
+        ref={triggerRef}
         type="button"
         className={`${styles.trigger} ${isOpen ? styles.triggerActive : ''}`}
         onClick={() => setIsOpen((prev) => !prev)}
@@ -303,11 +334,21 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
 
       {/* Popover */}
       {isOpen && (
-        <div
-          className={`${styles.popover} ${align === 'right' ? styles.popoverRight : styles.popoverLeft}`}
-          role="dialog"
-          aria-modal="true"
-        >
+        <>
+          <button
+            type="button"
+            className={styles.mobileBackdrop}
+            onClick={() => setIsOpen(false)}
+            aria-label={`Close ${label} date and time picker`}
+            tabIndex={-1}
+          />
+          <div
+            ref={dialogRef}
+            className={`${styles.popover} ${align === 'right' ? styles.popoverRight : styles.popoverLeft}`}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${label} date and time picker`}
+          >
           {/* Quick Presets */}
           <div className={styles.presetsRow}>
             <span className={styles.presetLabel}>Quick:</span>
@@ -483,7 +524,8 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
               Done
             </button>
           </div>
-        </div>
+          </div>
+        </>
       )}
     </div>
   )

@@ -171,6 +171,14 @@
 @keyframes messageIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes bounce { 0%, 70%, 100% { transform: translateY(0); opacity: .4; } 35% { transform: translateY(-4px); opacity: 1; } }
 
+@media (max-width: 900px) {
+  .launcher { width: 54px; padding: 0; justify-content: center; }
+  .launcher > span:last-child { display: none; }
+  .historySearch input, .editTitle, .composer textarea { font-size: 16px; }
+  .iconButton, .newChatHeader, .suggestions button, .clarificationChoices button, .exportBar button { min-height: 44px; }
+  .iconButton { width: 44px; }
+}
+
 @media (max-width: 750px) {
   .panel { inset: 0; width: 100vw; height: 100vh; height: 100dvh; border: 0; border-radius: 0; }
   .historyRail { position: absolute; z-index: 3; top: 0; bottom: 0; left: 0; flex-basis: auto; width: min(260px, 82vw); box-shadow: 8px 0 24px rgba(20, 31, 26, .15); transform: translateX(-108%); transition: transform 220ms ease; }
@@ -182,14 +190,24 @@
   .composer textarea { font-size: 16px; }
   .chatArea footer { display: none; }
   .launcher { right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); min-height: 52px; }
-  .iconButton, .newChatHeader { min-height: 42px; }
-  .iconButton { width: 42px; }
+  .iconButton, .newChatHeader { min-height: 44px; }
+  .iconButton { width: 44px; }
   .scopeBar { min-height: 44px; }
-  .suggestions button, .clarificationChoices button, .exportBar button { min-height: 40px; }
+  .suggestions button, .clarificationChoices button, .exportBar button { min-height: 44px; }
+  .historyRail { visibility: hidden; }
+  .historyRailOpen { visibility: visible; }
+  .historySearch input, .editTitle, .composer textarea { font-size: 16px; }
+  .threadActions button { width: 44px; height: 44px; }
+  .threadSelect { min-height: 44px; }
+  .bubble { font-size: 16px; line-height: 1.55; }
+  .answerLead { font-size: 16px; }
+  .dataTable { font-size: 14px; }
+  .dataTable th, .dataTable td strong { font-size: 13px; }
+  .dataTable td small, .visualNote, .answerMeta, .evidenceCard p, .noEvidence { font-size: 12px; }
 }
 
 /* Some dashboard pages retain a wide layout viewport on a narrow mobile screen. */
-.compactPanel { border-radius: 14px; }
+.compactPanel { inset: 0; width: 100vw; height: 100vh; height: 100dvh; border: 0; border-radius: 0; }
 .compactPanel .historyRail { position: absolute; z-index: 3; top: 0; bottom: 0; left: 0; flex-basis: auto; width: min(260px, 82vw); box-shadow: 8px 0 24px rgba(20, 31, 26, .15); transform: translateX(-108%); transition: transform 220ms ease; }
 .compactPanel .historyRailOpen { flex-basis: auto; width: min(260px, 82vw); transform: translateX(0); }
 .compactPanel .header { gap: 7px; padding: 0 10px; }
@@ -199,14 +217,21 @@
 .compactPanel .suggestions { padding: 8px 10px 2px; }
 .compactPanel .metricGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .compactPanel .metricCard:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.compactPanel .iconButton, .compactPanel .newChatHeader { min-height: 44px; }
+.compactPanel .iconButton { width: 44px; }
+.compactPanel .historySearch input, .compactPanel .editTitle, .compactPanel .composer textarea { font-size: 16px; }
+.compactPanel .threadActions button { width: 44px; height: 44px; }
+.compactPanel .bubble { font-size: 16px; line-height: 1.55; }
+.compactPanel .historyRail { visibility: hidden; }
+.compactPanel .historyRailOpen { visibility: visible; }
 
 @media (max-width: 430px) {
   .avatar { display: none; }
   .headerCopy span { display: none; }
-  .newChatHeader { width: 42px; padding: 0; overflow: hidden; font-size: 0; }
+  .newChatHeader { width: 44px; padding: 0; overflow: hidden; font-size: 0; }
   .newChatHeader::before { content: '+'; font-size: 20px; line-height: 1; }
   .suggestions { grid-template-columns: 1fr; max-height: 144px; padding: 8px 10px 2px; overflow-y: auto; }
-  .suggestions button { font-size: 10px; text-align: left; }
+  .suggestions button { font-size: 14px; line-height: 1.4; text-align: left; }
   .scopeBar { padding: 0 10px; }
   .messages { padding-inline: 10px; }
   .bubble { max-width: calc(100% - 28px); }

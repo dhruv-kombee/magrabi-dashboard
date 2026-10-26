@@ -2302,8 +2302,8 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
     padding: 0;
     border: 1px solid #d9e1dc;
     border-radius: 10px;
@@ -2368,12 +2368,72 @@
     max-width: 100%;
   }
 
+  .tablewrap:focus-visible,
+  .chartWrapper:focus-visible,
+  .funnelmini:focus-visible {
+    outline: 3px solid rgba(36, 122, 96, 0.35);
+    outline-offset: 2px;
+  }
+
   .table {
     min-width: 660px;
   }
 
   .drawer {
     width: min(620px, 100vw);
+  }
+
+  .btn,
+  .quickPresetPill,
+  .tabBtn,
+  .viewToggleBtn,
+  .currencyPill,
+  .countryLegendItem,
+  .currencyResetBtn,
+  .filterbar select,
+  .filterbar input,
+  .filteractions .btn,
+  .field select,
+  .field input,
+  .channelchecks label {
+    min-height: 44px;
+  }
+
+  .filterbar select,
+  .filterbar input,
+  .field select,
+  .field input {
+    font-size: 16px;
+  }
+
+  .btn,
+  .currencyResetBtn {
+    font-size: 14px;
+  }
+
+  .metriclabel,
+  .metricfoot,
+  .filtermeta,
+  .cardhead p,
+  .sectionfoot,
+  .noresult,
+  .sourceCard dl,
+  .connectorEndpoint,
+  .connectorKeys {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .subtitle,
+  .notice,
+  .definition,
+  .feature p,
+  .sourceCard p,
+  .configBannerHint,
+  .simresult,
+  .drawerbody p {
+    font-size: 16px;
+    line-height: 1.55;
   }
 }
 
@@ -2384,8 +2444,8 @@
   }
 
   .mobileNavButton {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
   }
 
   .crumb {
@@ -2449,7 +2509,7 @@
   }
 
   .quickPresetPill {
-    min-height: 40px;
+    min-height: 44px;
     padding-inline: 13px;
   }
 
@@ -2471,7 +2531,7 @@
   .filterbar input,
   .filteractions .btn {
     min-height: 44px;
-    font-size: 13px;
+    font-size: 16px;
   }
 
   .filtermeta {
@@ -2507,6 +2567,32 @@
   .metriclabel {
     align-items: flex-start;
     gap: 10px;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
+  .metricfoot,
+  .filtermeta,
+  .cardhead p,
+  .sectionfoot,
+  .noresult,
+  .sourceCard dl,
+  .connectorEndpoint,
+  .connectorKeys {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .subtitle,
+  .notice,
+  .definition,
+  .feature p,
+  .sourceCard p,
+  .configBannerHint,
+  .simresult,
+  .drawerbody p {
+    font-size: 16px;
+    line-height: 1.55;
   }
 
   .metricvalue {
@@ -2599,7 +2685,7 @@
   .viewToggleBtn,
   .currencyPill,
   .countryLegendItem {
-    min-height: 40px;
+    min-height: 44px;
     flex: 0 0 auto;
   }
 
@@ -2689,7 +2775,13 @@
   }
 
   .channelchecks label {
-    min-height: 40px;
+    min-height: 44px;
+  }
+
+  .field select,
+  .field input {
+    min-height: 44px;
+    font-size: 16px;
   }
 
   .drawer {
@@ -2729,6 +2821,20 @@
     padding: 12px 14px;
   }
 
+  .table {
+    font-size: 14px;
+  }
+
+  .table th {
+    font-size: 12px;
+  }
+
+  .btn,
+  .currencyResetBtn {
+    min-height: 44px;
+    font-size: 14px;
+  }
+
   .toast {
     bottom: calc(78px + env(safe-area-inset-bottom));
     width: calc(100% - 24px);
@@ -2761,6 +2867,60 @@
 
   .steprate {
     display: none;
+  }
+}
+
+/* Mobile contrast overrides stay below the desktop rules so the established
+   desktop palette remains visually unchanged. */
+@media (max-width: 900px) {
+  .app {
+    --muted: #4f5d54;
+  }
+
+  .crumb,
+  .subtitle,
+  .btnText,
+  .filtermeta,
+  .metriclabel,
+  .metricfoot,
+  .trendSubtext,
+  .trendInlineContext,
+  .quickPresetsLabel,
+  .cardhead p,
+  .chartfooter,
+  .sectionfoot,
+  .legend,
+  .tiny,
+  .countryLegendCount,
+  .countryLegendBar,
+  .minirow,
+  .funnelcol,
+  .sourceStrip,
+  .definition,
+  .notice {
+    color: #4f5d54;
+  }
+
+  .subtitle {
+    font-size: 16px;
+  }
+
+  .trendBadgeUp,
+  .metriclabel > span {
+    color: #116442 !important;
+  }
+
+  .badge {
+    color: #4b594f;
+  }
+
+  .chartTotalUnit,
+  .minirow > span,
+  .countryLegendBar > span,
+  .cardhead span,
+  .cardhead b,
+  .funnelcol > span {
+    color: #4f5d54 !important;
   }
 }
 

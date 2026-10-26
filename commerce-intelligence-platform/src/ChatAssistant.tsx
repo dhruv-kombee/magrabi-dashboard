@@ -422,7 +422,12 @@ export function ChatAssistant({ filters }: ChatAssistantProps) {
     left: typeof window !== 'undefined' ? window.visualViewport?.offsetLeft || 0 : 0,
     top: typeof window !== 'undefined' ? window.visualViewport?.offsetTop || 0 : 0,
   }))
-  const [showHistory, setShowHistory] = useState(() => typeof window !== 'undefined' && (window.visualViewport?.width || window.innerWidth) > 750)
+  const [showHistory, setShowHistory] = useState(() => {
+    if (typeof window === 'undefined') return false
+    const initialWidth = window.visualViewport?.width || window.innerWidth
+    const initialHeight = window.visualViewport?.height || window.innerHeight
+    return initialWidth > 750 && !(initialWidth <= 900 && initialHeight <= 500)
+  })
   const [historyQuery, setHistoryQuery] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
@@ -433,13 +438,14 @@ export function ChatAssistant({ filters }: ChatAssistantProps) {
   const endRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const launcherRef = useRef<HTMLButtonElement>(null)
   const activeThread = history.conversations.find((item) => item.id === history.activeId)
   const messages = activeThread?.messages.length ? activeThread.messages : [welcomeMessage]
   const visibleThreads = [...history.conversations]
     .filter((item) => item.title.toLowerCase().includes(historyQuery.toLowerCase()))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-  const compactViewport = viewport.width <= 750
-  const virtualMobileViewport = compactViewport && typeof window !== 'undefined' && window.innerWidth > 750
+  const compactViewport = viewport.width <= 750 || (viewport.width <= 900 && viewport.height <= 500)
+  const virtualMobileViewport = viewport.width <= 750 && typeof window !== 'undefined' && window.innerWidth > 750
   const panelStyle: CSSProperties | undefined = virtualMobileViewport ? {
     left: viewport.left + 8, top: viewport.top + 8, right: 'auto', bottom: 'auto',
     width: Math.max(280, viewport.width - 16), height: Math.max(300, viewport.height - 16),
@@ -483,17 +489,45 @@ export function ChatAssistant({ filters }: ChatAssistantProps) {
     const closeOutside = (event: PointerEvent) => {
       if (panelRef.current && !panelRef.current.contains(event.target as Node)) setOpen(false)
     }
-    const closeEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
+    const handleDialogKeys = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false)
+        return
+      }
+      if (event.key !== 'Tab' || !panelRef.current) return
+
+      const focusable = Array.from(
+        panelRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), summary, [href], [tabindex]:not([tabindex="-1"])'),
+      ).filter((element) => element.offsetParent !== null)
+      if (!focusable.length) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
     }
     document.addEventListener('pointerdown', closeOutside)
-    document.addEventListener('keydown', closeEscape)
+    document.addEventListener('keydown', handleDialogKeys)
     inputRef.current?.focus()
     return () => {
       document.removeEventListener('pointerdown', closeOutside)
-      document.removeEventListener('keydown', closeEscape)
+      document.removeEventListener('keydown', handleDialogKeys)
+      window.requestAnimationFrame(() => launcherRef.current?.focus())
     }
   }, [open])
+
+  useEffect(() => {
+    if (!open || !compactViewport) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [open, compactViewport])
 
   useEffect(() => {
     const latest = messages[messages.length - 1]
@@ -615,7 +649,14 @@ export function ChatAssistant({ filters }: ChatAssistantProps) {
 
   if (!open) {
     return (
-      <button className={styles.launcher} style={launcherStyle} type="button" onClick={() => setOpen(true)} aria-label="Open Commerce Assist">
+      <button
+        ref={launcherRef}
+        className={styles.launcher}
+        style={launcherStyle}
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Open Commerce Assist"
+      >
         <span className={styles.sparkIcon}>✦</span>
         <span>Commerce Assist</span>
       </button>
@@ -623,9 +664,9 @@ export function ChatAssistant({ filters }: ChatAssistantProps) {
   }
 
   return (
-    <section ref={panelRef} className={`${styles.panel} ${compactViewport ? styles.compactPanel : ''}`} style={panelStyle} role="dialog" aria-label="Commerce Assist">
+    <section ref={panelRef} className={`${styles.panel} ${compactViewport ? styles.compactPanel : ''}`} style={panelStyle} role="dialog" aria-modal={compactViewport || undefined} aria-label="Commerce Assist">
       <header className={styles.header}>
-        <button className={styles.iconButton} type="button" onClick={() => setShowHistory((value) => !value)} aria-label="Toggle conversation history" title="History">☰</button>
+        <button className={styles.iconButton} type="button" onClick={() => setShowHistory((value) => !value)} aria-label="Toggle conversation history" aria-controls="commerce-assist-history" aria-expanded={showHistory} title="History">☰</button>
         <div className={styles.avatar}><span>✦</span></div>
         <div className={styles.headerCopy}>
           <strong>Commerce Assist</strong>
@@ -635,7 +676,7 @@ export function ChatAssistant({ filters }: ChatAssistantProps) {
         <button className={styles.iconButton} type="button" onClick={() => setOpen(false)} aria-label="Minimize Commerce Assist" title="Minimize">—</button>
       </header>
       <div className={styles.body}>
-        <aside className={`${styles.historyRail} ${showHistory ? styles.historyRailOpen : ''}`} aria-label="Conversation history">
+        <aside id="commerce-assist-history" className={`${styles.historyRail} ${showHistory ? styles.historyRailOpen : ''}`} aria-label="Conversation history" aria-hidden={!showHistory}>
           <div className={styles.railTitle}><span>YOUR CONVERSATIONS</span><span>{history.conversations.length}</span></div>
           <label className={styles.historySearch}>
             <span>⌕</span>

@@ -425,7 +425,11 @@
   background: #13523b;
 }
 
-@media (max-width: 640px) {
+.mobileBackdrop {
+  display: none;
+}
+
+@media (max-width: 900px) {
   .popover,
   .popoverLeft,
   .popoverRight {
@@ -444,7 +448,7 @@
 
   .trigger {
     min-height: 44px;
-    font-size: 13px;
+    font-size: 16px;
   }
 
   .presetBtn,
@@ -452,7 +456,20 @@
   .dayBtn,
   .timeChip,
   .doneBtn {
-    min-height: 40px;
+    min-height: 44px;
+  }
+
+  .mobileBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    display: block;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: rgba(13, 25, 18, 0.36);
+    -webkit-tap-highlight-color: transparent;
   }
 
   .presetsRow {
@@ -468,12 +485,12 @@
   }
 
   .navBtn {
-    width: 40px;
+    width: 44px;
   }
 
   .dayBtn {
-    height: 40px;
-    font-size: 13px;
+    height: 44px;
+    font-size: 14px;
   }
 
   .timeCard {
@@ -491,6 +508,7 @@
   }
 
   .timeChip {
+    font-size: 14px;
     white-space: normal;
   }
 
@@ -505,6 +523,7 @@
 
   .doneBtn {
     padding-inline: 20px;
+    font-size: 14px;
   }
 }
 

@@ -208,11 +208,15 @@
 .userDot { width: 7px; height: 7px; border-radius: 50%; background: #d8b176; }
 .logoutLabel { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.72; }
 
+@media (max-width: 900px) {
+  .logoutButton { min-height: 44px; }
+}
+
 @media (max-width: 600px) {
   .loginPage { padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); align-items: center; }
   .loginCard { padding: 28px 22px; border-radius: 18px; }
   .form input, .submitButton { min-height: 48px; font-size: 16px; }
-  .logoutButton { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); min-height: 40px; padding: 8px 10px; }
+  .logoutButton { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); min-height: 44px; padding: 8px 10px; }
   .logoutLabel { display: none; }
 }
 
