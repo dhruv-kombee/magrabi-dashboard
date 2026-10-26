@@ -77,8 +77,47 @@ export function buildUnifiedOrders(saleorResult, maculaResult, checkedAt = new D
   const omsOrders = omsLive ? maculaResult.orders : null
   const omsPrior = omsLive ? maculaResult.previousOrders : null
   const omsChangePct = Number.isFinite(omsOrders) && Number.isFinite(omsPrior) && omsPrior > 0 ? Math.round(((omsOrders - omsPrior) / omsPrior) * 1000) / 10 : null
+  const sampledMethods = omsLive ? maculaResult.methodCounts || null : null
+  const sampledOnline = sampledMethods ? (sampledMethods['Card / Apple Pay'] || 0) + (sampledMethods.Tabby || 0) + (sampledMethods.Tamara || 0) : 0
+  const sampledCash = sampledMethods?.Cash || 0
+  const sampledTotal = sampledOnline + sampledCash
   return {
     ...saleorResult,
+    status: omsLive ? 'OK' : maculaResult.status,
+    configured: maculaResult.configured,
+    live: omsLive,
+    metricsAvailable: omsLive,
+    source: 'Macula OMS read-only search API',
+    orders: omsOrders,
+    previousOrders: omsPrior,
+    changePct: omsChangePct,
+    todaySoFar: omsLive ? maculaResult.todaySoFar : null,
+    dailyPoints: omsLive ? maculaResult.dailyPoints || [] : [],
+    countryDailyPoints: {},
+    countryBreakdown: omsLive ? maculaResult.countryBreakdown || {} : {},
+    priorCountryBreakdown: omsLive ? maculaResult.priorCountryBreakdown || {} : {},
+    paymentBreakdown: sampledTotal > 0 ? {
+      sampled: true,
+      sampleSize: maculaResult.sampleSize,
+      sampleLimit: maculaResult.sampleLimit,
+      fullCharge: sampledOnline,
+      noneCharge: sampledCash,
+      onlineRate: Math.round((sampledOnline / sampledTotal) * 1000) / 10,
+    } : null,
+    revenueByCurrency: {},
+    priorRevenueByCurrency: {},
+    currencyDailyTrends: {},
+    revenueStatus: 'METRICS_UNAVAILABLE',
+    lastUpdated: maculaResult.checkedAt || checkedAt,
+    primarySource: 'MACULA_OMS',
+    saleor: {
+      status: saleorResult.status,
+      live: saleorResult.live === true,
+      orders: Number.isFinite(saleorResult.orders) ? saleorResult.orders : null,
+      previousOrders: Number.isFinite(saleorResult.previousOrders) ? saleorResult.previousOrders : null,
+      source: 'Saleor diagnostic only; not used for primary dashboard KPIs',
+      checkedAt: saleorResult.checkedAt || saleorResult.lastUpdated || checkedAt,
+    },
     gatewayCounts: null,
     methodCounts: null,
     sampledGatewayCounts: omsLive ? maculaResult.gatewayCounts : null,
@@ -88,7 +127,7 @@ export function buildUnifiedOrders(saleorResult, maculaResult, checkedAt = new D
     reconciliation: { status: omsLive ? 'COUNT_COMPARISON_ONLY' : 'METRICS_UNAVAILABLE', matchedOrderIds: false, checkedAt },
     oms: {
       status: maculaResult.status, live: omsLive, noChannel: Boolean(maculaResult.noChannel), orders: omsOrders, previousOrders: omsPrior,
-      changePct: omsChangePct, exceptions: null, todaySoFar: omsLive ? maculaResult.todaySoFar : null, dailyPoints: [],
+      changePct: omsChangePct, exceptions: null, todaySoFar: omsLive ? maculaResult.todaySoFar : null, dailyPoints: omsLive ? maculaResult.dailyPoints || [] : [],
       checkedAt: maculaResult.checkedAt || checkedAt, source: omsLive ? 'Macula OMS read-only search API' : 'Macula OMS unavailable; no Saleor values substituted',
       error: maculaResult.error,
     },
@@ -116,7 +155,6 @@ export async function handleApiRequest(req, res) {
     if (cached && Date.now() - cached.time < CACHE_TTL_MS) { sendJson(res, { ...cached.data, cache: { hit: true, cachedAt: cached.cachedAt } }); return true }
     try {
       const [saleorResult, maculaResult] = await Promise.all([fetchSaleorSummary(options), fetchMaculaSummary(options)])
-      if (saleorResult.status !== 'OK') { sendJson(res, saleorResult); return true }
       const checkedAt = new Date().toISOString()
       const data = buildUnifiedOrders(saleorResult, maculaResult, checkedAt)
       queryCache.set(cacheKey, { time: Date.now(), cachedAt: checkedAt, data })

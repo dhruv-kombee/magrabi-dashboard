@@ -174,6 +174,12 @@ function projectedOms(result) {
   return {
     status: 'OK', live: true, source: 'Macula OMS',
     orders: numeric(result.orders), previousOrders: numeric(result.previousOrders),
+    changePct: numeric(result.previousOrders) && numeric(result.orders) !== null
+      ? Math.round(((result.orders - result.previousOrders) / result.previousOrders) * 1000) / 10
+      : null,
+    todaySoFar: numeric(result.todaySoFar),
+    countryBreakdown: result.countryBreakdown || {},
+    dailyPoints: Array.isArray(result.dailyPoints) ? result.dailyPoints : [],
     noChannel: Boolean(result.noChannel),
     // The adapter derives gateway mix from at most 100 sample orders; never present it as a full-window total.
     sampledGatewayCounts: result.gatewayCounts || null,
@@ -238,8 +244,8 @@ export async function gatherAssistantContext(rawFilters = {}, query = '', intent
 }
 
 async function loadAssistantContext(scope, intent) {
-  const needOrders = ['orders', 'sales', 'revenue', 'reconciliation', 'payments', 'sources'].includes(intent)
-  const needOms = ['oms_orders', 'sales', 'reconciliation', 'payments', 'sources'].includes(intent)
+  const needOrders = ['reconciliation', 'sources'].includes(intent)
+  const needOms = ['orders', 'oms_orders', 'sales', 'revenue', 'reconciliation', 'payments', 'sources'].includes(intent)
 
   const [saleorRaw, gatewayRaw, trafficRaw, infraRaw] = await Promise.all([
     needOrders ? fetchSaleorSummary(scope).catch(() => null) : null,
@@ -291,7 +297,7 @@ function evidenceList(context) {
     if (source) rows.push({ ...source, facts, note })
   }
 
-  if (context.orders) {
+  if (context.orders && (context.intent === 'reconciliation' || context.intent === 'sources')) {
     const orders = context.orders
     if (context.intent === 'revenue' || context.intent === 'sales') {
       const facts = context.intent === 'sales' ? [{ label: 'Placed orders', value: count(orders.orders) }] : []
@@ -316,7 +322,11 @@ function evidenceList(context) {
     const oms = context.oms
     const facts = context.intent === 'payments'
       ? Object.entries(oms.sampledGatewayCounts || {}).map(([name, value]) => ({ label: `${name} sample count`, value: count(value) }))
-      : [{ label: 'Received orders', value: oms.noChannel ? 'unavailable' : count(oms.orders) }]
+      : [
+          { label: 'Received orders', value: oms.noChannel ? 'unavailable' : count(oms.orders) },
+          { label: 'Prior-window received orders', value: oms.noChannel ? 'unavailable' : count(oms.previousOrders) },
+          { label: 'Change', value: percent(oms.changePct) },
+        ]
     const note = oms.noChannel ? 'No mapped channel for the selected scope.' : context.intent === 'payments' ? 'Gateway attribution comes from at most 100 sampled orders.' : 'OMS receipt count; order IDs are not reconciled here.'
     const row = { ...find('Macula OMS'), facts, note }
     if (context.intent === 'sales') rows.unshift(row)
@@ -330,7 +340,7 @@ function evidenceList(context) {
 
 export function deterministicAnswer(context) {
   const { intent, orders, oms, gateways, traffic, infrastructure, connectors } = context
-  const period = orders?.period || 'the selected window'
+  const period = oms?.period || orders?.period || 'the selected window'
   if (intent === 'outside') return 'I can help with data available through this commerce platform: orders, revenue, payments, traffic, infrastructure, and connector status. I cannot verify information outside those sources.'
   if (intent === 'clarify') return 'I can check that, but I need one detail before fetching data. Do you mean Macula OMS orders received, Saleor placed-order value, or another platform metric? You can also name a country and time period.'
   if (intent === 'unavailable') return 'That topic appears on the commerce platform, but this assistant does not have a verified live data feed for it yet. I cannot give you a reliable number or claim from the dashboard illustration alone.'
@@ -359,26 +369,24 @@ export function deterministicAnswer(context) {
   }
 
   if (intent === 'sales') {
-    const values = Object.entries(orders?.revenueByCurrency || {})
-    const revenue = values.length ? values.map(([currency, value]) => `${currency} ${count(value)}`).join(', ') : 'gross placed-order value unavailable'
-    const received = oms?.live && !oms.noChannel ? `Macula OMS received ${count(oms.orders)} orders` : 'Macula OMS received-order count is unavailable'
-    if (!orders?.live) return `For ${period}, ${received}. Saleor placed-order count and value could not be verified; I will not substitute dashboard illustrations.`
-    return `For ${period}, ${received}. Saleor separately recorded ${count(orders.orders)} placed orders and ${revenue} in gross placed-order value. These are different order stages; Saleor value is not verified OMS-received revenue. Values remain in their original currencies.`
+    if (!oms?.live || oms.noChannel) return `I cannot verify Macula OMS received orders for ${period} right now.`
+    return `For ${period}, Macula OMS received ${count(oms.orders)} orders. Verified full-window revenue is unavailable from the current Macula response, so I will not substitute Saleor or fixture values.`
   }
 
-  if (!orders?.live) return 'I cannot verify the requested order data for this scope. Please check the Saleor connector and try again; I will not substitute sample dashboard figures.'
+  if (oms?.noChannel) return 'Macula OMS has no mapped channel group for this scope, so I cannot present a received-order count. I will not substitute Saleor or sample dashboard figures.'
+  if (!oms?.live) return 'I cannot verify the requested Macula OMS order data for this scope. I will not substitute Saleor or sample dashboard figures.'
 
   if (intent === 'orders' && context.responseHints) {
     const hints = context.responseHints
     const window = hints.rollingMonth && context.scope
       ? `the last 30 days (${scopeDate(context.scope.start, context.scope.tz)}–${scopeDate(context.scope.end, context.scope.tz)}, ${context.scope.tz} time)`
       : period
-    const lines = [`Saleor recorded ${count(orders.orders)} placed orders in ${window}.`]
-    if (hints.compare && numeric(orders.previousOrders) !== null && numeric(orders.orders) !== null) {
-      const difference = orders.orders - orders.previousOrders
+    const lines = [`Macula OMS received ${count(oms.orders)} orders in ${window}.`]
+    if (hints.compare && numeric(oms.previousOrders) !== null && numeric(oms.orders) !== null) {
+      const difference = oms.orders - oms.previousOrders
       const direction = difference < 0 ? 'fewer' : difference > 0 ? 'more' : 'the same number of'
-      const comparison = difference === 0 ? 'no change' : `${count(Math.abs(difference))} ${direction} (${difference > 0 ? '+' : ''}${percent(orders.changePct)})`
-      lines.push(`The prior comparable window had ${count(orders.previousOrders)} orders, so this window had ${comparison}.`)
+      const comparison = difference === 0 ? 'no change' : `${count(Math.abs(difference))} ${direction} (${difference > 0 ? '+' : ''}${percent(oms.changePct)})`
+      lines.push(`The prior comparable window had ${count(oms.previousOrders)} received orders, so this window had ${comparison}.`)
     }
     const definitions = []
     if (hints.saleorDefinition) definitions.push('A Saleor order is created through the storefront and recorded by Saleor; it may not yet be received by Macula OMS.')
@@ -389,16 +397,11 @@ export function deterministicAnswer(context) {
   }
 
   if (intent === 'revenue') {
-    const entries = Object.entries(orders.revenueByCurrency || {})
-    if (!entries.length) return `Saleor has no verified revenue totals for ${period}.`
-    return `I found ${entries.map(([currency, value]) => `${currency} ${count(value)}`).join(', ')} in gross order value for ${period}. I keep currencies separate because no exchange conversion was supplied.`
+    return `Macula OMS does not provide a verified full-window revenue total for ${period}. I will not substitute Saleor placed-order value.`
   }
 
   if (intent === 'payments') {
-    const payment = orders.paymentBreakdown
-    const captured = payment?.fullCharge
-    const uncharged = payment?.noneCharge
-    let answer = `For ${period}, I found ${count(captured)} fully charged orders and ${count(uncharged)} uncharged or cash orders in Saleor. The fully charged share is ${percent(payment?.onlineRate)}; this is not a gateway authorization success rate.`
+    let answer = `For ${period}, full-window payment outcomes are unavailable from Macula OMS.`
     if (oms?.live && oms.sampledGatewayCounts && Object.values(oms.sampledGatewayCounts).some((value) => numeric(value) > 0)) {
       const entries = Object.entries(oms.sampledGatewayCounts)
       answer += ` In a Macula sample of at most ${oms.sampleLimit} orders, attributed payments are ${entries.map(([name, value]) => `${name}: ${count(value)}`).join(', ')}. These are sample counts, not full-window totals.`
@@ -407,19 +410,12 @@ export function deterministicAnswer(context) {
     return answer
   }
 
-  const change = numeric(orders.changePct)
-  let answer = `I found ${count(orders.orders)} Saleor orders for ${period}`
-  if (orders.previousOrders !== null) answer += ` versus ${count(orders.previousOrders)} in the ${orders.comparison || 'previous comparable window'}`
+  const change = numeric(oms.changePct)
+  let answer = `Macula OMS received ${count(oms.orders)} orders for ${period}`
+  if (oms.previousOrders !== null) answer += ` versus ${count(oms.previousOrders)} in the previous comparable window`
   if (change !== null) answer += ` (${change >= 0 ? '+' : ''}${change.toFixed(1)}%)`
   answer += '.'
-  if (oms?.live) {
-    if (oms.noChannel) answer += ' Macula OMS has no mapped channel group for this selection, so its zero count is not comparable.'
-    else {
-      answer += ` Macula OMS reports ${count(oms.orders)} received orders in the same selected window.`
-      if (orders.orders !== null && oms.orders !== null) answer += ` The count difference is ${count(orders.orders - oms.orders)}; this is a count difference, not a confirmed per-order sync exception.`
-    }
-  } else answer += ' Macula OMS receipt could not be verified for this request.'
-  const countryRows = Object.entries(orders.countryBreakdown || {})
+  const countryRows = Object.entries(oms.countryBreakdown || {})
   if (countryRows.length && context.scope.country === 'all') answer += ` Country counts: ${countryRows.map(([code, value]) => `${countryNames[code] || code} ${count(value)}`).join(', ')}.`
   return answer
 }
@@ -478,7 +474,7 @@ export async function interpretQuestionWithModel(query, history = [], filters = 
     'intent: sales|revenue|orders|oms_orders|reconciliation|payments|traffic|infrastructure|sources|unavailable|outside|clarify.',
     'reconciliation means comparing Saleor placed orders with Macula OMS received orders, without asserting a sync failure.',
     'oms_orders means an explicit Macula OMS received-order request without Saleor comparison.',
-    'Sales means Macula OMS received order count plus separately labeled Saleor placed-order value; revenue means money only; orders means count or trend.',
+    'Sales and orders use Macula OMS received-order counts. Revenue means money only. Do not introduce Saleor unless the user explicitly asks for reconciliation or sources.',
     'country: AE|SA|EG|QA|KW|all|null. Saudi Arabia, Saudi Arebia, and Soudi Arebia mean SA.',
     'brand: Magrabi|DoctorM|all|null. period: today|yesterday|rolling_days|selected|null.',
     'days: 1-90 only for rolling_days, otherwise null. Null means no override of dashboard filters.',
@@ -523,6 +519,7 @@ export async function modelAnswer(query, history, context, diagnostics = {}) {
           'Use the reference answer as the factual baseline. Do not add any number or comparison that is not present in the reference answer or verified evidence.',
           'Treat status fields, source labels, and unavailable values literally.',
           'Do not invent metrics, causes, personal data, transactions, or outside facts.',
+          'Macula OMS is the primary source for orders and sales. Do not introduce Saleor unless the question explicitly asks for reconciliation or sources.',
           'Macula OMS received count and Saleor placed count are different stages. Never imply Saleor gross value is verified OMS-received revenue.',
           'Never call a count difference a confirmed per-order sync failure.',
           'Gateway mix is from a sample of at most 100 orders; it is not a full-window total.',
@@ -567,7 +564,7 @@ export async function answerCommerceQuestion({ query, history = [], filters = {}
   const responseHints = parseAnswerNeeds(safeQuery, interpretation)
   const answerContext = { ...context, responseHints, includeCountryBreakdown: responseHints.includeCountryBreakdown }
   const diagnostics = {}
-  // Keep mixed-stage sales figures in a fixed, source-attributed order. Gemini still plans the query.
+  // Keep Macula-primary order answers deterministic. Gemini still plans the query.
   const modelResponse = ['sales', 'oms_orders', 'reconciliation', 'orders'].includes(intent) ? null : await modelAnswer(safeQuery, history, answerContext, diagnostics)
   const answer = modelResponse || deterministicAnswer(answerContext)
   const evidence = evidenceList(answerContext)

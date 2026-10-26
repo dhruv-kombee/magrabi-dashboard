@@ -68,9 +68,11 @@ test('alert evaluation refuses to treat absent telemetry as zero and never dispa
   assert.equal(result.channels.email, 'DISABLED')
 })
 
-test('Saleor counts are not substituted for unavailable Macula counts', () => {
+test('Macula is the primary source and Saleor is never substituted when OMS is unavailable', () => {
   const result = buildUnifiedOrders({ status: 'OK', live: true, orders: 42 }, { status: 'NOT_CONFIGURED', live: false }, '2026-10-26T00:00:00.000Z')
-  assert.equal(result.orders, 42)
+  assert.equal(result.orders, null)
+  assert.equal(result.live, false)
+  assert.equal(result.saleor.orders, 42)
   assert.equal(result.oms.orders, null)
   assert.equal(result.oms.previousOrders, null)
   assert.equal(result.reconciliation.status, 'METRICS_UNAVAILABLE')
@@ -80,6 +82,8 @@ test('Saleor counts are not substituted for unavailable Macula counts', () => {
 test('Macula gateway attribution stays explicitly sampled', () => {
   const result = buildUnifiedOrders({ status: 'OK', live: true, orders: 42 }, { status: 'OK', live: true, orders: 40, previousOrders: 35, todaySoFar: 4, gatewayCounts: { Tabby: 3 }, methodCounts: { Tabby: 3 }, sampleSize: 40, sampleLimit: 100 })
   assert.deepEqual(result.gatewaySample, { status: 'SAMPLED', size: 40, limit: 100 })
+  assert.equal(result.orders, 40)
+  assert.equal(result.primarySource, 'MACULA_OMS')
   assert.equal(result.gatewayCounts, null)
 })
 

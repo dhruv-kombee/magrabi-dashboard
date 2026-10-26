@@ -107,6 +107,33 @@ async function fetchMaculaCount(token, fromDate, toDate, channelGroups) {
   return counts.reduce((a, b) => a + b, 0)
 }
 
+async function mapWithConcurrency(items, limit, mapper) {
+  const results = new Array(items.length)
+  let next = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next++
+      results[index] = await mapper(items[index], index)
+    }
+  })
+  await Promise.all(workers)
+  return results
+}
+
+function buildCountBuckets(startDate, endDate, tzOffset) {
+  const totalDays = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / 86_400_000))
+  const intervalDays = Math.max(1, Math.ceil(totalDays / 31))
+  const buckets = []
+  let cursor = startDate.getTime()
+  while (cursor < endDate.getTime()) {
+    const bucketEnd = Math.min(endDate.getTime(), cursor + intervalDays * 86_400_000)
+    const label = new Date(cursor + tzOffset * 3_600_000).toISOString().slice(0, 10)
+    buckets.push({ date: label, from: new Date(cursor).toISOString(), to: new Date(bucketEnd).toISOString() })
+    cursor = bucketEnd
+  }
+  return buckets
+}
+
 export async function fetchMaculaSummary(options) {
   const { brand = 'all', country = 'all', start, end, tz = 'Dubai' } = options
 
@@ -193,8 +220,11 @@ export async function fetchMaculaSummary(options) {
     Cash: 0,
   }
 
+  const countBuckets = buildCountBuckets(startDate, endDate, tzOffset)
+  const countryCodes = country === 'all' ? ['SA', 'AE', 'EG', 'QA', 'KW'] : [country.toUpperCase()]
+
   try {
-    const [resCurr, resPrior, resToday, resSample] = await Promise.all([
+    const [resCurr, resPrior, resToday, resSample, dailyPoints, countryRows] = await Promise.all([
       fetchMaculaCount(token, currFromIso, currToIso, maculaChannelGroups),
       fetchMaculaCount(token, prevFromIso, prevToIso, maculaChannelGroups),
       fetchMaculaCount(token, todayFromIso, todayToIso, maculaChannelGroups),
@@ -207,6 +237,19 @@ export async function fetchMaculaSummary(options) {
         },
         body: JSON.stringify({ page: 1, limit: 100, fromDate: currFromIso, toDate: currToIso }),
       }, config.requestTimeoutMs).then(({ response, payload }) => response.ok ? payload : null),
+      mapWithConcurrency(countBuckets, 5, async (bucket) => ({
+        date: bucket.date,
+        orders: await fetchMaculaCount(token, bucket.from, bucket.to, maculaChannelGroups),
+      })),
+      mapWithConcurrency(countryCodes, 5, async (code) => {
+        const groups = getMaculaChannelGroups(brand, code)
+        if (!groups.length) return { code, current: 0, prior: 0 }
+        const [current, prior] = await Promise.all([
+          fetchMaculaCount(token, currFromIso, currToIso, groups),
+          fetchMaculaCount(token, prevFromIso, prevToIso, groups),
+        ])
+        return { code, current, prior }
+      }),
     ])
 
     if (resSample && Array.isArray(resSample.content)) {
@@ -239,6 +282,9 @@ export async function fetchMaculaSummary(options) {
       orders: resCurr,
       previousOrders: resPrior,
       todaySoFar: resToday,
+      dailyPoints,
+      countryBreakdown: Object.fromEntries(countryRows.map((row) => [row.code, row.current])),
+      priorCountryBreakdown: Object.fromEntries(countryRows.map((row) => [row.code, row.prior])),
       gatewayCounts,
       methodCounts,
       gatewayCountsStatus: 'SAMPLED',
