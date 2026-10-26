@@ -1,70 +1,66 @@
 import { config, hasEnv } from '../config.js'
+import { connectorError, fetchJson, publicConnectorResult } from './http.js'
 
 export function isInfraConfigured() {
   return hasEnv('ECOM_GRAFANA_TOKEN') || (hasEnv('ECOM_GRAFANA_USER') && hasEnv('ECOM_GRAFANA_PASSWORD'))
 }
 
-export async function fetchInfraTelemetry(options, baseDailyPoints = []) {
-  const configured = isInfraConfigured()
+export function hasGrafanaMetricContract(uid = config.grafana.prometheusUid, latencyQuery = config.grafana.latencyQuery) {
+  return Boolean(uid && latencyQuery)
+}
 
-  // Generate latency percentile curve over time (p50, p95, p99)
-  const latencyTrends = (baseDailyPoints.length > 0 ? baseDailyPoints : [{ date: 'Today', orders: 100 }]).map(
-    (dp, idx) => {
-      // Realistic baseline curves in milliseconds
-      const p50 = 240 + (idx % 3) * 15
-      const p95 = 680 + (idx % 4) * 35
-      const p99 = 1120 + (idx % 2) * 80
-      const cpu = 38 + (idx % 5) * 4
-      const memory = 54 + (idx % 3) * 3
+const authHeader = () => config.grafana.ecomToken ? `Bearer ${config.grafana.ecomToken}` : `Basic ${Buffer.from(`${config.grafana.ecomUser}:${config.grafana.ecomPassword}`).toString('base64')}`
 
-      return {
-        date: dp.date,
-        p50,
-        p95,
-        p99,
-        cpu,
-        memory,
-      }
-    },
-  )
+function parsePrometheusValues(payload) {
+  const rows = payload?.data?.result
+  if (!Array.isArray(rows)) return null
+  return rows.flatMap((series) => (series.values || []).map(([timestamp, value]) => ({ timestamp: Number(timestamp) * 1000, value: Number(value) })))
+    .filter((point) => Number.isFinite(point.timestamp) && Number.isFinite(point.value))
+}
 
-  let liveGrafanaData = null
-  if (configured) {
-    try {
-      const url = `${config.grafana.ecomUrl}/api/health`
-      const authHeader = config.grafana.ecomToken
-        ? `Bearer ${config.grafana.ecomToken}`
-        : `Basic ${Buffer.from(`${config.grafana.ecomUser}:${config.grafana.ecomPassword}`).toString('base64')}`
-      const res = await fetch(url, { headers: { Authorization: authHeader } })
-      if (res.ok) {
-        liveGrafanaData = await res.json()
-      }
-    } catch (err) {
-      console.error('Grafana health query error:', err.message)
+async function queryPrometheus(query, start, end) {
+  const base = config.grafana.ecomUrl.replace(/\/$/, '')
+  const url = new URL(`${base}/api/datasources/proxy/uid/${encodeURIComponent(config.grafana.prometheusUid)}/api/v1/query_range`)
+  url.searchParams.set('query', query)
+  url.searchParams.set('start', String(Math.floor(start / 1000)))
+  url.searchParams.set('end', String(Math.floor(end / 1000)))
+  url.searchParams.set('step', '300')
+  const { response, payload } = await fetchJson(url, { headers: { Authorization: authHeader(), Accept: 'application/json' } }, config.requestTimeoutMs)
+  if (!response.ok) throw new Error(`Grafana metric query returned HTTP ${response.status}.`)
+  const values = parsePrometheusValues(payload)
+  if (!values) throw new Error('Grafana metric response is missing Prometheus result values.')
+  return values
+}
+
+export async function fetchInfraTelemetry(options = {}) {
+  const empty = { latencyTrends: [], services: [], database: null }
+  if (!isInfraConfigured()) return publicConnectorResult({ status: 'NOT_CONFIGURED', configured: false, source: 'Grafana / Prometheus', missing: ['ECOM_GRAFANA_TOKEN'], ...empty })
+  const checkedAt = new Date().toISOString()
+  try {
+    const { response, payload } = await fetchJson(`${config.grafana.ecomUrl.replace(/\/$/, '')}/api/health`, { headers: { Authorization: authHeader(), Accept: 'application/json' } }, config.requestTimeoutMs)
+    if (response.status === 401 || response.status === 403) return publicConnectorResult({ status: 'AUTHENTICATION_FAILED', configured: true, source: 'Grafana', httpStatus: response.status, checkedAt, ...empty })
+    if (!response.ok) return publicConnectorResult({ status: 'ERROR', configured: true, source: 'Grafana', httpStatus: response.status, error: `Grafana health returned HTTP ${response.status}.`, checkedAt, ...empty })
+    if (!payload || typeof payload !== 'object') return publicConnectorResult({ status: 'CONNECTED_BUT_REQUIRED_FIELDS_MISSING', configured: true, live: true, source: 'Grafana', checkedAt, ...empty })
+    if (!hasGrafanaMetricContract()) {
+      return publicConnectorResult({
+        status: 'METRICS_UNAVAILABLE', configured: true, live: true, metricsAvailable: false, source: 'Grafana health', checkedAt,
+        health: { database: payload.database ?? null, version: payload.version ?? null }, ...empty,
+        message: 'Grafana health is verified, but no Prometheus datasource/query contract is configured.',
+      })
     }
-  }
-
-  return {
-    status: configured ? 'OK' : 'PENDING_CONFIG',
-    live: configured && liveGrafanaData !== null,
-    source: configured ? 'Production Grafana & Prometheus Datasource' : 'Infrastructure & APM Telemetry (Integration Ready)',
-    missing: configured ? [] : ['ECOM_GRAFANA_TOKEN'],
-    latencyTrends,
-    currentP95: 820,
-    services: [
-      { name: 'Saleor Admin API', cpu: 58, mem: 67, pods: '4 / 4 ready' },
-      { name: 'Saleor Checkout API', cpu: 39, mem: 54, pods: '4 / 4 ready' },
-      { name: 'GraphQL Cache', cpu: 24, mem: 42, pods: '8 / 8 ready' },
-    ],
-    database: {
-      cpu: 38,
-      activeConnections: 84,
-      connectionLimit: 300,
-      longQueries: 2,
-      waitingLocks: 1,
-    },
-    message: configured
-      ? 'Grafana observability connection active.'
-      : 'Grafana service token pending in .env. Ready to stream pod metrics once provided.',
+    const end = Number(options.end) || Date.now()
+    const start = Number(options.start) || end - 3_600_000
+    const [latency, cpu, memory] = await Promise.all([
+      queryPrometheus(config.grafana.latencyQuery, start, end),
+      config.grafana.cpuQuery ? queryPrometheus(config.grafana.cpuQuery, start, end) : Promise.resolve([]),
+      config.grafana.memoryQuery ? queryPrometheus(config.grafana.memoryQuery, start, end) : Promise.resolve([]),
+    ])
+    return publicConnectorResult({
+      status: latency.length ? 'LIVE_VERIFIED' : 'CONNECTED_BUT_REQUIRED_FIELDS_MISSING', configured: true, live: true, metricsAvailable: latency.length > 0,
+      source: 'Grafana Prometheus datasource', checkedAt, latencyTrends: latency.map((point) => ({ timestamp: point.timestamp, p95: point.value })),
+      cpuTrends: cpu, memoryTrends: memory, services: [], database: null,
+    })
+  } catch (error) {
+    return publicConnectorResult({ ...connectorError(error), configured: true, source: 'Grafana / Prometheus', checkedAt, ...empty })
   }
 }

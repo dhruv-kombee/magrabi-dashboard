@@ -28,7 +28,15 @@ const server = http.createServer(async (req, res) => {
   }
 
   // 2. Serve static SPA assets from dist/
-  let filePath = path.join(distDir, req.url.split('?')[0])
+  let pathname
+  try { pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname) } catch { res.writeHead(400); res.end('Bad request.'); return }
+  const relativePath = pathname.replace(/^[/\\]+/, '')
+  let filePath = path.resolve(distDir, relativePath)
+  if (filePath !== distDir && !filePath.startsWith(`${distDir}${path.sep}`)) {
+    res.writeHead(400, { 'Content-Type': 'text/plain; charset=UTF-8' })
+    res.end('Bad request.')
+    return
+  }
 
   // Check if file exists; if not, fallback to index.html (SPA routing)
   if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {

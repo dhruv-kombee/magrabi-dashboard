@@ -1,147 +1,105 @@
 import { config, hasEnv } from '../config.js'
+import { connectorError, fetchJson, publicConnectorResult } from './http.js'
 
-export function isTrafficConfigured() {
-  const hasSp = hasEnv('AZURE_CLIENT_ID') && hasEnv('AZURE_CLIENT_SECRET')
-  const hasUser = hasEnv('AZURE_USERNAME') && hasEnv('AZURE_PASSWORD')
-  return hasSp || hasUser
+export function getTrafficConfiguration() {
+  const servicePrincipal = hasEnv('AZURE_CLIENT_ID') && hasEnv('AZURE_CLIENT_SECRET') && hasEnv('AZURE_TENANT_ID')
+  const userAccount = hasEnv('AZURE_USERNAME') && hasEnv('AZURE_PASSWORD')
+  return { configured: servicePrincipal || userAccount, servicePrincipal, userAccount }
 }
+
+export function isTrafficConfigured() { return getTrafficConfiguration().configured }
 
 let cachedAzureToken = null
 let azureTokenExpiry = 0
-let lastAuthNotice = null
 
-async function getAzureMonitorToken() {
-  if (cachedAzureToken && Date.now() < azureTokenExpiry) {
-    return cachedAzureToken
-  }
-
-  const { tenantId, clientId, clientSecret, username, password } = config.azure
-
-  // 1. Try Service Principal (Client Credentials) if configured
-  if (tenantId && clientId && clientSecret) {
-    try {
-      const res = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          grant_type: 'client_credentials',
-          client_id: clientId,
-          client_secret: clientSecret,
-          scope: 'https://management.azure.com/.default',
-        }),
-      })
-      if (res.ok) {
-        const json = await res.json()
-        cachedAzureToken = json.access_token
-        azureTokenExpiry = Date.now() + (json.expires_in - 120) * 1000
-        lastAuthNotice = null
-        return cachedAzureToken
-      }
-    } catch (err) {
-      console.error('Azure Monitor SP token error:', err.message)
-    }
-  }
-
-  // 2. Try User Account (devops.magrabi@forchunex.com)
-  if (username && password) {
-    try {
-      const tenant = tenantId || 'cc9b4a8c-1b70-4347-acd3-80d32f102f2f'
-      const res = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          grant_type: 'password',
-          client_id: '04b07795-8ddb-461a-bbee-02f9e1bf7b46', // Azure CLI well-known client ID
-          username,
-          password,
-          scope: 'https://management.azure.com/.default openid offline_access',
-        }),
-      })
-      const json = await res.json()
-      if (res.ok) {
-        cachedAzureToken = json.access_token
-        azureTokenExpiry = Date.now() + (json.expires_in - 120) * 1000
-        lastAuthNotice = null
-        return cachedAzureToken
-      } else {
-        if (json.error_description?.includes('AADSTS50079') || json.error === 'invalid_grant') {
-          lastAuthNotice = 'MFA_REQUIRED: Azure Entra ID enforces Multi-Factor Authentication on this user account. Use this account in Azure Portal to create a Service Principal (App Registration) with Monitoring Reader.'
-        }
-      }
-    } catch (err) {
-      console.error('Azure Monitor user token error:', err.message)
-    }
-  }
-
-  return null
+export function classifyAzureAuthFailure(payload, authType, httpStatus) {
+  const description = String(payload?.error_description || '')
+  const mfa = /AADSTS(?:50076|50079)|multi-factor|mfa/i.test(description) || (authType === 'UserAccount' && payload?.error === 'invalid_grant')
+  return mfa ? 'MFA_UNSUPPORTED' : httpStatus === 401 || httpStatus === 403 ? 'AUTHENTICATION_FAILED' : 'ERROR'
 }
 
-export async function fetchTrafficTelemetry(options, baseDailyPoints = []) {
-  const configured = isTrafficConfigured()
-  let liveAzureMetrics = null
+async function requestToken(body, authType) {
+  try {
+    const tenant = config.azure.tenantId
+    const { response, payload } = await fetchJson(`https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/token`, {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(body),
+    }, config.requestTimeoutMs)
+    if (!response.ok || typeof payload?.access_token !== 'string') {
+      return { status: classifyAzureAuthFailure(payload, authType, response.status), authType, httpStatus: response.status }
+    }
+    cachedAzureToken = payload.access_token
+    azureTokenExpiry = Date.now() + Math.max(60, Number(payload.expires_in) - 120) * 1000
+    return { status: 'LIVE_VERIFIED', authType, token: cachedAzureToken }
+  } catch (error) {
+    return { ...connectorError(error), authType }
+  }
+}
 
-  if (configured) {
-    const token = await getAzureMonitorToken()
-    if (token) {
-      try {
-        const { subscriptionId, resourceGroup, profileName } = config.azure
-        const metricUrl = `https://management.azure.com/subscriptions/${subscriptionId}/resourceGroups/${resourceGroup}/providers/Microsoft.Cdn/profiles/${profileName}/providers/microsoft.insights/metrics?api-version=2018-01-01&metricnames=RequestCount,ClientLatency&timespan=PT1H`
-        const res = await fetch(metricUrl, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        })
-        if (res.ok) {
-          liveAzureMetrics = await res.json()
-        }
-      } catch (err) {
-        console.error('Azure Monitor metrics query error:', err.message)
+export async function getAzureMonitorToken() {
+  if (cachedAzureToken && Date.now() < azureTokenExpiry) return { status: 'LIVE_VERIFIED', authType: 'Cached', token: cachedAzureToken }
+  const available = getTrafficConfiguration()
+  if (available.servicePrincipal) {
+    return requestToken({ grant_type: 'client_credentials', client_id: config.azure.clientId, client_secret: config.azure.clientSecret, scope: 'https://management.azure.com/.default' }, 'ServicePrincipal')
+  }
+  if (available.userAccount) {
+    return requestToken({ grant_type: 'password', client_id: '04b07795-8ddb-461a-bbee-02f9e1bf7b46', username: config.azure.username, password: config.azure.password, scope: 'https://management.azure.com/.default openid offline_access' }, 'UserAccount')
+  }
+  return { status: 'NOT_CONFIGURED', authType: 'None' }
+}
+
+function metricPoints(payload) {
+  if (!Array.isArray(payload?.value)) return null
+  const points = []
+  for (const metric of payload.value) {
+    const name = metric?.name?.value || metric?.name?.localizedValue
+    for (const series of metric?.timeseries || []) {
+      for (const point of series?.data || []) {
+        const value = point.total ?? point.average ?? point.maximum ?? point.minimum
+        if (name && point.timeStamp && Number.isFinite(Number(value))) points.push({ metric: name, timestamp: point.timeStamp, value: Number(value) })
       }
     }
   }
+  return points
+}
 
-  // Generate time-series traffic points for Throughput vs Error Spikes Trend Chart
-  const trafficTrends = (baseDailyPoints.length > 0 ? baseDailyPoints : [{ date: 'Today', orders: 100 }]).map(
-    (dp, idx) => {
-      const baseRequests = Math.max(1000, dp.orders * 240)
-      const count2xx = Math.round(baseRequests * 0.942)
-      const count3xx = Math.round(baseRequests * 0.041)
-      const count4xx = Math.round(baseRequests * 0.014)
-      const count5xx = Math.round(baseRequests * 0.003)
-      const rps = Math.round((baseRequests / 86400) * 10) / 10
-
-      return {
-        date: dp.date,
-        totalRequests: baseRequests,
-        rps,
-        code2xx: count2xx,
-        code3xx: count3xx,
-        code4xx: count4xx,
-        code5xx: count5xx,
-        errorRatePct: Math.round(((count4xx + count5xx) / baseRequests) * 1000) / 10,
-        graphqlErrors: Math.round(dp.orders * 0.04),
-      }
-    },
-  )
-
-  return {
-    status: configured ? 'OK' : 'PENDING_CONFIG',
-    live: configured && liveAzureMetrics !== null,
-    source: configured ? 'Azure Front Door Monitor REST API' : 'Edge Traffic Telemetry (Integration Ready)',
-    missing: configured ? [] : ['AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET'],
-    authNotice: lastAuthNotice,
-    trafficTrends,
-    httpCodes: {
-      '2xx': trafficTrends.reduce((a, b) => a + b.code2xx, 0),
-      '3xx': trafficTrends.reduce((a, b) => a + b.code3xx, 0),
-      '4xx': trafficTrends.reduce((a, b) => a + b.code4xx, 0),
-      '5xx': trafficTrends.reduce((a, b) => a + b.code5xx, 0),
-    },
-    message: lastAuthNotice
-      ? lastAuthNotice
-      : configured
-      ? 'Live Azure Front Door Edge telemetry connected.'
-      : 'Azure Monitor credentials pending in .env. Ready to stream live edge requests once provided.',
+export async function fetchTrafficTelemetry(options = {}) {
+  const configuration = getTrafficConfiguration()
+  const empty = { trafficTrends: [], httpCodes: null }
+  if (!configuration.configured) return publicConnectorResult({ status: 'NOT_CONFIGURED', configured: false, source: 'Azure Monitor', missing: ['AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET'], auth: { servicePrincipal: 'NOT_CONFIGURED', userAccount: 'NOT_CONFIGURED' }, ...empty })
+  const auth = await getAzureMonitorToken()
+  if (!auth.token) return publicConnectorResult({ status: auth.status, configured: true, source: 'Azure Monitor', auth: { type: auth.authType, status: auth.status }, httpStatus: auth.httpStatus, ...empty })
+  try {
+    const end = new Date(Number(options.end) || Date.now())
+    const start = new Date(Number(options.start) || end.getTime() - 3_600_000)
+    const resourceId = `/subscriptions/${config.azure.subscriptionId}/resourceGroups/${config.azure.resourceGroup}/providers/Microsoft.Cdn/profiles/${config.azure.profileName}`
+    const url = new URL(`https://management.azure.com${resourceId}/providers/microsoft.insights/metrics`)
+    url.searchParams.set('api-version', '2018-01-01')
+    url.searchParams.set('metricnames', config.azure.metricNames)
+    url.searchParams.set('timespan', `${start.toISOString()}/${end.toISOString()}`)
+    url.searchParams.set('interval', 'PT5M')
+    url.searchParams.set('aggregation', 'Total,Average')
+    const { response, payload } = await fetchJson(url, { headers: { Authorization: `Bearer ${auth.token}`, Accept: 'application/json' } }, config.requestTimeoutMs)
+    if (response.status === 401 || response.status === 403) return publicConnectorResult({ status: 'AUTHENTICATION_FAILED', configured: true, source: 'Azure Monitor metrics', httpStatus: response.status, auth: { type: auth.authType, status: 'LIVE_VERIFIED' }, ...empty })
+    if (!response.ok) return publicConnectorResult({ status: 'ERROR', configured: true, source: 'Azure Monitor metrics', httpStatus: response.status, error: `Azure Monitor metrics returned HTTP ${response.status}.`, auth: { type: auth.authType, status: 'LIVE_VERIFIED' }, ...empty })
+    const points = metricPoints(payload)
+    if (!points || points.length === 0) return publicConnectorResult({ status: 'CONNECTED_BUT_REQUIRED_FIELDS_MISSING', configured: true, live: true, source: 'Azure Monitor metrics', auth: { type: auth.authType, status: 'LIVE_VERIFIED' }, responseShape: Array.isArray(payload?.value) ? 'value[] without numeric datapoints' : 'missing value[]', ...empty })
+    const grouped = new Map()
+    for (const point of points) {
+      const row = grouped.get(point.timestamp) || { timestamp: point.timestamp }
+      if (/requestcount/i.test(point.metric)) row.totalRequests = point.value
+      if (/latency/i.test(point.metric)) row.clientLatency = point.value
+      grouped.set(point.timestamp, row)
+    }
+    const trafficTrends = [...grouped.values()].sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp)).map((row) => ({
+      ...row,
+      rps: Number.isFinite(row.totalRequests) ? Math.round((row.totalRequests / 300) * 100) / 100 : null,
+    }))
+    return publicConnectorResult({
+      status: 'LIVE_VERIFIED', configured: true, live: true, metricsAvailable: true, source: 'Azure Front Door / Azure Monitor',
+      auth: { type: auth.authType, status: 'LIVE_VERIFIED' }, trafficTrends, httpCodes: null,
+      message: 'Only metrics returned by Azure Monitor are exposed. HTTP status buckets remain unavailable unless configured metrics provide them.',
+    })
+  } catch (error) {
+    return publicConnectorResult({ ...connectorError(error), configured: true, source: 'Azure Monitor metrics', auth: { type: auth.authType, status: 'LIVE_VERIFIED' }, ...empty })
   }
 }

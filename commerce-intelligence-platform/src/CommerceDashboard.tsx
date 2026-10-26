@@ -25,6 +25,7 @@ import {
 } from './fixtures'
 import styles from './CommerceDashboard.module.css'
 import { CustomDatePicker } from './CustomDatePicker'
+import { isFreshLiveSnapshot, markSnapshotStale } from './liveState'
 
 const sectionConfig: Array<{ key: SectionKey; label: string; title: string; subtitle: string }> = [
   {
@@ -74,23 +75,23 @@ const sectionConfig: Array<{ key: SectionKey; label: string; title: string; subt
 const sourceCatalog = [
   {
     name: 'OMS / downstream receipt',
-    status: 'Live Production Connected',
+    status: 'Runtime verification required',
     scope:
       'Orders received by OMS, fulfilment state and handoff exceptions — reconciled against Saleor orders placed.',
-    need: 'Production API connected via macula-api.magrabi.com; orders and payments actively ingested.',
+    need: 'Supply read-only credentials and verify the current response contract.',
     owner: 'Macula OMS + backend',
-    badgeText: '● LIVE PROD',
-    isLive: true,
+    badgeText: 'VERIFY AT RUNTIME',
+    isLive: false,
   },
   {
     name: 'Saleor / placed orders + payments',
-    status: 'Live Production Connected',
+    status: 'Runtime verification required',
     scope:
       'Authoritative order creation, country channels, charge status and revenue streams.',
-    need: 'Production GraphQL connected via ecom-app-api.magrabi.com/graphql; queries active.',
+    need: 'Supply read-only credentials and verify the current GraphQL response contract.',
     owner: 'Saleor Core + DevOps',
-    badgeText: '● LIVE PROD',
-    isLive: true,
+    badgeText: 'VERIFY AT RUNTIME',
+    isLive: false,
   },
   {
     name: 'Payment gateways',
@@ -269,7 +270,7 @@ export function CommerceDashboard() {
     label: string
     todayHourly: number | null
     todayCumulative: number | null
-    yesterdayCumulative: number
+    yesterdayCumulative: number | null
     x: number
     y: number
   } | null>(null)
@@ -359,12 +360,13 @@ export function CommerceDashboard() {
     orders: number
   }
   interface LiveOmsSummary {
+    status?: string
     live: boolean
-    orders: number
-    previousOrders: number
-    changePct: number
+    orders: number | null
+    previousOrders: number | null
+    changePct: number | null
     exceptions: number | null
-    todaySoFar: number
+    todaySoFar: number | null
     source: string
     dailyPoints?: LiveDailyPoint[]
     noChannel?: boolean
@@ -383,9 +385,9 @@ export function CommerceDashboard() {
     label: string
     todayHourly: number | null
     todayCumulative: number | null
-    yesterdayHourly: number
-    yesterdayCumulative: number
-    baselineCumulative: number
+    yesterdayHourly: number | null
+    yesterdayCumulative: number | null
+    baselineCumulative: number | null
   }
   interface LiveSyncDeltaPoint {
     date: string
@@ -427,10 +429,16 @@ export function CommerceDashboard() {
     syncDeltaTrend?: LiveSyncDeltaPoint[]
     gatewayCounts?: Record<string, number>
     methodCounts?: Record<string, number>
+    sampledGatewayCounts?: Record<string, number> | null
+    sampledMethodCounts?: Record<string, number> | null
+    gatewaySample?: { status: string; size: number; limit: number } | null
     oms?: LiveOmsSummary
     error?: string
     message?: string
     missing?: string[]
+    stale?: boolean
+    checkedAt?: string
+    revenueStatus?: string
   }
 
   // Storage cache helper for instant live data hydration on page reload
@@ -442,7 +450,7 @@ export function CommerceDashboard() {
         const exactKey = `${LIVE_CACHE_KEY}_${brand}_${country}_${start}_${end}_${timezone}`
         const cached = localStorage.getItem(exactKey)
         if (cached) {
-          return JSON.parse(cached) as LiveSaleorSummary
+          return markSnapshotStale(JSON.parse(cached) as LiveSaleorSummary)
         }
       }
     } catch {
@@ -462,7 +470,8 @@ export function CommerceDashboard() {
     }
     return true
   })
-  const [, setLiveError] = useState<string | null>(null)
+  const [liveError, setLiveError] = useState<string | null>(null)
+  const [telemetryErrors, setTelemetryErrors] = useState<string[]>([])
 
   // Additional Endpoints State
   const [healthData, setHealthData] = useState<any>(null)
@@ -472,30 +481,22 @@ export function CommerceDashboard() {
 
   useEffect(() => {
     let isMounted = true
-
-    // Fetch Health Matrix
-    fetch('/api/commerce/health')
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (isMounted && d) setHealthData(d) })
-      .catch(() => {})
-
-    // Fetch Gateway Telemetry
-    fetch('/api/commerce/gateways/telemetry')
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (isMounted && d) setGatewaysTelemetry(d) })
-      .catch(() => {})
-
-    // Fetch Traffic Telemetry
-    fetch('/api/commerce/traffic/edge')
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (isMounted && d) setTrafficTelemetry(d) })
-      .catch(() => {})
-
-    // Fetch Infra Telemetry
-    fetch('/api/commerce/infra/apm')
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (isMounted && d) setInfraTelemetry(d) })
-      .catch(() => {})
+    const load = async (label: string, url: string, setter: (value: any) => void) => {
+      try {
+        const response = await fetch(url)
+        const payload = await response.json()
+        if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`)
+        if (isMounted) setter(payload)
+      } catch (error) {
+        if (isMounted) setTelemetryErrors((current) => [...new Set([...current, `${label}: ${error instanceof Error ? error.message : 'request failed'}`])])
+      }
+    }
+    void Promise.all([
+      load('Connector inventory', '/api/commerce/health', setHealthData),
+      load('Payment gateways', '/api/commerce/gateways/telemetry', setGatewaysTelemetry),
+      load('Azure Monitor', '/api/commerce/traffic/edge', setTrafficTelemetry),
+      load('Grafana/APM', '/api/commerce/infra/apm', setInfraTelemetry),
+    ])
 
     return () => { isMounted = false }
   }, [])
@@ -506,7 +507,7 @@ export function CommerceDashboard() {
     try {
       const cached = localStorage.getItem(exactKey)
       if (cached && isMounted) {
-        setLiveSaleor(JSON.parse(cached))
+        setLiveSaleor(markSnapshotStale(JSON.parse(cached)))
       }
     } catch {
       // ignore
@@ -520,7 +521,7 @@ export function CommerceDashboard() {
       })
       .then((data) => {
         if (isMounted) {
-          setLiveSaleor(data)
+          setLiveSaleor({ ...data, stale: false })
           if (data.status === 'OK' && data.live) {
             setLiveError(null)
             try {
@@ -537,6 +538,7 @@ export function CommerceDashboard() {
       .catch((err) => {
         if (isMounted) {
           setLiveError(err.message)
+          setLiveSaleor((current) => current ? markSnapshotStale(current) : null)
         }
       })
       .finally(() => {
@@ -795,9 +797,9 @@ export function CommerceDashboard() {
         notifyTeams: simTeams,
         notifyEmail: simEmail,
         currentMetrics: {
-          orders: liveSaleor ? liveSaleor.orders : currentAgg.orders,
-          onlineRate: liveSaleor?.paymentBreakdown?.onlineRate ?? 68.0,
-          errorRatePct: 0.3,
+          orders: liveSaleor?.live && !liveSaleor.stale ? liveSaleor.orders : undefined,
+          onlineRate: liveSaleor?.live && !liveSaleor.stale ? liveSaleor.paymentBreakdown?.onlineRate : undefined,
+          errorRatePct: trafficTelemetry?.metricsAvailable ? trafficTelemetry.errorRatePct : undefined,
         },
       }),
     })
@@ -808,7 +810,7 @@ export function CommerceDashboard() {
             triggered: data.result.triggered,
             volumeOk: true,
             text: data.result.text,
-            subtext: `${data.result.subtext} Dispatch: Teams (${data.result.channels.teams}) | Email (${data.result.channels.email})`,
+            subtext: `${data.result.subtext} Delivery is disabled in simulation mode.`,
           })
           showToast('Alert rule evaluated by live backend engine.')
         }
@@ -1058,7 +1060,7 @@ export function CommerceDashboard() {
       start,
       end,
       timezone,
-      liveSaleor,
+      liveSaleor: isFreshLiveSnapshot(liveSaleor) ? liveSaleor : null,
       dailyPoints,
       currentWindowDays,
       comparisonWindowLabel,
@@ -1090,31 +1092,21 @@ export function CommerceDashboard() {
   }, [liveSaleor?.dailyPoints, liveSaleor?.previousOrders, liveSaleor?.orders, dailyPoints, priorAgg, currentAgg])
 
   const omsSparkline = useMemo(() => {
-    if (liveSaleor?.dailyPoints && liveSaleor.dailyPoints.length > 1) {
-      return liveSaleor.dailyPoints.map((p) => Math.max(0, Math.round(p.orders * 0.98)))
+    if (liveSaleor?.oms?.dailyPoints && liveSaleor.oms.dailyPoints.length > 1) {
+      return liveSaleor.oms.dailyPoints.map((p) => p.orders)
     }
-    if (liveSaleor?.oms && liveSaleor.oms.previousOrders !== undefined) {
+    if (liveSaleor?.oms?.live && liveSaleor.oms.previousOrders !== null && liveSaleor.oms.orders !== null) {
       return [liveSaleor.oms.previousOrders, liveSaleor.oms.orders]
     }
-    if (dailyPoints && dailyPoints.length > 1) {
-      return dailyPoints.map((p) => Math.max(0, Math.round(p[1] * 0.98)))
-    }
-    if (priorAgg && currentAgg) {
-      return [Math.round(priorAgg.orders * 0.98), Math.round(currentAgg.orders * 0.98)]
-    }
     return []
-  }, [liveSaleor?.dailyPoints, liveSaleor?.oms?.previousOrders, liveSaleor?.oms?.orders, dailyPoints, priorAgg, currentAgg])
+  }, [liveSaleor?.oms?.dailyPoints, liveSaleor?.oms?.live, liveSaleor?.oms?.previousOrders, liveSaleor?.oms?.orders])
 
   const paymentSparkline = useMemo(() => {
-    if (liveSaleor?.dailyPoints && liveSaleor.dailyPoints.length > 1) {
-      const rate = (liveSaleor?.paymentBreakdown?.onlineRate ?? 68) / 100
-      return liveSaleor.dailyPoints.map((p) => Math.max(0, Math.round(p.orders * rate)))
-    }
     if (liveSaleor?.paymentBreakdown && liveSaleor.paymentBreakdown.priorOnlineRate !== undefined) {
       return [liveSaleor.paymentBreakdown.priorOnlineRate, liveSaleor.paymentBreakdown.onlineRate]
     }
     return []
-  }, [liveSaleor?.dailyPoints, liveSaleor?.paymentBreakdown])
+  }, [liveSaleor?.paymentBreakdown])
 
   const currConvRate = useMemo(() => {
     return currentAgg.steps[0] > 0 ? (currentAgg.orders / currentAgg.steps[0]) * 100 : 0
@@ -1169,6 +1161,7 @@ export function CommerceDashboard() {
     if (liveSaleor?.countryDailyPoints && Object.keys(liveSaleor.countryDailyPoints).length > 0) {
       return liveSaleor.countryDailyPoints
     }
+    if (liveSaleor?.live) return {}
     const dates = dailyPoints.map((p) => p[0])
     const result: Record<string, Array<{ date: string; orders: number }>> = {}
 
@@ -1225,14 +1218,9 @@ export function CommerceDashboard() {
 
   // Payment daily trend data
   const paymentDailyPoints = useMemo(() => {
-    const rate = (liveSaleor?.paymentBreakdown?.onlineRate ?? 66.6) / 100
-    return dailyPoints.map(([date, totalOrders]) => {
-      const captured = Math.round(totalOrders * rate)
-      const cash = Math.max(0, totalOrders - captured)
-      const ratePct = totalOrders > 0 ? (captured / totalOrders) * 100 : 0
-      return { date, totalOrders, captured, cash, ratePct }
-    })
-  }, [dailyPoints, liveSaleor?.paymentBreakdown])
+    // Window-level charge status cannot be distributed across days without daily source fields.
+    return [] as Array<{ date: string; totalOrders: number; captured: number; cash: number; ratePct: number }>
+  }, [])
 
   const maxPaymentDailyOrders = Math.max(1, ...paymentDailyPoints.map((p) => p.totalOrders))
   const paymentChartW = 480
@@ -1334,12 +1322,12 @@ export function CommerceDashboard() {
     const padR = 20
     const padT = 20
     const padB = 30
-    const maxVal = Math.max(1, ...hourlyData.map((d) => Math.max(d.todayCumulative ?? 0, d.yesterdayCumulative, d.baselineCumulative))) * 1.15
+    const maxVal = Math.max(1, ...hourlyData.map((d) => Math.max(d.todayCumulative ?? 0, d.yesterdayCumulative ?? 0, d.baselineCumulative ?? 0))) * 1.15
     const getX = (idx: number) => padL + (idx / 23) * (w - padL - padR)
     const getY = (val: number) => padT + (1 - val / maxVal) * (h - padT - padB)
 
-    const yesterdayPath = hourlyData.map((d, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(d.yesterdayCumulative)}`).join(' ')
-    const baselinePath = hourlyData.map((d, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(d.baselineCumulative)}`).join(' ')
+    const yesterdayPath = hourlyData.every((d) => d.yesterdayCumulative !== null) ? hourlyData.map((d, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(d.yesterdayCumulative!)}`).join(' ') : ''
+    const baselinePath = hourlyData.every((d) => d.baselineCumulative !== null) ? hourlyData.map((d, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(d.baselineCumulative!)}`).join(' ') : ''
     const todayPoints = hourlyData.filter((d) => d.todayCumulative !== null)
     const todayPath = todayPoints.map((d, i) => `${i === 0 ? 'M' : 'L'} ${getX(d.hour)} ${getY(d.todayCumulative!)}`).join(' ')
 
@@ -1347,7 +1335,7 @@ export function CommerceDashboard() {
       <article className={styles.card} style={{ marginTop: '16px' }}>
         <div className={styles.cardhead}>
           <div>
-            <h2>Saleor placed-order intraday run-rate (today vs yesterday)</h2>
+            <h2>Saleor placed-order intraday run-rate</h2>
             <p>24-hour cumulative placed-order pace from Saleor in {timezone} · not an OMS receipt series</p>
           </div>
           <span className={`${styles.badge} ${liveSaleor?.live ? styles.badgeLive : styles.badgePending}`}>
@@ -1356,14 +1344,14 @@ export function CommerceDashboard() {
         </div>
         <div className={styles.cardbody}>
           <div className={styles.chartLegend}>
-            <span className={styles.chartLegendBadge}>
+            {yesterdayPath && <span className={styles.chartLegendBadge}>
               <span className={styles.chartLegendDot} style={{ background: '#1a7f5a' }}></span>
               Today Cumulative Pace
-            </span>
-            <span className={styles.chartLegendBadge}>
+            </span>}
+            {baselinePath && <span className={styles.chartLegendBadge}>
               <span className={styles.chartLegendDot} style={{ background: '#64748b' }}></span>
               Yesterday Cumulative Pace (Dashed)
-            </span>
+            </span>}
             <span className={styles.chartLegendBadge}>
               <span className={styles.chartLegendDot} style={{ background: '#cbd5e1' }}></span>
               Baseline Run-Rate (Dotted)
@@ -1388,7 +1376,7 @@ export function CommerceDashboard() {
                 </div>
                 <div className={styles.chartTooltipSubtext}>
                   {intradayHover.todayHourly !== null ? `+${intradayHover.todayHourly} orders in this hour · ` : ''}
-                  Yesterday pace: {fmt(intradayHover.yesterdayCumulative)} orders
+                  {intradayHover.yesterdayCumulative === null ? 'Historical hourly pace unavailable' : `Yesterday pace: ${fmt(intradayHover.yesterdayCumulative)} orders`}
                 </div>
               </div>
             )}
@@ -1410,8 +1398,8 @@ export function CommerceDashboard() {
                   {String(hr).padStart(2, '0')}:00
                 </text>
               ))}
-              <path d={baselinePath} fill="none" stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="2 3" />
-              <path d={yesterdayPath} fill="none" stroke="#64748b" strokeWidth="1.8" strokeDasharray="4 4" />
+              {baselinePath && <path d={baselinePath} fill="none" stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="2 3" />}
+              {yesterdayPath && <path d={yesterdayPath} fill="none" stroke="#64748b" strokeWidth="1.8" strokeDasharray="4 4" />}
               {todayPath && <path d={todayPath} fill="none" stroke="#1a7f5a" strokeWidth="2.5" strokeLinecap="round" />}
               {todayPoints.map((d) => {
                 const cx = getX(d.hour)
@@ -1740,16 +1728,8 @@ export function CommerceDashboard() {
 
   // 5. Customer Journey Conversion Rate Trend Chart
   const renderConversionTrendChart = () => {
-    const pts = (liveSaleor?.dailyPoints || []).map((dp, idx) => {
-      const baseConv = 3.4
-      const rate = Math.round((baseConv + (idx % 3) * 0.4) * 10) / 10
-      return {
-        date: dp.date,
-        conversionRate: rate,
-        orders: dp.orders,
-        cart: Math.round(dp.orders * 28.5),
-      }
-    })
+    // No browser event connector exists yet. Never derive a funnel from order counts.
+    const pts: Array<{ date: string; conversionRate: number; orders: number; cart: number }> = []
     if (pts.length === 0) return null
 
     const w = 840
@@ -1835,7 +1815,7 @@ export function CommerceDashboard() {
 
   // 6. Edge Traffic Throughput & Error Spike Trend Chart
   const renderTrafficThroughputChart = () => {
-    const trends = trafficTelemetry?.trafficTrends || []
+    const trends = (trafficTelemetry?.metricsAvailable ? trafficTelemetry?.trafficTrends : []) || []
     if (trends.length === 0) return null
     const w = 840
     const h = 180
@@ -1881,7 +1861,7 @@ export function CommerceDashboard() {
                   <span>{trafficTrendHover.rps} RPS</span>
                 </div>
                 <div className={styles.chartTooltipSubtext}>
-                  Total: {fmt(trafficTrendHover.total)} reqs | 5xx errors: {trafficTrendHover.code5xx} ({trafficTrendHover.errorRate}%)
+                  Total: {fmt(trafficTrendHover.total)} requests · HTTP status buckets unavailable
                 </div>
               </div>
             )}
@@ -1927,7 +1907,7 @@ export function CommerceDashboard() {
 
   // 7. Latency Percentiles Trend Chart
   const renderLatencyTrendChart = () => {
-    const trends = infraTelemetry?.latencyTrends || []
+    const trends = (infraTelemetry?.metricsAvailable ? infraTelemetry?.latencyTrends : []) || []
     if (trends.length === 0) return null
     const w = 840
     const h = 180
@@ -1935,13 +1915,13 @@ export function CommerceDashboard() {
     const padR = 20
     const padT = 20
     const padB = 30
-    const maxLat = Math.max(1, ...trends.map((t: any) => t.p99)) * 1.15
+    const maxLat = Math.max(1, ...trends.map((t: any) => t.p99 ?? t.p95)) * 1.15
     const getX = (idx: number) => padL + (idx / Math.max(1, trends.length - 1)) * (w - padL - padR)
     const getY = (ms: number) => padT + (1 - ms / maxLat) * (h - padT - padB)
 
-    const p50Path = trends.map((t: any, i: number) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(t.p50)}`).join(' ')
+    const p50Path = trends.every((t: any) => Number.isFinite(t.p50)) ? trends.map((t: any, i: number) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(t.p50)}`).join(' ') : ''
     const p95Path = trends.map((t: any, i: number) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(t.p95)}`).join(' ')
-    const p99Path = trends.map((t: any, i: number) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(t.p99)}`).join(' ')
+    const p99Path = trends.every((t: any) => Number.isFinite(t.p99)) ? trends.map((t: any, i: number) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(t.p99)}`).join(' ') : ''
 
     return (
       <article className={styles.card} style={{ marginBottom: '20px' }}>
@@ -1996,9 +1976,9 @@ export function CommerceDashboard() {
                   {t.date.split('-').slice(1).join('/')}
                 </text>
               ))}
-              <path d={p50Path} fill="none" stroke="#10b981" strokeWidth="2" />
+              {p50Path && <path d={p50Path} fill="none" stroke="#10b981" strokeWidth="2" />}
               <path d={p95Path} fill="none" stroke="#f59e0b" strokeWidth="2" />
-              <path d={p99Path} fill="none" stroke="#ef4444" strokeWidth="2" strokeDasharray="4 2" />
+              {p99Path && <path d={p99Path} fill="none" stroke="#ef4444" strokeWidth="2" strokeDasharray="4 2" />}
               {trends.map((t: any, i: number) => {
                 const cx = getX(i)
                 const cy = getY(t.p95)
@@ -2042,8 +2022,8 @@ export function CommerceDashboard() {
               <div>
                 <div className={styles.connectorHead}>
                   <div className={styles.connectorName}>{info.name}</div>
-                  <span className={`${styles.badge} ${info.configured ? styles.badgeLive : styles.badgePending}`}>
-                    {info.configured ? '● CONFIGURED' : 'PENDING .ENV'}
+                  <span className={`${styles.badge} ${info.status === 'LIVE_VERIFIED' ? styles.badgeLive : styles.badgePending}`}>
+                    {info.status || (info.configured ? 'CONFIGURED BUT NOT VERIFIED' : 'NOT CONFIGURED')}
                   </span>
                 </div>
                 {info.endpoint && (
@@ -2109,15 +2089,19 @@ export function CommerceDashboard() {
             </span>
             <div className={styles.topright}>
               <span className={styles.tiny}>Commerce Platform · October 2026</span>
-              {liveSaleor?.live ? (
+              {liveSaleor?.live && !liveSaleor.stale ? (
                 <span className={`${styles.badge} ${styles.badgeLive}`}>
                   <span className={styles.dot}></span> LIVE PRODUCTION DATA
                 </span>
-              ) : liveSaleor?.status === 'AUTH_REQUIRED' ? (
+              ) : liveSaleor?.stale ? (
+                <span className={`${styles.badge} ${styles.badgePending}`}>
+                  <span className={styles.dot}></span> STALE SNAPSHOT · REFRESH FAILED
+                </span>
+              ) : liveSaleor?.status === 'AUTHENTICATION_FAILED' ? (
                 <span className={`${styles.badge} ${styles.badgePending}`}>
                   <span className={styles.dot}></span> AWAITING ACTIVE CREDENTIALS (.env)
                 </span>
-              ) : liveSaleor?.status === 'PENDING_CONFIG' ? (
+              ) : liveSaleor?.status === 'NOT_CONFIGURED' ? (
                 <span className={`${styles.badge} ${styles.badgePending}`}>
                   <span className={styles.dot}></span> POPULATE .ENV FOR LIVE DATA
                 </span>
@@ -2282,6 +2266,12 @@ export function CommerceDashboard() {
               </div>
             )}
 
+            {(liveError || telemetryErrors.length > 0) && (
+              <div className={styles.noresult} role="alert">
+                {[liveError, ...telemetryErrors].filter(Boolean).join(' · ')}
+              </div>
+            )}
+
             <div className={styles.filtermeta}>
               <span>
                 <strong>
@@ -2291,9 +2281,9 @@ export function CommerceDashboard() {
                 · {formatTime(start, timezone)} → {formatTime(end, timezone)} {timezone}
               </span>
               <span>
-                {liveSaleor ? (
+                {liveSaleor?.live ? (
                   <span style={{ color: '#186348' }}>
-                    🟢 <strong>{liveSaleor.oms?.live ? 'Live Saleor and Macula OMS' : 'Live Saleor; Macula OMS unavailable'}</strong> ({liveSaleor.period}) · Refreshed {new Date(liveSaleor.lastUpdated).toLocaleTimeString()}
+                    {liveSaleor.stale ? '🟠' : '🟢'} <strong>{liveSaleor.stale ? 'Stale Saleor snapshot; refresh failed' : liveSaleor.oms?.live ? 'Live Saleor and Macula OMS' : 'Live Saleor; Macula OMS unavailable'}</strong> ({liveSaleor.period}) · Snapshot {new Date(liveSaleor.lastUpdated).toLocaleTimeString()}
                   </span>
                 ) : (
                   <span>
@@ -2377,7 +2367,7 @@ export function CommerceDashboard() {
                     <div className={styles.metricValueRow}>
                       <div className={styles.metricvalue}>
                         {liveSaleor ? (
-                          liveSaleor.oms?.live && !liveSaleor.oms.noChannel
+                          liveSaleor.oms?.live && !liveSaleor.oms.noChannel && liveSaleor.oms.orders !== null
                             ? fmt(liveSaleor.oms.orders)
                             : '—'
                         ) : liveLoading ? (
@@ -2389,12 +2379,12 @@ export function CommerceDashboard() {
                       {liveSaleor?.oms?.live && <MiniSparkline data={omsSparkline} />}
                     </div>
                     <div className={styles.metricfoot}>
-                      {liveSaleor?.oms?.live && !liveSaleor.oms.noChannel ? (
+                      {liveSaleor?.oms?.live && !liveSaleor.oms.noChannel && liveSaleor.oms.orders !== null ? (
                         renderTrend(
                           liveSaleor.oms.orders,
                           liveSaleor.oms.previousOrders,
                           false,
-                          <span>{fmt(liveSaleor.oms.todaySoFar)} recorded today in OMS</span>,
+                          <span>{liveSaleor.oms.todaySoFar === null ? 'Today count unavailable' : `${fmt(liveSaleor.oms.todaySoFar)} recorded today in OMS`}</span>,
                         )
                       ) : liveLoading ? (
                         <span>Connecting live Macula OMS feed...</span>
@@ -2437,7 +2427,9 @@ export function CommerceDashboard() {
                           liveSaleor.paymentBreakdown.priorOnlineRate,
                           true,
                           <span>
-                            Card ({fmt(liveSaleor.methodCounts?.['Card / Apple Pay'] ?? 11)}) · Tabby ({fmt(liveSaleor.methodCounts?.Tabby ?? 3)}) · Tamara ({fmt(liveSaleor.methodCounts?.Tamara ?? 3)}) · Cash ({fmt(liveSaleor.methodCounts?.Cash ?? 2)})
+                            {liveSaleor.sampledMethodCounts && liveSaleor.gatewaySample
+                              ? `Macula sample (${liveSaleor.gatewaySample.size}/${liveSaleor.gatewaySample.limit} max): Card / Apple Pay ${fmt(liveSaleor.sampledMethodCounts['Card / Apple Pay'] || 0)} · Tabby ${fmt(liveSaleor.sampledMethodCounts.Tabby || 0)} · Tamara ${fmt(liveSaleor.sampledMethodCounts.Tamara || 0)} · Cash ${fmt(liveSaleor.sampledMethodCounts.Cash || 0)}`
+                              : 'Gateway/method mix unavailable; charge status is not an authorization success rate.'}
                           </span>,
                         )
                       ) : liveLoading ? (
@@ -2463,7 +2455,7 @@ export function CommerceDashboard() {
                     </div>
                     <div className={styles.metricValueRow}>
                       <div className={styles.metricvalue}>
-                        {liveSaleor?.oms?.live ? fmt(Math.abs(liveSaleor.orders - liveSaleor.oms.orders)) : '—'}
+                        {liveSaleor?.oms?.live && liveSaleor.oms.orders !== null ? fmt(Math.abs(liveSaleor.orders - liveSaleor.oms.orders)) : '—'}
                       </div>
                       {liveSaleor?.oms?.live && <MiniSparkline data={omsSparkline} />}
                     </div>
@@ -4221,7 +4213,7 @@ export function CommerceDashboard() {
               <>
                 <div className={`${styles.notice} ${styles.noticeInfo}`}>
                   <div>
-                    <b>Live telemetry active.</b> Saleor GraphQL API and Macula OMS API are actively connected in live production read-only mode feeding real-time orders, country breakdown, payment outcomes, and native currency revenues. Remaining infrastructure and edge telemetry adapters are pending credential provisioning.
+                    <b>Runtime connector evidence.</b> A configured environment value is not treated as a live connection. The matrix below shows configuration readiness; endpoint panels separately show authentication, response-shape, metric availability, errors, and freshness.
                   </div>
                 </div>
 
@@ -4411,8 +4403,8 @@ export function CommerceDashboard() {
             )}
 
             <footer className={styles.sectionfoot}>
-              <span>DESIGN PREVIEW · All displayed figures and examples are synthetic fixtures.</span>
-              <span>Integration pending · Role-based access & redaction required before release.</span>
+              <span>{liveSaleor?.live ? 'LIVE PANELS · Source and snapshot labels apply per panel.' : 'DEMO MODE · Synthetic fixtures are visibly labelled and are not live telemetry.'}</span>
+              <span>Unavailable metrics remain unavailable; missing data is never converted to zero.</span>
             </footer>
           </main>
         </div>

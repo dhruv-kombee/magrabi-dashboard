@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --port 5174",
     "build": "tsc -b && vite build",
+    "test": "node --test",
     "preview": "vite preview --port 5174",
     "start": "node server.js"
   },

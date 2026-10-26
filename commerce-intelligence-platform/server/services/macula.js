@@ -1,4 +1,5 @@
 import { config, hasEnv } from '../config.js'
+import { connectorError, fetchJson, redactError } from './http.js'
 
 export const MACULA_CHANNEL_MAP = {
   'Magrabi:SA': '653a0168f66d966a3c6c06f2',
@@ -43,7 +44,7 @@ export async function getOrRefreshMaculaToken() {
   }
 
   try {
-    const loginRes = await fetch(dashboardUrl, {
+    const { response: loginRes } = await fetchJson(dashboardUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'text/plain;charset=UTF-8',
@@ -52,7 +53,8 @@ export async function getOrRefreshMaculaToken() {
         'User-Agent': 'Mozilla/5.0',
       },
       body: JSON.stringify([{ username, password }]),
-    })
+    }, config.requestTimeoutMs)
+    if (!loginRes.ok) return null
 
     const setCookie = loginRes.headers.get('set-cookie') || ''
     const tokenMatch = setCookie.match(/token=([^;]+)/)
@@ -62,7 +64,7 @@ export async function getOrRefreshMaculaToken() {
       return cachedMaculaToken
     }
   } catch (err) {
-    console.error('Macula login error:', err.message)
+    console.error('Macula login error:', redactError(err))
   }
   return null
 }
@@ -80,26 +82,24 @@ async function fetchMaculaCount(token, fromDate, toDate, channelGroups) {
   }
 
   if (!channelGroups || channelGroups.length === 0) {
-    const res = await fetch(url, {
+    const { response: res, payload: data } = await fetchJson(url, {
       method: 'POST',
       headers,
       body: JSON.stringify({ page: 1, limit: 1, fromDate, toDate }),
-    })
+    }, config.requestTimeoutMs)
     if (!res.ok) throw new Error(`Macula count request returned HTTP ${res.status}`)
-    const data = await res.json()
     if (typeof data.totalElements !== 'number') throw new Error('Macula count response has no verified total')
     return data.totalElements
   }
 
   const counts = await Promise.all(
     channelGroups.map(async (cg) => {
-      const res = await fetch(url, {
+      const { response: res, payload: data } = await fetchJson(url, {
         method: 'POST',
         headers,
         body: JSON.stringify({ page: 1, limit: 1, fromDate, toDate, channelGroup: cg }),
-      })
+      }, config.requestTimeoutMs)
       if (!res.ok) throw new Error(`Macula channel count returned HTTP ${res.status}`)
-      const data = await res.json()
       if (typeof data.totalElements !== 'number') throw new Error('Macula channel response has no verified total')
       return data.totalElements
     }),
@@ -112,7 +112,8 @@ export async function fetchMaculaSummary(options) {
 
   if (!isMaculaConfigured()) {
     return {
-      status: 'PENDING_CONFIG',
+      status: 'NOT_CONFIGURED',
+      configured: false,
       live: false,
       missing: ['MACULA_USERNAME', 'MACULA_PASSWORD'],
       message: 'Macula OMS credentials not configured in environment (.env). Provide MACULA_USERNAME/MACULA_PASSWORD to activate OMS fulfillment feed.',
@@ -122,7 +123,8 @@ export async function fetchMaculaSummary(options) {
   const token = await getOrRefreshMaculaToken()
   if (!token) {
     return {
-      status: 'FAIL',
+      status: 'AUTHENTICATION_FAILED',
+      configured: true,
       live: false,
       error: 'Macula OMS authentication failed. Verify credentials in .env.',
     }
@@ -167,6 +169,7 @@ export async function fetchMaculaSummary(options) {
   if (noMaculaChannel) {
     return {
       status: 'OK',
+      configured: true,
       live: true,
       noChannel: true,
       orders: 0,
@@ -195,7 +198,7 @@ export async function fetchMaculaSummary(options) {
       fetchMaculaCount(token, currFromIso, currToIso, maculaChannelGroups),
       fetchMaculaCount(token, prevFromIso, prevToIso, maculaChannelGroups),
       fetchMaculaCount(token, todayFromIso, todayToIso, maculaChannelGroups),
-      fetch(config.macula.apiUrl, {
+      fetchJson(config.macula.apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -203,9 +206,7 @@ export async function fetchMaculaSummary(options) {
           'User-Agent': 'Mozilla/5.0',
         },
         body: JSON.stringify({ page: 1, limit: 100, fromDate: currFromIso, toDate: currToIso }),
-      })
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null),
+      }, config.requestTimeoutMs).then(({ response, payload }) => response.ok ? payload : null),
     ])
 
     if (resSample && Array.isArray(resSample.content)) {
@@ -232,21 +233,30 @@ export async function fetchMaculaSummary(options) {
 
     return {
       status: 'OK',
+      configured: true,
       live: true,
+      metricsAvailable: true,
       orders: resCurr,
       previousOrders: resPrior,
       todaySoFar: resToday,
       gatewayCounts,
       methodCounts,
+      gatewayCountsStatus: 'SAMPLED',
+      methodCountsStatus: 'SAMPLED',
+      sampleSize: Array.isArray(resSample?.content) ? resSample.content.length : 0,
+      sampleLimit: 100,
       syncDeltaTrend: [],
       source: 'Macula OMS Production (Direct Search API)',
+      checkedAt: new Date().toISOString(),
     }
   } catch (err) {
-    console.error('Macula summary query error:', err.message)
+    console.error('Macula summary query error:', redactError(err))
     return {
-      status: 'FAIL',
+      ...connectorError(err),
+      configured: true,
       live: false,
-      error: err.message,
+      source: 'Macula OMS',
+      checkedAt: new Date().toISOString(),
     }
   }
 }

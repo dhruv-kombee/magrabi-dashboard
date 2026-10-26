@@ -183,8 +183,8 @@ function projectedOms(result) {
 }
 
 function projectedGateway(result) {
-  const responses = result?.liveResponses || {}
-  const connected = Object.entries(responses).filter(([, value]) => value?.status === 'OK').map(([name]) => name)
+  const responses = result?.providers || {}
+  const connected = Object.entries(responses).filter(([, value]) => value?.status === 'LIVE_VERIFIED').map(([name]) => name)
   return { status: result?.status || 'UNAVAILABLE', live: connected.length > 0, connectedProviders: connected }
 }
 
@@ -192,7 +192,9 @@ function projectedTraffic(result) {
   return {
     status: result?.status || 'UNAVAILABLE',
     live: Boolean(result?.live),
-    metricStatus: result?.live ? 'Azure Monitor connection confirmed; this adapter has not mapped the response into verified request or error metrics.' : 'No verified edge metrics are available.',
+    metricStatus: result?.metricsAvailable
+      ? 'Azure Monitor returned verified request or latency datapoints for the selected window. HTTP status buckets remain unavailable unless present in the configured metrics.'
+      : result?.live ? 'Azure authentication is confirmed, but required metric datapoints are unavailable.' : 'No verified edge metrics are available.',
   }
 }
 
@@ -200,7 +202,7 @@ function projectedInfra(result) {
   return {
     status: result?.status || 'UNAVAILABLE',
     live: Boolean(result?.live),
-    metricStatus: result?.live ? 'Grafana health is reachable; this adapter has not queried verified latency, CPU, or database metrics.' : 'No verified infrastructure metrics are available.',
+    metricStatus: result?.metricsAvailable ? 'Grafana returned verified Prometheus metric datapoints.' : result?.live ? 'Grafana health is reachable; verified metric queries are unavailable.' : 'No verified infrastructure metrics are available.',
   }
 }
 

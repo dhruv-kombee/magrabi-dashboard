@@ -17,9 +17,7 @@ cd commerce-intelligence-platform
 cp .env.example .env
 ```
 
-All credentials are parameterized and completely optional at startup:
-- If a connector's credentials are not yet entered, the dashboard displays a clear `PENDING .ENV` notice and uses deterministic sample baselines without crashing.
-- As soon as valid credentials are added to `.env` and the server restarted, the live production adapter activates immediately.
+All credentials are parameterized and optional at startup. Missing credentials produce `NOT_CONFIGURED`; non-empty credentials produce only `CONFIGURED_BUT_NOT_VERIFIED` until a read-only source request succeeds and required fields are validated. Synthetic fixtures remain in explicitly labelled demo panels and are never substituted into live connector responses.
 
 ### Run in Development
 ```powershell
@@ -49,10 +47,10 @@ docker run -p 5174:5174 --env-file .env magrabi-commerce-platform
 |---|---|---|
 | **Saleor Core** | `SALEOR_GRAPHQL_URL`, `SALEOR_USERNAME`, `SALEOR_PASSWORD` | Verified orders, daily totals, country breakdown, payment charge status, gross revenue by currency |
 | **Macula OMS** | `MACULA_API_URL`, `MACULA_TOKEN` or `MACULA_USERNAME` and `MACULA_PASSWORD` | Verified OMS receipt count; payment attribution from a sample of at most 100 orders |
-| **Payment Gateways** | `CHECKOUT_SECRET_KEY`, `TABBY_SECRET_KEY`, `TAMARA_API_TOKEN`, `PAYMOB_API_KEY` | Direct connector response status where implemented; success-rate charts are illustrative until verified gateway metrics are mapped |
-| **Edge & Traffic** | `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID` | Azure Monitor connection status; the existing traffic chart is illustrative until the metric response is mapped |
-| **APM & Infra** | `ECOM_GRAFANA_TOKEN` or `ECOM_GRAFANA_USER` and `ECOM_GRAFANA_PASSWORD` | Grafana health status; the existing latency and infrastructure chart values are illustrative until metric queries are implemented |
-| **Alert Notifications** | `TEAMS_WEBHOOK_URL`, `ALERT_EMAIL_RECIPIENTS`, `SMTP_*` | Automated rule evaluation with dispatch to Microsoft Teams channels and operations email lists |
+| **Payment Gateways** | Provider credential plus an approved read-only `*_REPORT_PATH` where no stable default exists | Authentication and response-shape verification; success metrics remain unavailable until provider fields are mapped |
+| **Edge & Traffic** | `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` | Service-principal authentication and validated Azure Monitor request/latency datapoints |
+| **APM & Infra** | Grafana credentials, `PROMETHEUS_DATASOURCE_UID`, and approved `GRAFANA_*_QUERY` values | Grafana health is separated from validated Prometheus metric queries |
+| **Alert Notifications** | `TEAMS_WEBHOOK_URL`, `ALERT_EMAIL_RECIPIENTS`, `SMTP_*` | Rule simulation only; delivery stays disabled unless a future operator explicitly enables `ALERT_DELIVERY_ENABLED` |
 | **Commerce Assist** | `GEMINI_API_KEY`, `GEMINI_MODEL`, `ASSISTANT_MAX_HISTORY` | Gemini 3.1 Flash-Lite answers grounded in approved platform telemetry; a built-in answer engine remains available without an API key |
 
 ---
@@ -76,7 +74,8 @@ The platform includes 8 purpose-built trend charts designed for operational clar
 
 - **Read-Only Data Fetching**: Under NO circumstances does any code mutate, modify, update, reconfigure, or delete any resource, order, transaction, or setting on any external platform.
 - **No Hardcoded Credential Fallbacks**: Current configuration loads credentials from the environment. Previously embedded Grafana password values should be rotated.
-- **No Production Mutation**: Only read operations (`GET` or read-only `POST /search`) are executed.
+- **No Production Mutation**: Source operations are limited to `GET`, GraphQL queries/token creation, authentication-token creation, and Macula's read-only `POST /search` contract.
+- **No false health**: Configuration, authentication, source health, metric availability, and freshness are reported separately.
 
 ---
 

@@ -18,9 +18,9 @@ export interface LivePaymentBreakdown {
 }
 
 export interface LiveOmsSummary {
-  orders: number
-  previousOrders: number
-  changePct: number
+  orders: number | null
+  previousOrders: number | null
+  changePct: number | null
   exceptions: number | null
 }
 
@@ -297,15 +297,15 @@ export async function exportReport(options: ExportReportOptions): Promise<void> 
           'Received in OMS (Macula)',
           liveSaleor.oms?.orders ?? '—',
           liveSaleor.oms?.previousOrders ?? '—',
-          liveSaleor.oms ? `${liveSaleor.oms.changePct > 0 ? '+' : ''}${liveSaleor.oms.changePct.toFixed(1)}%` : '—',
+          liveSaleor.oms?.changePct !== null && liveSaleor.oms?.changePct !== undefined ? `${liveSaleor.oms.changePct > 0 ? '+' : ''}${liveSaleor.oms.changePct.toFixed(1)}%` : '—',
           'Downstream receipt confirmed in Macula OMS search',
         ],
         [
           'Handoff Sync Exceptions',
-          liveSaleor.oms?.exceptions ?? 0,
+          liveSaleor.oms?.exceptions ?? 'Unavailable',
           '—',
           '—',
-          liveSaleor.oms?.exceptions === 0 ? '0 sync delay · 100% handoff match' : 'Orders placed pending OMS receipt',
+          'Per-order reconciliation unavailable; a count difference does not prove a sync exception',
         ],
         [
           'Payment Success Rate',
@@ -357,30 +357,22 @@ export async function exportReport(options: ExportReportOptions): Promise<void> 
         'Date',
         'Day of Week',
         'Saleor Orders Placed',
-        'Estimated OMS Received',
-        'Online Captured',
-        'Cash / Uncharged',
-        'Online Rate %',
+        'OMS Received',
+        'Online Captured (Daily)',
+        'Cash / Uncharged (Daily)',
+        'Daily Online Rate %',
         'Share of Total %',
       ])
 
       let sumPlaced = 0
-      let sumOms = 0
-      let sumCaptured = 0
-      let sumCash = 0
-
       dailyPoints.forEach(([dStr, ords], idx) => {
-        const rate = (liveSaleor.paymentBreakdown?.onlineRate ?? 66.6) / 100
-        const captured = Math.round(ords * rate)
-        const cash = Math.max(0, ords - captured)
-        const estOms = Math.round(ords * 0.98)
-        const ratePct = ords > 0 ? ((captured / ords) * 100).toFixed(1) + '%' : '0.0%'
+        const captured = 'Unavailable'
+        const cash = 'Unavailable'
+        const oms = 'Unavailable'
+        const ratePct = 'Unavailable'
         const sharePct = liveSaleor.orders > 0 ? ((ords / liveSaleor.orders) * 100).toFixed(1) + '%' : '0.0%'
 
         sumPlaced += ords
-        sumOms += estOms
-        sumCaptured += captured
-        sumCash += cash
 
         let dayOfWeek = ''
         try {
@@ -393,7 +385,7 @@ export async function exportReport(options: ExportReportOptions): Promise<void> 
           // ignore
         }
 
-        const row = addStyledRow([dStr, dayOfWeek, ords, estOms, captured, cash, ratePct, sharePct], idx)
+        const row = addStyledRow([dStr, dayOfWeek, ords, oms, captured, cash, ratePct, sharePct], idx)
         row.getCell(1).alignment = { vertical: 'middle', horizontal: 'center' }
         row.getCell(2).alignment = { vertical: 'middle', horizontal: 'center' }
         row.getCell(3).alignment = { vertical: 'middle', horizontal: 'right' }
@@ -405,15 +397,14 @@ export async function exportReport(options: ExportReportOptions): Promise<void> 
       })
 
       // Total Row for Daily Trend
-      const totOnlineRate = sumPlaced > 0 ? ((sumCaptured / sumPlaced) * 100).toFixed(1) + '%' : '0.0%'
       const totRow = ws.addRow([
         'Total Window Summary',
         '',
         sumPlaced,
-        sumOms,
-        sumCaptured,
-        sumCash,
-        totOnlineRate,
+        liveSaleor.oms?.orders ?? 'Unavailable',
+        liveSaleor.paymentBreakdown?.fullCharge ?? 'Unavailable',
+        liveSaleor.paymentBreakdown?.noneCharge ?? 'Unavailable',
+        liveSaleor.paymentBreakdown ? `${liveSaleor.paymentBreakdown.onlineRate.toFixed(1)}% window total` : 'Unavailable',
         '100.0%',
       ])
       totRow.height = 23
@@ -646,15 +637,15 @@ export async function exportReport(options: ExportReportOptions): Promise<void> 
         'Received in OMS (Macula)',
         liveSaleor.oms?.orders ?? '—',
         liveSaleor.oms?.previousOrders ?? '—',
-        liveSaleor.oms ? `${liveSaleor.oms.changePct > 0 ? '+' : ''}${liveSaleor.oms.changePct.toFixed(1)}%` : '—',
+        liveSaleor.oms?.changePct !== null && liveSaleor.oms?.changePct !== undefined ? `${liveSaleor.oms.changePct > 0 ? '+' : ''}${liveSaleor.oms.changePct.toFixed(1)}%` : '—',
         'Downstream receipt confirmed in Macula OMS search',
       ],
       [
         'Handoff Sync Exceptions',
-        liveSaleor.oms?.exceptions ?? 0,
+        liveSaleor.oms?.exceptions ?? 'Unavailable',
         '—',
         '—',
-        liveSaleor.oms?.exceptions === 0 ? '0 sync delay · 100% handoff match' : 'Orders placed pending OMS receipt',
+        'Per-order reconciliation unavailable; a count difference does not prove a sync exception',
       ],
       [
         'Payment Success Rate',
@@ -679,12 +670,8 @@ export async function exportReport(options: ExportReportOptions): Promise<void> 
       ],
       [],
       ['2. DAILY ORDERS & OUTCOMES TREND'],
-      ['Date', 'Day of Week', 'Saleor Orders Placed', 'Estimated OMS Received', 'Online Captured', 'Cash / Uncharged', 'Online Rate %', 'Share of Total %'],
+      ['Date', 'Day of Week', 'Saleor Orders Placed', 'OMS Received', 'Online Captured (Daily)', 'Cash / Uncharged (Daily)', 'Daily Online Rate %', 'Share of Total %'],
       ...dailyPoints.map(([dStr, ords]) => {
-        const rate = (liveSaleor.paymentBreakdown?.onlineRate ?? 66.6) / 100
-        const captured = Math.round(ords * rate)
-        const cash = Math.max(0, ords - captured)
-        const ratePct = ords > 0 ? ((captured / ords) * 100).toFixed(1) + '%' : '0.0%'
         const sharePct = liveSaleor.orders > 0 ? ((ords / liveSaleor.orders) * 100).toFixed(1) + '%' : '0.0%'
         let dayOfWeek = ''
         try {
@@ -700,10 +687,10 @@ export async function exportReport(options: ExportReportOptions): Promise<void> 
           dStr,
           dayOfWeek,
           ords,
-          Math.round(ords * 0.98),
-          captured,
-          cash,
-          ratePct,
+          'Unavailable',
+          'Unavailable',
+          'Unavailable',
+          'Unavailable',
           sharePct,
         ]
       }),
