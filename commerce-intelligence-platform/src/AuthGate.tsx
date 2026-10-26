@@ -24,6 +24,7 @@ async function authRequest(path: string, options?: RequestInit): Promise<AuthRes
 function LoginScreen({ onAuthenticated }: { onAuthenticated: (session: Session) => void }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -63,17 +64,40 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: (session: Session) 
             autoFocus
           />
           <label htmlFor="auth-password">Password</label>
-          <input
-            id="auth-password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
+          <div className={styles.passwordField}>
+            <input
+              id="auth-password"
+              className={styles.passwordInput}
+              name="password"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+            />
+            <button
+              className={styles.passwordToggle}
+              type="button"
+              onClick={() => setShowPassword((visible) => !visible)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-pressed={showPassword}
+              title={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? (
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 4.3A10.8 10.8 0 0112 4c5 0 8.5 4.2 9.5 6.5a3.7 3.7 0 010 3M6.6 6.6C4.5 8 3.1 10 2.5 11.5a1.3 1.3 0 000 1C3.5 14.8 7 19 12 19c1.5 0 2.9-.4 4.1-1" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M2.5 11.5C3.5 9.2 7 5 12 5s8.5 4.2 9.5 6.5a1.3 1.3 0 010 1C20.5 14.8 17 19 12 19s-8.5-4.2-9.5-6.5a1.3 1.3 0 010-1z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              )}
+              <span>{showPassword ? 'Hide' : 'Show'}</span>
+            </button>
+          </div>
           {error && <p className={styles.error} role="alert">{error}</p>}
-          <button type="submit" disabled={submitting}>{submitting ? 'Signing in…' : 'Sign in'}</button>
+          <button className={styles.submitButton} type="submit" disabled={submitting}>{submitting ? 'Signing in…' : 'Sign in'}</button>
         </form>
         <p className={styles.sessionNote}>For your security, inactive sessions close after 10 minutes.</p>
       </section>

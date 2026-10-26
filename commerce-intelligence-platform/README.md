@@ -29,6 +29,8 @@ npm run auth:configure
 
 The command asks for a username and a password of at least 12 characters. Password input is hidden; only a scrypt hash is stored in the workspace's gitignored `.secrets/dashboard-auth.env`. It also generates a private session-signing secret and fixes the idle timeout at 10 minutes. Restart the app after changing credentials.
 
+The sign-in page includes an accessible **Show/Hide password** control. It only changes how the entered value is displayed in the browser; it does not change how the server hashes or verifies the password.
+
 For containers or hosted environments, provide `AUTH_USERNAME`, `AUTH_PASSWORD_HASH`, `AUTH_SESSION_SECRET` (at least 32 characters), and `AUTH_SESSION_TIMEOUT_MINUTES=10` through the platform's secret-management mechanism. Never bake these values into the image or repository.
 
 ### Run in Development

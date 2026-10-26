@@ -93,7 +93,49 @@
   box-shadow: 0 0 0 4px rgba(28, 98, 90, 0.12);
 }
 
-.form button {
+.passwordField {
+  position: relative;
+}
+
+.form .passwordInput {
+  padding-right: 92px;
+}
+
+.passwordToggle {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 76px;
+  min-height: 36px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #365c57;
+  font: 700 12px/1 Inter, ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.passwordToggle svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.passwordToggle:hover { background: #eaf1ef; color: #174e47; }
+.passwordToggle:focus-visible { outline: 3px solid rgba(28, 98, 90, 0.25); outline-offset: 1px; }
+
+.submitButton {
   height: 50px;
   margin-top: 14px;
   border: 0;
@@ -106,9 +148,9 @@
   transition: background 160ms ease, transform 160ms ease;
 }
 
-.form button:hover:not(:disabled) { background: #145149; }
-.form button:active:not(:disabled) { transform: translateY(1px); }
-.form button:disabled { cursor: wait; opacity: 0.7; }
+.submitButton:hover:not(:disabled) { background: #145149; }
+.submitButton:active:not(:disabled) { transform: translateY(1px); }
+.submitButton:disabled { cursor: wait; opacity: 0.7; }
 
 .error,
 .configurationError {
@@ -175,5 +217,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .spinner { animation-duration: 1600ms; }
-  .form input, .form button { transition: none; }
+  .form input, .passwordToggle, .submitButton { transition: none; }
 }
