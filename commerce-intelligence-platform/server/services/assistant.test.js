@@ -51,10 +51,10 @@ test('two-part last-month question receives a direct count, comparison, and plai
   assert.equal(scope.start, now - 30 * 86_400_000)
   const answer = deterministicAnswer({
     intent: 'orders', scope, responseHints: hints,
-    orders: { live: true, orders: 1735, previousOrders: 1987, changePct: -12.7, period: '30 days' },
+    oms: { live: true, orders: 1735, previousOrders: 1987, changePct: -12.7, period: '30 days' },
   })
-  assert.match(answer, /^Saleor recorded 1,735 placed orders in the last 30 days/)
-  assert.match(answer, /prior comparable window had 1,987 orders/)
+  assert.match(answer, /^Macula OMS received 1,735 orders in the last 30 days/)
+  assert.match(answer, /prior comparable window had 1,987 received orders/)
   assert.match(answer, /252 fewer \(-12\.7%\)/)
   assert.match(answer, /A Saleor order is created through the storefront/)
   assert.match(answer, /“Prior-window orders” counts the immediately preceding period/)
@@ -69,16 +69,14 @@ test('question parsing can use validated Gemini facets without inventing definit
   assert.equal(hints.saleorDefinition, false)
 })
 
-test('a sales answer puts Macula receipts first and separates Saleor placed value', () => {
+test('a sales answer uses Macula receipts without substituting Saleor value', () => {
   const answer = deterministicAnswer({
     intent: 'sales', orders: { live: true, period: 'today', orders: 9, revenueByCurrency: { AED: 2555.38, SAR: 4723 } },
     oms: { live: true, orders: 7 },
   })
   assert.match(answer, /Macula OMS received 7 orders/)
-  assert.match(answer, /Saleor separately recorded 9 placed orders/)
-  assert.match(answer, /AED 2,555\.38/)
-  assert.match(answer, /SAR 4,723/)
-  assert.match(answer, /not verified OMS-received revenue/)
+  assert.match(answer, /full-window revenue is unavailable/)
+  assert.doesNotMatch(answer, /2,555|4,723/)
 })
 
 test('explicit Macula order request never substitutes Saleor', () => {
@@ -131,14 +129,15 @@ test('missing traffic metrics never become a fabricated number', () => {
   assert.doesNotMatch(answer, /\b\d+(?:\.\d+)?\s*(?:%|requests)\b/)
 })
 
-test('OMS count difference is not called a confirmed sync exception', () => {
+test('orders use the Macula current and prior-window counts without a Saleor delta', () => {
   const answer = deterministicAnswer({
     intent: 'orders', scope: { country: 'AE' },
     orders: { live: true, period: 'today', orders: 12, previousOrders: 10, changePct: 20, comparison: 'previous day' },
-    oms: { live: true, orders: 11 },
+    oms: { live: true, period: 'today', orders: 11, previousOrders: 10, changePct: 10 },
   })
-  assert.match(answer, /count difference is 1/)
-  assert.match(answer, /not a confirmed per-order sync exception/)
+  assert.match(answer, /Macula OMS received 11 orders/)
+  assert.match(answer, /versus 10 in the previous comparable window/)
+  assert.doesNotMatch(answer, /Saleor|sync exception/)
 })
 
 test('unmapped OMS channel is not presented as a comparable zero', () => {
@@ -197,8 +196,8 @@ test('Gemini request uses server-side key, selected model, and no external tools
   try {
     const text = await modelAnswer('How many orders?', [], {
       intent: 'orders', scope: { brand: 'all', country: 'all', tz: 'Dubai', start: 1, end: 2 },
-      orders: { live: true, period: 'today', orders: 12, previousOrders: 10, changePct: 20, countryBreakdown: {} },
-      oms: { live: false },
+      orders: null,
+      oms: { live: true, status: 'OK', period: 'today', orders: 12, previousOrders: 10, changePct: 20, countryBreakdown: {} },
     })
     assert.equal(text, 'There were 12 orders.')
     assert.equal(inspected, true)
@@ -244,15 +243,15 @@ test('temporary Gemini failure is retried before using the platform fallback', a
     calls += 1
     return calls === 1
       ? { ok: false, status: 503 }
-      : { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: 'Saleor recorded 9 orders.' }] } }] }) }
+      : { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: 'Macula OMS received 9 orders.' }] } }] }) }
   }
   try {
     const diagnostics = {}
     const answer = await modelAnswer('How many orders?', [], {
       intent: 'orders', scope: { brand: 'all', country: 'all', tz: 'Dubai', start: 1, end: 2 },
-      orders: { live: true, period: 'today', orders: 9, previousOrders: 8, countryBreakdown: {} },
+      oms: { live: true, status: 'OK', period: 'today', orders: 9, previousOrders: 8, countryBreakdown: {} },
     }, diagnostics)
-    assert.equal(answer, 'Saleor recorded 9 orders.')
+    assert.equal(answer, 'Macula OMS received 9 orders.')
     assert.equal(diagnostics.status, 'ready')
     assert.equal(calls, 2)
   } finally {

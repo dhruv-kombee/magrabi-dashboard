@@ -17,9 +17,7 @@ cd commerce-intelligence-platform
 cp .env.example .env
 ```
 
-All credentials are parameterized and completely optional at startup:
-- If a connector's credentials are not yet entered, the dashboard displays a clear `PENDING .ENV` notice and uses deterministic sample baselines without crashing.
-- As soon as valid credentials are added to `.env` and the server restarted, the live production adapter activates immediately.
+All credentials are parameterized and optional at startup. Missing credentials produce `NOT_CONFIGURED`; non-empty credentials produce only `CONFIGURED_BUT_NOT_VERIFIED` until a read-only source request succeeds and required fields are validated. Synthetic fixtures remain in explicitly labelled demo panels and are never substituted into live connector responses.
 
 ### Run in Development
 ```powershell
@@ -47,12 +45,12 @@ docker run -p 5174:5174 --env-file .env magrabi-commerce-platform
 
 | Category | Environment Variables | Read-Only Live Capability |
 |---|---|---|
-| **Saleor Core** | `SALEOR_GRAPHQL_URL`, `SALEOR_USERNAME`, `SALEOR_PASSWORD` | Verified orders, daily totals, country breakdown, payment charge status, gross revenue by currency |
+| **Saleor Core** | `SALEOR_GRAPHQL_URL`, `SALEOR_USERNAME`, `SALEOR_PASSWORD` | Diagnostic-only placed-order data for explicit reconciliation checks |
 | **Macula OMS** | `MACULA_API_URL`, `MACULA_TOKEN` or `MACULA_USERNAME` and `MACULA_PASSWORD` | Verified OMS receipt count; payment attribution from a sample of at most 100 orders |
-| **Payment Gateways** | `CHECKOUT_SECRET_KEY`, `TABBY_SECRET_KEY`, `TAMARA_API_TOKEN`, `PAYMOB_API_KEY` | Direct connector response status where implemented; success-rate charts are illustrative until verified gateway metrics are mapped |
-| **Edge & Traffic** | `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID` | Azure Monitor connection status; the existing traffic chart is illustrative until the metric response is mapped |
-| **APM & Infra** | `ECOM_GRAFANA_TOKEN` or `ECOM_GRAFANA_USER` and `ECOM_GRAFANA_PASSWORD` | Grafana health status; the existing latency and infrastructure chart values are illustrative until metric queries are implemented |
-| **Alert Notifications** | `TEAMS_WEBHOOK_URL`, `ALERT_EMAIL_RECIPIENTS`, `SMTP_*` | Automated rule evaluation with dispatch to Microsoft Teams channels and operations email lists |
+| **Payment Gateways** | Provider credential plus an approved read-only `*_REPORT_PATH` where no stable default exists | Authentication and response-shape verification; success metrics remain unavailable until provider fields are mapped |
+| **Edge & Traffic** | `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` | Service-principal authentication and validated Azure Monitor request/latency datapoints |
+| **APM & Infra** | Grafana credentials, `PROMETHEUS_DATASOURCE_UID`, and approved `GRAFANA_*_QUERY` values | Grafana health is separated from validated Prometheus metric queries |
+| **Alert Notifications** | `TEAMS_WEBHOOK_URL`, `ALERT_EMAIL_RECIPIENTS`, `SMTP_*` | Rule simulation only; delivery stays disabled unless a future operator explicitly enables `ALERT_DELIVERY_ENABLED` |
 | **Commerce Assist** | `GEMINI_API_KEY`, `GEMINI_MODEL`, `ASSISTANT_MAX_HISTORY` | Gemini 3.1 Flash-Lite answers grounded in approved platform telemetry; a built-in answer engine remains available without an API key |
 
 ---
@@ -62,7 +60,7 @@ docker run -p 5174:5174 --env-file .env magrabi-commerce-platform
 The platform includes 8 purpose-built trend charts designed for operational clarity:
 
 1. **Intraday 24-Hour Run-Rate** (*Overview*): Cumulative order trajectory comparing Today vs. Yesterday vs. 30-day baseline across hours 00:00 to 23:00.
-2. **Saleor-to-OMS Sync Reconciliation Delta** (*Overview*): Real-time delta curve tracking handoff delays between Saleor order placement and Macula OMS fulfillment intake.
+2. **Macula OMS received-order trend** (*Overview*): Daily received-order totals from the OMS. Saleor comparison charts are not mounted in the primary dashboard.
 3. **Multi-Gateway 14-Day Success Rate Trend** (*Orders & Payments*): Comparative rolling success rate percentages across Checkout.com, Tabby, Tamara, and Paymob.
 4. **Native Currency Revenue Trend** (*Orders & Payments*): Gross order value trends separated by currency (AED, SAR, EGP, QAR, KWD) with zero artificial FX mixing.
 5. **End-to-End Funnel Conversion Trend** (*Customer Journey*): Daily conversion percentage tracking from Add-to-Cart to Confirmed Order.
@@ -76,7 +74,8 @@ The platform includes 8 purpose-built trend charts designed for operational clar
 
 - **Read-Only Data Fetching**: Under NO circumstances does any code mutate, modify, update, reconfigure, or delete any resource, order, transaction, or setting on any external platform.
 - **No Hardcoded Credential Fallbacks**: Current configuration loads credentials from the environment. Previously embedded Grafana password values should be rotated.
-- **No Production Mutation**: Only read operations (`GET` or read-only `POST /search`) are executed.
+- **No Production Mutation**: Source operations are limited to `GET`, GraphQL queries/token creation, authentication-token creation, and Macula's read-only `POST /search` contract.
+- **No false health**: Configuration, authentication, source health, metric availability, and freshness are reported separately.
 
 ---
 
@@ -90,7 +89,7 @@ Answers now lead with a concise response to the actual question. A multi-part or
 
 Answers can be downloaded as styled PDF, Excel, or Word files with source evidence. Add `GEMINI_API_KEY` from Google AI Studio to the server environment to enable Gemini 3.1 Flash-Lite. The key is never sent to the browser, and no web-search tool is enabled. Without the key, the assistant uses the platform answer engine.
 
-Natural wording such as “what is the todays sell,” “How are we doing today?”, or a misspelled Saudi sales question is treated as a sales request. Gemini proposes a structured intent, country, brand, and period; the server validates the proposal and gives explicit wording priority over model hints. A sales answer puts **Macula OMS received orders** first, then separately labels **Saleor placed orders and gross placed-order value**. Saleor value is not called OMS-received revenue. A question explicitly asking for Macula orders queries Macula only; if that feed is unavailable, the assistant does not substitute Saleor counts. When the user’s topic is genuinely ambiguous, the assistant asks a follow-up with selectable, scope-preserving questions before fetching data. The per-answer visual displays **Query scope** separately from **Dashboard filters** and the snapshot time. Gemini receives only verified evidence for answer wording, and unsupported numeric claims are rejected. If Gemini is unavailable, deterministic parsing and a labeled platform answer remain available. Questions outside the platform are blocked before connectors or Gemini are called.
+Natural wording such as “what is the todays sell,” “How are we doing today?”, or a misspelled Saudi sales question is treated as a sales request. Gemini proposes a structured intent, country, brand, and period; the server validates the proposal and gives explicit wording priority over model hints. Sales and order answers use **Macula OMS received orders** only. Saleor is queried only for an explicit reconciliation or source-status question, and is never substituted when Macula is unavailable. When the user’s topic is genuinely ambiguous, the assistant asks a follow-up with selectable, scope-preserving questions before fetching data. The per-answer visual displays **Query scope** separately from **Dashboard filters** and the snapshot time. Gemini receives only verified evidence for answer wording, and unsupported numeric claims are rejected. If Gemini is unavailable, deterministic parsing and a labeled platform answer remain available. Questions outside the platform are blocked before connectors or Gemini are called.
 
-The dashboard’s country performance table and daily order series are Saleor placed-order views, and are labeled accordingly. Macula OMS status and received counts are shown only when the Macula feed is verified. “Why do Saleor and Macula differ?” receives a stage-aware comparison when both feeds are live, or an explicit availability warning otherwise. A matching Saleor and Macula count cannot be assumed without order-ID reconciliation; live snapshots can also differ by refresh time.
+The dashboard’s headline count, country performance table, and daily order series are Macula OMS received-order views. Saleor remains diagnostic-only. “Why do Saleor and Macula differ?” receives a stage-aware comparison when both feeds are live, or an explicit availability warning otherwise. A matching Saleor and Macula count cannot be assumed without order-ID reconciliation and aligned snapshot times.
 

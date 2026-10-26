@@ -8,6 +8,9 @@ export interface LiveDailyPoint {
 }
 
 export interface LivePaymentBreakdown {
+  sampled?: boolean
+  sampleSize?: number
+  sampleLimit?: number
   fullCharge: number
   noneCharge: number
   onlineRate: number
@@ -18,9 +21,9 @@ export interface LivePaymentBreakdown {
 }
 
 export interface LiveOmsSummary {
-  orders: number
-  previousOrders: number
-  changePct: number
+  orders: number | null
+  previousOrders: number | null
+  changePct: number | null
   exceptions: number | null
 }
 
@@ -287,46 +290,32 @@ export async function exportReport(options: ExportReportOptions): Promise<void> 
 
       const kpiData: Array<[string, number | string, number | string, number | string, string]> = [
         [
-          'Orders placed (Saleor)',
+          'Orders received (Macula OMS)',
           liveSaleor.orders,
           liveSaleor.previousOrders,
           `${liveSaleor.changePct > 0 ? '+' : ''}${liveSaleor.changePct.toFixed(1)}%`,
-          'Authoritative live order creation in Saleor Core',
+          'Primary verified received-order count from Macula OMS search',
         ],
         [
-          'Received in OMS (Macula)',
-          liveSaleor.oms?.orders ?? '—',
-          liveSaleor.oms?.previousOrders ?? '—',
-          liveSaleor.oms ? `${liveSaleor.oms.changePct > 0 ? '+' : ''}${liveSaleor.oms.changePct.toFixed(1)}%` : '—',
-          'Downstream receipt confirmed in Macula OMS search',
-        ],
-        [
-          'Handoff Sync Exceptions',
-          liveSaleor.oms?.exceptions ?? 0,
-          '—',
-          '—',
-          liveSaleor.oms?.exceptions === 0 ? '0 sync delay · 100% handoff match' : 'Orders placed pending OMS receipt',
-        ],
-        [
-          'Payment Success Rate',
+          'Online Method Share (Macula Sample)',
           liveSaleor.paymentBreakdown ? `${liveSaleor.paymentBreakdown.onlineRate.toFixed(1)}%` : '—',
           liveSaleor.paymentBreakdown?.priorOnlineRate !== undefined ? `${liveSaleor.paymentBreakdown.priorOnlineRate.toFixed(1)}%` : '—',
           liveSaleor.paymentBreakdown?.changePct !== undefined ? `${liveSaleor.paymentBreakdown.changePct > 0 ? '+' : ''}${liveSaleor.paymentBreakdown.changePct.toFixed(1)}%` : '—',
-          'Online captured orders divided by total orders',
+          'Sampled payment attribution; not a full-window gateway success rate',
         ],
         [
-          'Captured Online Orders',
+          'Online Methods (Sample)',
           liveSaleor.paymentBreakdown?.fullCharge ?? 0,
           liveSaleor.paymentBreakdown?.priorFullCharge ?? '—',
           '—',
-          'Saleor charge status: FULL',
+          'Macula payment sample only',
         ],
         [
-          'Uncharged / Cash Orders',
+          'Cash / Other (Sample)',
           liveSaleor.paymentBreakdown?.noneCharge ?? 0,
           liveSaleor.paymentBreakdown?.priorNoneCharge ?? '—',
           '—',
-          'Saleor charge status: NONE / Cash on Delivery',
+          'Macula payment sample only',
         ],
       ]
 
@@ -356,31 +345,22 @@ export async function exportReport(options: ExportReportOptions): Promise<void> 
       addTableHeaders([
         'Date',
         'Day of Week',
-        'Saleor Orders Placed',
-        'Estimated OMS Received',
-        'Online Captured',
-        'Cash / Uncharged',
-        'Online Rate %',
+        'Macula Orders Received',
+        'Source Status',
+        'Online Captured (Daily)',
+        'Cash / Uncharged (Daily)',
+        'Daily Online Rate %',
         'Share of Total %',
       ])
 
       let sumPlaced = 0
-      let sumOms = 0
-      let sumCaptured = 0
-      let sumCash = 0
-
       dailyPoints.forEach(([dStr, ords], idx) => {
-        const rate = (liveSaleor.paymentBreakdown?.onlineRate ?? 66.6) / 100
-        const captured = Math.round(ords * rate)
-        const cash = Math.max(0, ords - captured)
-        const estOms = Math.round(ords * 0.98)
-        const ratePct = ords > 0 ? ((captured / ords) * 100).toFixed(1) + '%' : '0.0%'
+        const captured = 'Unavailable'
+        const cash = 'Unavailable'
+        const ratePct = 'Unavailable'
         const sharePct = liveSaleor.orders > 0 ? ((ords / liveSaleor.orders) * 100).toFixed(1) + '%' : '0.0%'
 
         sumPlaced += ords
-        sumOms += estOms
-        sumCaptured += captured
-        sumCash += cash
 
         let dayOfWeek = ''
         try {
@@ -393,7 +373,7 @@ export async function exportReport(options: ExportReportOptions): Promise<void> 
           // ignore
         }
 
-        const row = addStyledRow([dStr, dayOfWeek, ords, estOms, captured, cash, ratePct, sharePct], idx)
+        const row = addStyledRow([dStr, dayOfWeek, ords, 'Verified Macula OMS', captured, cash, ratePct, sharePct], idx)
         row.getCell(1).alignment = { vertical: 'middle', horizontal: 'center' }
         row.getCell(2).alignment = { vertical: 'middle', horizontal: 'center' }
         row.getCell(3).alignment = { vertical: 'middle', horizontal: 'right' }
@@ -405,15 +385,14 @@ export async function exportReport(options: ExportReportOptions): Promise<void> 
       })
 
       // Total Row for Daily Trend
-      const totOnlineRate = sumPlaced > 0 ? ((sumCaptured / sumPlaced) * 100).toFixed(1) + '%' : '0.0%'
       const totRow = ws.addRow([
         'Total Window Summary',
         '',
         sumPlaced,
-        sumOms,
-        sumCaptured,
-        sumCash,
-        totOnlineRate,
+        'Verified Macula OMS',
+        liveSaleor.paymentBreakdown?.fullCharge ?? 'Unavailable',
+        liveSaleor.paymentBreakdown?.noneCharge ?? 'Unavailable',
+        liveSaleor.paymentBreakdown ? `${liveSaleor.paymentBreakdown.onlineRate.toFixed(1)}% window total` : 'Unavailable',
         '100.0%',
       ])
       totRow.height = 23
@@ -442,7 +421,7 @@ export async function exportReport(options: ExportReportOptions): Promise<void> 
         'Country Code',
         'Country Name',
         'Currency',
-        'Orders Placed',
+        'Orders Received',
         'Prior Window Orders',
         'Trend %',
         'Volume Share %',
@@ -485,9 +464,10 @@ export async function exportReport(options: ExportReportOptions): Promise<void> 
       addTableHeaders(['Currency', 'Country Code', 'Country Name', 'Gross Revenue Amount', 'Orders Count', 'Average Ticket (AOV)'])
 
       countryRows.forEach(([code, c], idx) => {
-        const rev = liveSaleor.revenueByCurrency?.[c.currency] ?? 0
+        const revenue = liveSaleor.revenueByCurrency?.[c.currency]
+        const rev = revenue ?? 'Unavailable'
         const ords = liveSaleor.countryBreakdown?.[code] ?? 0
-        const aov = ords > 0 ? Math.round(rev / ords) : 0
+        const aov = revenue !== undefined && ords > 0 ? Math.round(revenue / ords) : 'Unavailable'
 
         const row = addStyledRow([c.currency, code, c.name, rev, ords, aov], idx)
         row.getCell(1).alignment = { vertical: 'middle', horizontal: 'center' }
@@ -625,7 +605,7 @@ export async function exportReport(options: ExportReportOptions): Promise<void> 
     rows = [
       ['MAGRABI COMMERCE INTELLIGENCE PLATFORM — OPERATIONAL REPORT'],
       ['Export Timestamp', `${exportDateStr} ${exportTimeStr.replace('-', ':')} (${timezone})`],
-      ['Data Feed Status', 'LIVE PRODUCTION DATA (Saleor GraphQL + Macula OMS)'],
+      ['Data Feed Status', 'LIVE PRODUCTION DATA (Macula OMS primary)'],
       ['Reporting Timezone', `${timezone} (UTC+${pad(tzOffset)}:00)`],
       ['Filter Brand', brand === 'all' ? 'All Brands (Magrabi + DoctorM)' : brand],
       ['Filter Country', country === 'all' ? 'All Countries (SA, AE, EG, QA, KW)' : country],
@@ -636,55 +616,37 @@ export async function exportReport(options: ExportReportOptions): Promise<void> 
       ['1. EXECUTIVE KPI SUMMARY'],
       ['KPI Metric', 'Current Window', 'Prior Comparison Window', 'Change %', 'Telemetry Notes'],
       [
-        'Orders placed (Saleor)',
+        'Orders received (Macula OMS)',
         liveSaleor.orders,
         liveSaleor.previousOrders,
         `${liveSaleor.changePct > 0 ? '+' : ''}${liveSaleor.changePct.toFixed(1)}%`,
-        'Authoritative live order creation in Saleor Core',
+        'Primary verified received-order count from Macula OMS search',
       ],
       [
-        'Received in OMS (Macula)',
-        liveSaleor.oms?.orders ?? '—',
-        liveSaleor.oms?.previousOrders ?? '—',
-        liveSaleor.oms ? `${liveSaleor.oms.changePct > 0 ? '+' : ''}${liveSaleor.oms.changePct.toFixed(1)}%` : '—',
-        'Downstream receipt confirmed in Macula OMS search',
-      ],
-      [
-        'Handoff Sync Exceptions',
-        liveSaleor.oms?.exceptions ?? 0,
-        '—',
-        '—',
-        liveSaleor.oms?.exceptions === 0 ? '0 sync delay · 100% handoff match' : 'Orders placed pending OMS receipt',
-      ],
-      [
-        'Payment Success Rate',
+        'Online Method Share (Macula Sample)',
         liveSaleor.paymentBreakdown ? `${liveSaleor.paymentBreakdown.onlineRate.toFixed(1)}%` : '—',
         liveSaleor.paymentBreakdown?.priorOnlineRate !== undefined ? `${liveSaleor.paymentBreakdown.priorOnlineRate.toFixed(1)}%` : '—',
         liveSaleor.paymentBreakdown?.changePct !== undefined ? `${liveSaleor.paymentBreakdown.changePct > 0 ? '+' : ''}${liveSaleor.paymentBreakdown.changePct.toFixed(1)}%` : '—',
-        'Online captured orders divided by total orders',
+        'Sampled payment attribution; not a full-window gateway success rate',
       ],
       [
-        'Captured Online Orders',
+        'Online Methods (Sample)',
         liveSaleor.paymentBreakdown?.fullCharge ?? 0,
         liveSaleor.paymentBreakdown?.priorFullCharge ?? '—',
         '—',
-        'Saleor charge status: FULL',
+        'Macula payment sample only',
       ],
       [
-        'Uncharged / Cash Orders',
+        'Cash / Other (Sample)',
         liveSaleor.paymentBreakdown?.noneCharge ?? 0,
         liveSaleor.paymentBreakdown?.priorNoneCharge ?? '—',
         '—',
-        'Saleor charge status: NONE / Cash on Delivery',
+        'Macula payment sample only',
       ],
       [],
       ['2. DAILY ORDERS & OUTCOMES TREND'],
-      ['Date', 'Day of Week', 'Saleor Orders Placed', 'Estimated OMS Received', 'Online Captured', 'Cash / Uncharged', 'Online Rate %', 'Share of Total %'],
+      ['Date', 'Day of Week', 'Macula Orders Received', 'Source Status', 'Online Methods (Daily)', 'Cash / Other (Daily)', 'Daily Online Rate %', 'Share of Total %'],
       ...dailyPoints.map(([dStr, ords]) => {
-        const rate = (liveSaleor.paymentBreakdown?.onlineRate ?? 66.6) / 100
-        const captured = Math.round(ords * rate)
-        const cash = Math.max(0, ords - captured)
-        const ratePct = ords > 0 ? ((captured / ords) * 100).toFixed(1) + '%' : '0.0%'
         const sharePct = liveSaleor.orders > 0 ? ((ords / liveSaleor.orders) * 100).toFixed(1) + '%' : '0.0%'
         let dayOfWeek = ''
         try {
@@ -700,16 +662,16 @@ export async function exportReport(options: ExportReportOptions): Promise<void> 
           dStr,
           dayOfWeek,
           ords,
-          Math.round(ords * 0.98),
-          captured,
-          cash,
-          ratePct,
+          'Verified Macula OMS',
+          'Unavailable',
+          'Unavailable',
+          'Unavailable',
           sharePct,
         ]
       }),
       [],
       ['3. COUNTRY PERFORMANCE BREAKDOWN'],
-      ['Country Code', 'Country Name', 'Currency', 'Orders Placed', 'Prior Window Orders', 'Trend %', 'Volume Share %', 'Payment Success Rate %'],
+      ['Country Code', 'Country Name', 'Currency', 'Orders Received', 'Prior Window Orders', 'Trend %', 'Volume Share %', 'Sampled Online Share %'],
       ...Object.entries(countries)
         .filter(([c]) => country === 'all' || c === country)
         .map(([code, c]) => {
@@ -730,10 +692,11 @@ export async function exportReport(options: ExportReportOptions): Promise<void> 
       ...Object.entries(countries)
         .filter(([code]) => country === 'all' || code === country)
         .map(([code, c]) => {
-          const rev = liveSaleor.revenueByCurrency?.[c.currency] ?? 0
+          const revenue = liveSaleor.revenueByCurrency?.[c.currency]
+          const rev = revenue ?? 'Unavailable'
           const ords = liveSaleor.countryBreakdown?.[code] ?? 0
-          const aov = ords > 0 ? Math.round(rev / ords) : 0
-          return [c.currency, code, c.name, rev.toFixed(2), ords, aov.toFixed(2)]
+          const aov = revenue !== undefined && ords > 0 ? revenue / ords : null
+          return [c.currency, code, c.name, revenue !== undefined ? revenue.toFixed(2) : rev, ords, aov !== null ? aov.toFixed(2) : 'Unavailable']
         }),
       [],
       ['5. PAYMENT GATEWAYS & METHODS (MACULA OMS)'],

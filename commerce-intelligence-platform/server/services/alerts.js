@@ -8,6 +8,9 @@ export function isAlertChannelConfigured() {
 }
 
 export async function sendTeamsNotification(title, message, severity = 'INFO') {
+  if (!config.alerts.deliveryEnabled) {
+    return { status: 'DISABLED', message: 'Notification delivery is disabled. Set ALERT_DELIVERY_ENABLED=true only during an operator-approved delivery run.' }
+  }
   const { teamsWebhookUrl } = config.alerts
   if (!teamsWebhookUrl) {
     return { status: 'PENDING_CONFIG', missing: ['TEAMS_WEBHOOK_URL'] }
@@ -56,10 +59,12 @@ export async function evaluateAlertRule(ruleParams, currentMetrics = {}) {
   let triggered = false
   let evaluationText = ''
   let subtext = ''
+  let metricAvailable = true
 
   if (rule === 'orders') {
-    const orders = currentMetrics.orders ?? 0
-    if (orders < threshold) {
+    const orders = currentMetrics.orders
+    if (!Number.isFinite(orders)) metricAvailable = false
+    else if (orders < threshold) {
       triggered = true
       evaluationText = `ALERT TRIGGERED: Confirmed orders (${orders}) fell below threshold (${threshold})`
       subtext = 'Commerce Operations on-call notified.'
@@ -68,9 +73,10 @@ export async function evaluateAlertRule(ruleParams, currentMetrics = {}) {
       subtext = 'No breach detected.'
     }
   } else if (rule === 'payments') {
-    const onlineRate = currentMetrics.onlineRate ?? 68.0
-    const failRate = 100 - onlineRate
-    if (failRate >= threshold) {
+    const onlineRate = currentMetrics.onlineRate
+    const failRate = Number.isFinite(onlineRate) ? 100 - onlineRate : null
+    if (failRate === null) metricAvailable = false
+    else if (failRate >= threshold) {
       triggered = true
       evaluationText = `ALERT TRIGGERED: Payment failure rate (${failRate.toFixed(1)}%) breached threshold (${threshold}%)`
       subtext = 'Payments integration lead notified.'
@@ -79,8 +85,9 @@ export async function evaluateAlertRule(ruleParams, currentMetrics = {}) {
       subtext = 'Gateway response within bounds.'
     }
   } else if (rule === '5xx') {
-    const errorRate = currentMetrics.errorRatePct ?? 0.3
-    if (errorRate >= threshold) {
+    const errorRate = currentMetrics.errorRatePct
+    if (!Number.isFinite(errorRate)) metricAvailable = false
+    else if (errorRate >= threshold) {
       triggered = true
       evaluationText = `ALERT TRIGGERED: Origin 5xx rate (${errorRate.toFixed(1)}%) breached threshold (${threshold}%)`
       subtext = 'DevOps on-call notified.'
@@ -89,12 +96,17 @@ export async function evaluateAlertRule(ruleParams, currentMetrics = {}) {
       subtext = 'Edge routing stable.'
     }
   } else {
-    evaluationText = 'Rule evaluated successfully.'
-    subtext = 'All telemetry sources reporting on schedule.'
+    metricAvailable = false
+  }
+
+  if (!metricAvailable) {
+    triggered = false
+    evaluationText = 'METRIC UNAVAILABLE: This rule was not evaluated because its live input is missing.'
+    subtext = 'Missing telemetry is not treated as zero or as a healthy signal.'
   }
 
   let teamsOutcome = null
-  if (triggered && notifyTeams && hasEnv('TEAMS_WEBHOOK_URL')) {
+  if (triggered && notifyTeams && hasEnv('TEAMS_WEBHOOK_URL') && config.alerts.deliveryEnabled) {
     teamsOutcome = await sendTeamsNotification(
       `Breach: ${rule.toUpperCase()} Rule`,
       evaluationText,
@@ -110,15 +122,21 @@ export async function evaluateAlertRule(ruleParams, currentMetrics = {}) {
     subtext,
     channels: {
       teams: notifyTeams
-        ? hasEnv('TEAMS_WEBHOOK_URL')
-          ? teamsOutcome?.status || 'SENT'
+        ? !config.alerts.deliveryEnabled
+          ? 'DISABLED'
+          : hasEnv('TEAMS_WEBHOOK_URL')
+          ? teamsOutcome?.status || 'FAILED'
           : 'PENDING_CONFIG: TEAMS_WEBHOOK_URL'
         : 'NOT_REQUESTED',
       email: notifyEmail
-        ? hasEnv('SMTP_HOST')
-          ? 'QUEUED'
+        ? !config.alerts.deliveryEnabled
+          ? 'DISABLED'
+          : hasEnv('SMTP_HOST')
+          ? 'NOT_IMPLEMENTED'
           : 'PENDING_CONFIG: SMTP_HOST'
         : 'NOT_REQUESTED',
     },
+    metricAvailable,
+    deliveryEnabled: config.alerts.deliveryEnabled,
   }
 }

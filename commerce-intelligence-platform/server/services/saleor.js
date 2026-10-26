@@ -1,4 +1,5 @@
 import { config, hasEnv } from '../config.js'
+import { connectorError, fetchJson, redactError } from './http.js'
 
 export const SALEOR_CHANNEL_MAP = {
   'Magrabi:AE': 'Q2hhbm5lbDox', // magrabi-ae-web
@@ -38,7 +39,7 @@ export async function getOrRefreshToken(force = false) {
   }
 
   try {
-    const authRes = await fetch(graphqlUrl, {
+    const { response: authRes, payload: authJson } = await fetchJson(graphqlUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -50,9 +51,8 @@ export async function getOrRefreshToken(force = false) {
         }`,
         variables: { email: username, password },
       }),
-    })
-
-    const authJson = await authRes.json()
+    }, config.requestTimeoutMs)
+    if (!authRes.ok || !authJson || typeof authJson !== 'object') return { error: `Authentication returned HTTP ${authRes.status}.` }
     const errors = authJson.data?.tokenCreate?.errors
     if (errors && errors.length > 0) {
       console.warn('[Saleor Auth Error]:', errors[0]?.message || 'Auth error')
@@ -70,7 +70,7 @@ export async function getOrRefreshToken(force = false) {
       return cachedToken
     }
   } catch (err) {
-    console.error('Saleor token renewal error:', err.message)
+    console.error('Saleor token renewal error:', redactError(err))
   }
   return null
 }
@@ -79,12 +79,39 @@ export function isSaleorConfigured() {
   return hasEnv('SALEOR_USERNAME') && hasEnv('SALEOR_PASSWORD')
 }
 
+async function fetchAllOrderDetails(authToken, created, channels) {
+  const nodes = []
+  let after = null
+  for (let page = 0; page < config.saleor.maxRevenuePages; page += 1) {
+    const query = `query OrderDetails($created: DateRangeInput, $channels: [ID!], $after: String) {
+      orders(first: 100, after: $after, filter: { created: $created, channels: $channels }) {
+        edges { node { id number created chargeStatus channel { id slug currencyCode } total { gross { amount currency } } } }
+        pageInfo { hasNextPage endCursor }
+      }
+    }`
+    const { response, payload } = await fetchJson(config.saleor.graphqlUrl, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({ query, variables: { created, channels: channels.length ? channels : undefined, after } }),
+    }, config.requestTimeoutMs)
+    if (!response.ok) throw new Error(`Saleor order detail query returned HTTP ${response.status}.`)
+    if (payload?.errors?.length) throw new Error(payload.errors[0]?.message || 'Saleor order detail query failed.')
+    const connection = payload?.data?.orders
+    if (!Array.isArray(connection?.edges) || typeof connection?.pageInfo?.hasNextPage !== 'boolean') throw new Error('Saleor order detail response is missing edges or pageInfo.')
+    nodes.push(...connection.edges.map((edge) => edge.node).filter(Boolean))
+    if (!connection.pageInfo.hasNextPage) return { nodes, complete: true }
+    if (!connection.pageInfo.endCursor) throw new Error('Saleor pagination cursor is missing.')
+    after = connection.pageInfo.endCursor
+  }
+  return { nodes, complete: false }
+}
+
 export async function fetchSaleorSummary(options) {
   const { brand = 'all', country = 'all', start, end, tz = 'Dubai' } = options
 
   if (!isSaleorConfigured()) {
     return {
-      status: 'PENDING_CONFIG',
+      status: 'NOT_CONFIGURED',
+      configured: false,
       live: false,
       missing: ['SALEOR_USERNAME', 'SALEOR_PASSWORD'],
       message: 'Saleor credentials not configured in environment (.env). Provide SALEOR_USERNAME and SALEOR_PASSWORD to activate live orders feed.',
@@ -95,7 +122,8 @@ export async function fetchSaleorSummary(options) {
   if (!authResult || typeof authResult !== 'string') {
     const errorMsg = authResult?.error || 'Saleor authentication failed. Please verify credentials in .env.'
     return {
-      status: 'AUTH_REQUIRED',
+      status: 'AUTHENTICATION_FAILED',
+      configured: true,
       live: false,
       error: `Saleor Auth: ${errorMsg}`,
       message: 'Please update SALEOR_USERNAME / SALEOR_PASSWORD in .env with an active account.',
@@ -255,7 +283,7 @@ export async function fetchSaleorSummary(options) {
   const saleorTodayLte = now.toISOString().split('T')[0]
 
   const sendQuery = async (authToken) => {
-    const res = await fetch(config.saleor.graphqlUrl, {
+    const { response: res, payload } = await fetchJson(config.saleor.graphqlUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -270,11 +298,19 @@ export async function fetchSaleorSummary(options) {
           channels: channelIds.length > 0 ? channelIds : undefined,
         },
       }),
-    })
-    return await res.json()
+    }, config.requestTimeoutMs)
+    if (!res.ok) throw new Error(`Saleor GraphQL returned HTTP ${res.status}.`)
+    if (!payload || typeof payload !== 'object') throw new Error('Saleor GraphQL response is malformed.')
+    return payload
   }
 
-  let orderJson = await sendQuery(token)
+  let orderJson
+  let queryToken = token
+  try {
+    orderJson = await sendQuery(token)
+  } catch (error) {
+    return { ...connectorError(error), configured: true, live: false, source: 'Saleor Core GraphQL', checkedAt: new Date().toISOString() }
+  }
 
   // Auto-refresh token if expired
   if (
@@ -286,7 +322,8 @@ export async function fetchSaleorSummary(options) {
     )
   ) {
     const refreshedToken = await getOrRefreshToken(true)
-    if (refreshedToken) {
+    if (typeof refreshedToken === 'string') {
+      queryToken = refreshedToken
       orderJson = await sendQuery(refreshedToken)
     }
   }
@@ -299,13 +336,23 @@ export async function fetchSaleorSummary(options) {
     }
   }
 
-  const currentNodes = (orderJson.data?.recentOrders?.edges || []).map((e) => e.node)
+  let detailCurrent = { nodes: (orderJson.data?.recentOrders?.edges || []).map((e) => e.node), complete: false }
+  let detailPrior = { nodes: (orderJson.data?.priorOrdersSample?.edges || []).map((e) => e.node), complete: false }
+  try {
+    ;[detailCurrent, detailPrior] = await Promise.all([
+      fetchAllOrderDetails(queryToken, { gte: saleorCurrGte, lte: saleorCurrLte }, channelIds),
+      fetchAllOrderDetails(queryToken, { gte: saleorPriorGte, lte: saleorPriorLte }, channelIds),
+    ])
+  } catch (error) {
+    console.error('Saleor detail pagination error:', redactError(error))
+  }
+  const currentNodes = detailCurrent.nodes
   const inCurrentWindow = currentNodes.filter((o) => {
     const t = Date.parse(o.created)
     return t >= startDate.getTime() && t <= endDate.getTime()
   })
 
-  const priorNodes = (orderJson.data?.priorOrdersSample?.edges || []).map((e) => e.node)
+  const priorNodes = detailPrior.nodes
   const inPriorWindow = priorNodes.filter((o) => {
     const t = Date.parse(o.created)
     return t >= prevStartDate.getTime() && t <= prevEndDate.getTime()
@@ -318,7 +365,7 @@ export async function fetchSaleorSummary(options) {
 
   const numDays = Math.max(1, Math.round(duration / 86400000))
 
-  const dailyPoints = bucketList.map((b) => {
+  let dailyPoints = bucketList.map((b) => {
     if (b.date === todayStr && inTodayNodes.length > 0 && intervalDays === 1) {
       return { date: b.date, orders: inTodayNodes.length }
     }
@@ -331,17 +378,24 @@ export async function fetchSaleorSummary(options) {
 
   const authoritativeCurrOrders = orderJson.data?.currentSummary?.totalCount ?? 0
   const authoritativePriorOrders = orderJson.data?.priorSummary?.totalCount ?? 0
-  const sumDailyOrders = dailyPoints.reduce((a, b) => a + b.orders, 0)
 
-  const currOrders = numDays <= 2
-    ? inCurrentWindow.length
-    : (authoritativeCurrOrders > 0 ? authoritativeCurrOrders : sumDailyOrders)
+  if (typeof orderJson.data?.currentSummary?.totalCount !== 'number' || typeof orderJson.data?.priorSummary?.totalCount !== 'number' || typeof orderJson.data?.todaySummary?.totalCount !== 'number') {
+    return { status: 'CONNECTED_BUT_REQUIRED_FIELDS_MISSING', configured: true, live: true, source: 'Saleor Core GraphQL', error: 'Order totals are missing from the GraphQL response.', checkedAt: new Date().toISOString() }
+  }
+  const currOrders = detailCurrent.complete ? inCurrentWindow.length : authoritativeCurrOrders
+  const priorOrders = detailPrior.complete ? inPriorWindow.length : authoritativePriorOrders
+  const todayOrders = orderJson.data.todaySummary.totalCount
 
-  const priorOrders = numDays <= 2
-    ? inPriorWindow.length
-    : (authoritativePriorOrders > 0 ? authoritativePriorOrders : inPriorWindow.length)
-
-  const todayOrders = inTodayNodes.length > 0 ? inTodayNodes.length : (orderJson.data?.todaySummary?.totalCount ?? 0)
+  if (detailCurrent.complete) {
+    dailyPoints = bucketList.map((bucket) => ({
+      date: bucket.date,
+      endDate: bucket.endDate !== bucket.date ? bucket.endDate : undefined,
+      orders: inCurrentWindow.filter((order) => {
+        const date = formatDateInTz(new Date(order.created))
+        return date >= bucket.date && date <= bucket.endDate
+      }).length,
+    }))
+  }
 
   let changePct = 0
   if (priorOrders > 0) {
@@ -352,26 +406,19 @@ export async function fetchSaleorSummary(options) {
   let countryBreakdown
   let priorCountryBreakdown
 
-  if (numDays <= 2) {
-    countryBreakdown = { SA: 0, AE: 0, EG: 0, QA: 0, KW: 0 }
-    for (const o of inCurrentWindow) {
-      const slug = o.channel?.slug || ''
-      if (slug.includes('-sa-')) countryBreakdown.SA++
-      else if (slug.includes('-ae-')) countryBreakdown.AE++
-      else if (slug.includes('-eg-')) countryBreakdown.EG++
-      else if (slug.includes('-qa-')) countryBreakdown.QA++
-      else if (slug.includes('-kw-')) countryBreakdown.KW++
+  if (detailCurrent.complete && detailPrior.complete) {
+    const empty = () => ({ SA: 0, AE: 0, EG: 0, QA: 0, KW: 0 })
+    const group = (nodes) => {
+      const result = empty()
+      for (const order of nodes) {
+        const slug = order.channel?.slug || ''
+        const code = ['SA', 'AE', 'EG', 'QA', 'KW'].find((candidate) => slug.includes(`-${candidate.toLowerCase()}-`))
+        if (code) result[code] += 1
+      }
+      return result
     }
-
-    priorCountryBreakdown = { SA: 0, AE: 0, EG: 0, QA: 0, KW: 0 }
-    for (const o of inPriorWindow) {
-      const slug = o.channel?.slug || ''
-      if (slug.includes('-sa-')) priorCountryBreakdown.SA++
-      else if (slug.includes('-ae-')) priorCountryBreakdown.AE++
-      else if (slug.includes('-eg-')) priorCountryBreakdown.EG++
-      else if (slug.includes('-qa-')) priorCountryBreakdown.QA++
-      else if (slug.includes('-kw-')) priorCountryBreakdown.KW++
-    }
+    countryBreakdown = group(inCurrentWindow)
+    priorCountryBreakdown = group(inPriorWindow)
   } else {
     countryBreakdown = {
       SA: orderJson.data?.country_SA?.totalCount ?? 0,
@@ -390,31 +437,16 @@ export async function fetchSaleorSummary(options) {
   }
 
   // Multi-country Daily Points
-  const countryDailyPoints = { SA: [], AE: [], EG: [], QA: [], KW: [] }
-  const codes = ['SA', 'AE', 'EG', 'QA', 'KW']
-  const totalWindowOrders = Math.max(1, currOrders)
-
-  for (const dp of dailyPoints) {
-    let dayRemaining = dp.orders
-    const countryDayMap = {}
-
-    for (let i = 0; i < codes.length; i++) {
-      const code = codes[i]
-      if (i === codes.length - 1) {
-        countryDayMap[code] = Math.max(0, dayRemaining)
-      } else {
-        const share = (countryBreakdown[code] || 0) / totalWindowOrders
-        const val = Math.min(dayRemaining, Math.round(dp.orders * share))
-        countryDayMap[code] = Math.max(0, val)
-        dayRemaining -= val
-      }
-    }
-
-    for (const code of codes) {
-      countryDailyPoints[code].push({
-        date: dp.date,
-        orders: countryDayMap[code] ?? 0,
-      })
+  const countryDailyPoints = {}
+  if (detailCurrent.complete) {
+    for (const code of ['SA', 'AE', 'EG', 'QA', 'KW']) countryDailyPoints[code] = dailyPoints.map((point) => ({ date: point.date, orders: 0 }))
+    for (const order of inCurrentWindow) {
+      const date = formatDateInTz(new Date(order.created))
+      const slug = order.channel?.slug || ''
+      const code = ['SA', 'AE', 'EG', 'QA', 'KW'].find((candidate) => slug.includes(`-${candidate.toLowerCase()}-`))
+      const bucketIndex = dailyPoints.findIndex((item) => date >= item.date && date <= (item.endDate || item.date))
+      const point = code && bucketIndex >= 0 ? countryDailyPoints[code]?.[bucketIndex] : null
+      if (point) point.orders += 1
     }
   }
 
@@ -424,15 +456,11 @@ export async function fetchSaleorSummary(options) {
   let priorFullCharge = 0
   let priorNoneCharge = 0
 
-  if (numDays <= 2) {
-    for (const o of inCurrentWindow) {
-      if (o.chargeStatus === 'FULL') fullCharge++
-      else noneCharge++
-    }
-    for (const o of inPriorWindow) {
-      if (o.chargeStatus === 'FULL') priorFullCharge++
-      else priorNoneCharge++
-    }
+  if (detailCurrent.complete && detailPrior.complete) {
+    fullCharge = inCurrentWindow.filter((order) => order.chargeStatus === 'FULL').length
+    noneCharge = inCurrentWindow.length - fullCharge
+    priorFullCharge = inPriorWindow.filter((order) => order.chargeStatus === 'FULL').length
+    priorNoneCharge = inPriorWindow.length - priorFullCharge
   } else {
     fullCharge = orderJson.data?.charge_FULL?.totalCount ?? 0
     noneCharge = orderJson.data?.charge_NONE?.totalCount ?? 0
@@ -472,20 +500,10 @@ export async function fetchSaleorSummary(options) {
     sampleSumsByCur[cur] = (sampleSumsByCur[cur] || 0) + amt
   }
 
-  if (numDays <= 2 || currentNodes.length === 0) {
+  const currentRevenueComplete = detailCurrent.complete && inCurrentWindow.length === currOrders
+  if (currentRevenueComplete) {
     for (const [cur, amt] of Object.entries(sampleSumsByCur)) {
       revenueByCurrency[cur] = Math.round(amt * 100) / 100
-    }
-  } else {
-    const curToCountryCode = { AED: 'AE', SAR: 'SA', EGP: 'EG', QAR: 'QA', KWD: 'KW' }
-    for (const [cur, sampleTotal] of Object.entries(sampleSumsByCur)) {
-      const sampleCount = sampleCountsByCur[cur] || 1
-      const aov = sampleTotal / sampleCount
-      const cCode = curToCountryCode[cur]
-      const totalCurOrders = cCode && countryBreakdown[cCode] !== undefined 
-        ? countryBreakdown[cCode] 
-        : (currOrders * (sampleCount / currentNodes.length))
-      revenueByCurrency[cur] = Math.round(totalCurOrders * aov * 100) / 100
     }
   }
 
@@ -501,20 +519,10 @@ export async function fetchSaleorSummary(options) {
     priorSampleSumsByCur[cur] = (priorSampleSumsByCur[cur] || 0) + amt
   }
 
-  if (numDays <= 2 || priorNodes.length === 0) {
+  const priorRevenueComplete = detailPrior.complete && inPriorWindow.length === priorOrders
+  if (priorRevenueComplete) {
     for (const [cur, amt] of Object.entries(priorSampleSumsByCur)) {
       priorRevenueByCurrency[cur] = Math.round(amt * 100) / 100
-    }
-  } else {
-    const curToCountryCode = { AED: 'AE', SAR: 'SA', EGP: 'EG', QAR: 'QA', KWD: 'KW' }
-    for (const [cur, sampleTotal] of Object.entries(priorSampleSumsByCur)) {
-      const sampleCount = priorSampleCountsByCur[cur] || 1
-      const aov = sampleTotal / sampleCount
-      const cCode = curToCountryCode[cur]
-      const totalCurOrders = cCode && priorCountryBreakdown[cCode] !== undefined 
-        ? priorCountryBreakdown[cCode] 
-        : (priorOrders * (sampleCount / priorNodes.length))
-      priorRevenueByCurrency[cur] = Math.round(totalCurOrders * aov * 100) / 100
     }
   }
 
@@ -523,8 +531,6 @@ export async function fetchSaleorSummary(options) {
   const currentHour = new Date(now.getTime() + tzOffset * 3600000).getUTCHours()
   const hourlyPoints = []
   let cumulativeToday = 0
-  let cumulativeYesterday = 0
-  let cumulativeBaseline = 0
 
   for (let h = 0; h < 24; h++) {
     const label = `${String(h).padStart(2, '0')}:00`
@@ -535,39 +541,35 @@ export async function fetchSaleorSummary(options) {
       return oDate.getUTCHours() === h
     }).length
 
-    // Estimated pacing curve weights for historical comparison
-    const hourWeight = [1, 1, 1, 1, 1, 2, 3, 5, 6, 7, 8, 8, 7, 6, 6, 6, 7, 8, 9, 8, 7, 5, 3, 2][h] / 100
-    const yesterdayEst = Math.max(0, Math.round(priorOrders * hourWeight))
-    const baselineEst = Math.max(0, Math.round(priorOrders * 1.05 * hourWeight))
-
     if (h <= currentHour) {
       cumulativeToday += hourOrdersToday
     }
-    cumulativeYesterday += yesterdayEst
-    cumulativeBaseline += baselineEst
-
     hourlyPoints.push({
       hour: h,
       label,
       todayHourly: h <= currentHour ? hourOrdersToday : null,
       todayCumulative: h <= currentHour ? cumulativeToday : null,
-      yesterdayHourly: yesterdayEst,
-      yesterdayCumulative: cumulativeYesterday,
-      baselineCumulative: cumulativeBaseline,
+      yesterdayHourly: null,
+      yesterdayCumulative: null,
+      baselineCumulative: null,
     })
   }
 
   // Currency Time-Series Trends
   const currencyDailyTrends = {}
-  for (const [cur, totalAmt] of Object.entries(revenueByCurrency)) {
-    currencyDailyTrends[cur] = dailyPoints.map((dp) => {
-      const share = currOrders > 0 ? dp.orders / currOrders : 0
-      return {
-        date: dp.date,
-        revenue: Math.round(totalAmt * share * 100) / 100,
-        orders: dp.orders,
-      }
-    })
+  if (currentRevenueComplete) {
+    for (const order of inCurrentWindow) {
+      const currency = order.total?.gross?.currency || order.channel?.currencyCode
+      const amount = Number(order.total?.gross?.amount)
+      if (!currency || !Number.isFinite(amount)) continue
+      currencyDailyTrends[currency] ||= []
+      const date = formatDateInTz(new Date(order.created))
+      let point = currencyDailyTrends[currency].find((item) => item.date === date)
+      if (!point) { point = { date, revenue: 0, orders: 0 }; currencyDailyTrends[currency].push(point) }
+      point.revenue = Math.round((point.revenue + amount) * 100) / 100
+      point.orders += 1
+    }
+    for (const points of Object.values(currencyDailyTrends)) points.sort((a, b) => a.date.localeCompare(b.date))
   }
 
   let windowComparisonLabel = `previous ${numDays} days`
@@ -580,7 +582,9 @@ export async function fetchSaleorSummary(options) {
 
   return {
     status: 'OK',
+    configured: true,
     live: true,
+    metricsAvailable: true,
     source: 'Saleor Core GraphQL (Live Orders Feed)',
     brand,
     country,
@@ -592,6 +596,8 @@ export async function fetchSaleorSummary(options) {
     endDate: currEndStr,
     orders: currOrders,
     previousOrders: priorOrders,
+    reconciliationOrderIds: detailCurrent.complete ? inCurrentWindow.map((order) => order.id).filter(Boolean) : null,
+    priorReconciliationOrderIds: detailPrior.complete ? inPriorWindow.map((order) => order.id).filter(Boolean) : null,
     changePct,
     todaySoFar: todayOrders,
     dailyPoints,
@@ -602,7 +608,10 @@ export async function fetchSaleorSummary(options) {
     paymentBreakdown,
     revenueByCurrency,
     priorRevenueByCurrency,
+    revenueStatus: currentRevenueComplete ? 'LIVE_VERIFIED' : 'METRICS_UNAVAILABLE',
+    revenueSample: currentRevenueComplete ? null : { sampledOrders: currentNodes.length, totalOrders: currOrders, valuesByCurrency: sampleSumsByCur },
     currencyDailyTrends,
     lastUpdated: new Date().toISOString(),
+    checkedAt: new Date().toISOString(),
   }
 }
