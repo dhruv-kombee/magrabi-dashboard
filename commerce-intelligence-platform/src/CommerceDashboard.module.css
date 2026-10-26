@@ -52,6 +52,16 @@
   border-radius: 4px;
 }
 
+.mobileSidebarHeader {
+  display: block;
+}
+
+.mobileNavButton,
+.sidebarClose,
+.mobileNavBackdrop {
+  display: none;
+}
+
 .brand {
   font-size: 24px;
   letter-spacing: -1.5px;
@@ -2146,5 +2156,618 @@
   font-weight: 600;
   font-size: 10px;
   width: fit-content;
+}
+
+/* Responsive application shell and content layout */
+@media (max-width: 1180px) {
+  .app {
+    grid-template-columns: 208px minmax(0, 1fr);
+  }
+
+  .sidebar {
+    width: 208px;
+    padding-inline: 14px;
+  }
+
+  .main {
+    padding-inline: 24px;
+  }
+
+  .filterbar {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .filteractions {
+    justify-content: flex-end;
+  }
+
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .gridMain {
+    grid-template-columns: minmax(0, 1.35fr) minmax(260px, 1fr);
+  }
+
+  .codegrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .funnelstep {
+    grid-template-columns: 26px 130px minmax(90px, 1fr) 68px 66px;
+    gap: 10px;
+  }
+}
+
+@media (max-width: 900px) {
+  .pageWrapper {
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
+  .app {
+    display: block;
+    min-width: 0;
+  }
+
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 110;
+    width: min(82vw, 320px);
+    height: 100vh;
+    height: 100dvh;
+    padding: max(22px, env(safe-area-inset-top)) 18px max(22px, env(safe-area-inset-bottom));
+    box-shadow: 18px 0 48px rgba(8, 17, 12, 0.28);
+    transform: translateX(-105%);
+    visibility: hidden;
+    transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), visibility 220ms;
+  }
+
+  .sidebarOpen {
+    transform: translateX(0);
+    visibility: visible;
+  }
+
+  .mobileSidebarHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .brand {
+    padding-inline: 10px;
+  }
+
+  .sidebarClose {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    margin-top: -8px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    color: #eef4f0;
+    background: rgba(255, 255, 255, 0.07);
+    font: inherit;
+    font-size: 26px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .mobileNavBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 105;
+    display: block;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: rgba(13, 25, 18, 0.46);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobileNavBackdropVisible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .navBtn {
+    min-height: 46px;
+    font-size: 13px;
+  }
+
+  .content {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .topbar {
+    height: 60px;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 0 116px 0 18px;
+  }
+
+  .mobileNavButton {
+    display: inline-flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    border: 1px solid #d9e1dc;
+    border-radius: 10px;
+    color: #2c3c32;
+    background: #f8faf8;
+    cursor: pointer;
+  }
+
+  .mobileNavButton span {
+    width: 17px;
+    height: 2px;
+    border-radius: 2px;
+    background: currentColor;
+  }
+
+  .crumb {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .topright {
+    display: none;
+  }
+
+  .main {
+    width: 100%;
+    max-width: none;
+    padding: 22px 20px calc(96px + env(safe-area-inset-bottom));
+  }
+
+  .filterbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filteractions {
+    grid-column: 1 / -1;
+  }
+
+  .gridMain,
+  .gridHalf,
+  .featureGrid,
+  .sourceGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .codegrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tablewrap,
+  .tabs,
+  .quickPresetsBar,
+  .countryLegendBar {
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .tablewrap {
+    max-width: 100%;
+  }
+
+  .table {
+    min-width: 660px;
+  }
+
+  .drawer {
+    width: min(620px, 100vw);
+  }
+}
+
+@media (max-width: 640px) {
+  .topbar {
+    height: 56px;
+    padding: 0 92px 0 12px;
+  }
+
+  .mobileNavButton {
+    width: 40px;
+    height: 40px;
+  }
+
+  .crumb {
+    font-size: 10px;
+  }
+
+  .crumb > span {
+    margin-left: 6px;
+  }
+
+  .main {
+    padding: 18px 12px calc(92px + env(safe-area-inset-bottom));
+  }
+
+  .heading {
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 18px;
+  }
+
+  .h1 {
+    font-size: clamp(22px, 7vw, 27px);
+    overflow-wrap: anywhere;
+  }
+
+  .subtitle {
+    margin-bottom: 0;
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  .heading > .pills {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    width: 100%;
+  }
+
+  .heading > .pills .btn {
+    min-height: 44px;
+  }
+
+  .quickPresetsBar {
+    flex-wrap: nowrap;
+    width: calc(100% + 12px);
+    margin-right: -12px;
+    padding: 1px 12px 8px 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .quickPresetsBar::-webkit-scrollbar,
+  .tabs::-webkit-scrollbar,
+  .currencyFilterPills::-webkit-scrollbar,
+  .countryLegendBar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .quickPresetsLabel,
+  .quickPresetPill {
+    flex: 0 0 auto;
+  }
+
+  .quickPresetPill {
+    min-height: 40px;
+    padding-inline: 13px;
+  }
+
+  .filterbar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+    padding: 15px;
+    border-radius: 12px;
+  }
+
+  .filteractions {
+    grid-column: auto;
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: 8px;
+  }
+
+  .filterbar select,
+  .filterbar input,
+  .filteractions .btn {
+    min-height: 44px;
+    font-size: 13px;
+  }
+
+  .filtermeta {
+    flex-direction: column;
+    gap: 7px;
+    padding: 0 2px 16px;
+    overflow-wrap: anywhere;
+  }
+
+  .metrics,
+  .codegrid,
+  .currencyGrid,
+  .methodCardsGrid,
+  .connectorGrid,
+  .alertform {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .metrics,
+  .gridMain,
+  .gridHalf,
+  .featureGrid,
+  .codegrid {
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .metric {
+    min-height: 0;
+    padding: 17px;
+  }
+
+  .metriclabel {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .metricvalue {
+    font-size: 29px;
+  }
+
+  .card {
+    border-radius: 12px;
+  }
+
+  .cardhead {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 17px 16px 0;
+  }
+
+  .cardhead > :last-child:not(:first-child) {
+    max-width: 100%;
+  }
+
+  .cardbody {
+    padding: 16px;
+  }
+
+  .sourceStrip {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 14px 16px;
+  }
+
+  .chartHeaderSummary {
+    align-items: flex-start;
+    flex-direction: column;
+    padding-inline: 4px;
+  }
+
+  .chartTotalValue {
+    align-items: flex-start;
+    flex-direction: column;
+    font-size: 20px;
+  }
+
+  .chartTotalUnit {
+    font-size: 10px;
+  }
+
+  .chartWrapper {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .chartWrapper .chart {
+    min-width: 560px;
+  }
+
+  .chartfooter,
+  .sectionfoot {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .paymentRing {
+    flex-direction: column;
+  }
+
+  .ringlegend {
+    width: 100%;
+  }
+
+  .minirow {
+    gap: 12px;
+  }
+
+  .notice {
+    padding: 13px 14px;
+  }
+
+  .tabs {
+    flex-wrap: nowrap;
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .tabBtn,
+  .viewToggleBtn,
+  .currencyPill,
+  .countryLegendItem {
+    min-height: 40px;
+    flex: 0 0 auto;
+  }
+
+  .countryLegendBar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .currencyFilterPills {
+    flex-wrap: nowrap;
+    margin-right: -16px;
+    padding-right: 16px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .currencyFilterNotice {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .funnelmini {
+    min-width: 500px;
+  }
+
+  .funnelstep {
+    grid-template-columns: 26px minmax(80px, 1fr) auto auto;
+    gap: 8px;
+  }
+
+  .steptrack {
+    display: none;
+  }
+
+  .stepvalue,
+  .steprate {
+    font-size: 11px;
+  }
+
+  .traceRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 7px;
+  }
+
+  .traceTrack {
+    grid-row: 2;
+    grid-column: 1 / -1;
+  }
+
+  .sourceTitle {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .sourceCard {
+    padding: 17px;
+  }
+
+  .sourceCard dl,
+  .drawer dl {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .sourceCard dd,
+  .drawer dd {
+    margin-bottom: 8px;
+  }
+
+  .flow {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 16px;
+  }
+
+  .flow > span {
+    align-self: center;
+    transform: rotate(90deg);
+  }
+
+  .channelchecks {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .channelchecks label {
+    min-height: 40px;
+  }
+
+  .drawer {
+    width: 100vw;
+  }
+
+  .drawerhead {
+    padding: max(18px, env(safe-area-inset-top)) 16px 16px;
+  }
+
+  .drawerbody {
+    padding: 18px 16px calc(22px + env(safe-area-inset-bottom));
+  }
+
+  .drawerclose {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+  }
+
+  .configBannerTitle {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .configBannerHint,
+  .configBannerHint code,
+  .connectorEndpoint,
+  .keyChip {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .table th,
+  .table td {
+    padding: 12px 14px;
+  }
+
+  .toast {
+    bottom: calc(78px + env(safe-area-inset-bottom));
+    width: calc(100% - 24px);
+    text-align: center;
+  }
+}
+
+@media (max-width: 380px) {
+  .sidebar {
+    width: min(88vw, 310px);
+  }
+
+  .heading > .pills {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .metricValueRow,
+  .currencyFilterNotice {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .chartWrapper .chart {
+    min-width: 520px;
+  }
+
+  .funnelstep {
+    grid-template-columns: 24px minmax(70px, 1fr) auto;
+  }
+
+  .steprate {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .mobileNavBackdrop {
+    transition: none;
+  }
 }
 
