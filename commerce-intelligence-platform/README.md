@@ -65,6 +65,7 @@ docker run -p 5174:5174 --env-file .env magrabi-commerce-platform
 | **Payment Gateways** | Provider credential plus an approved read-only `*_REPORT_PATH` where no stable default exists | Authentication and response-shape verification; success metrics remain unavailable until provider fields are mapped |
 | **Edge & Traffic** | `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` | Service-principal authentication and validated Azure Monitor request/latency datapoints |
 | **APM & Infra** | Grafana credentials, `PROMETHEUS_DATASOURCE_UID`, and approved `GRAFANA_*_QUERY` values | Grafana health is separated from validated Prometheus metric queries |
+| **GA4 & Clarity** | `GA4_SERVICE_ACCOUNT_JSON`, `GA4_PROPERTIES`, `CLARITY_PROJECTS` | Separate read-only GA4 commerce-event counts and cached Clarity aggregate UX signals |
 | **Alert Notifications** | `TEAMS_WEBHOOK_URL`, `ALERT_EMAIL_RECIPIENTS`, `SMTP_*` | Rule simulation only; delivery stays disabled unless a future operator explicitly enables `ALERT_DELIVERY_ENABLED` |
 | **Commerce Assist** | `GEMINI_API_KEY`, `GEMINI_MODEL`, `ASSISTANT_MAX_HISTORY` | Gemini 3.1 Flash-Lite answers grounded in approved platform telemetry; a built-in answer engine remains available without an API key |
 
@@ -82,6 +83,19 @@ The platform includes 8 purpose-built trend charts designed for operational clar
 6. **Edge Traffic Throughput & Error Spikes** (*Traffic & Errors*): Dual-axis line chart for Edge RPS throughput alongside HTTP 5xx error rates.
 7. **API & Checkout Latency Percentiles** (*Infrastructure & APM*): Tri-curve latency tracking (p50 median, p95 degraded edge, p99 tail outliers).
 8. **Live Connector Status & Key Audit Matrix** (*Data Sources*): Real-time audit of configured environment keys, connection status (`OK` or `PENDING .ENV`), and required parameters.
+
+### GA4 and Clarity read-only setup
+
+The Customer journey section shows each configured GA4 property separately and reports standard commerce-event counts for the selected date range. These are event counts, not deduplicated journey IDs, conversion rates, or confirmed orders. While this section is open, the browser checks for updated analytics every five minutes. GA4 results are cached for five minutes. The Clarity panel shows project-level aggregate UX metrics for the previous three days in UTC, cached for 24 hours to respect its API quota. Neither source feeds the technical Traffic & errors metrics or replaces the OMS order ledger.
+
+1. In Google Cloud, enable the Google Analytics Data API and create a service account for the dashboard. Grant that service account the **Viewer** role on each intended GA4 property (read-only). Do not provide a Google account password.
+2. Provide the service account JSON privately to the server through the gitignored `.env` file or the deployment secret manager as `GA4_SERVICE_ACCOUNT_JSON`. Add up to two property IDs, distinct labels, and each property's reporting timezone in `GA4_PROPERTIES`, for example:
+   `[{ "id": "000000000", "label": "Magrabi Store", "timezone": "Asia/Dubai" }, { "id": "000000001", "label": "DoctorM Store", "timezone": "Asia/Riyadh" }]`
+3. A Clarity project admin can issue a project-scoped Data Export API token. Store each token only in server-side `CLARITY_PROJECTS`, with a non-secret display label, for example:
+   `[{ "label": "Magrabi Store", "token": "set-locally" }, { "label": "DoctorM Store", "token": "set-locally" }]`
+4. Restart the backend after setting credentials. The dashboard reports configuration separately from live verification; a source is marked live only after its API response and expected fields validate.
+
+Clarity's official export is limited to the previous 1–3 days, 1,000 rows, and 10 requests per project per day. This integration requests aggregate data for the previous three days and caches it in each server process for 24 hours by default; a multi-replica deployment needs a shared cache to coordinate the per-project quota. GA4 reports use the configured property's reporting timezone, report calendar days rather than partial hours, and may have reporting delays. Missing event rows are shown as “Not returned”; the dashboard does not invent zeros. Tokens and service-account credentials must never be pasted into chat, committed, exposed to the browser, or placed in `VITE_*` variables.
 
 ---
 
@@ -107,4 +121,3 @@ Answers can be downloaded as styled PDF, Excel, or Word files with source eviden
 Natural wording such as “what is the todays sell,” “How are we doing today?”, or a misspelled Saudi sales question is treated as a sales request. Gemini proposes a structured intent, country, brand, and period; the server validates the proposal and gives explicit wording priority over model hints. Sales and order answers use **Macula OMS received orders** only. Saleor is queried only for an explicit reconciliation or source-status question, and is never substituted when Macula is unavailable. When the user’s topic is genuinely ambiguous, the assistant asks a follow-up with selectable, scope-preserving questions before fetching data. The per-answer visual displays **Query scope** separately from **Dashboard filters** and the snapshot time. Gemini receives only verified evidence for answer wording, and unsupported numeric claims are rejected. If Gemini is unavailable, deterministic parsing and a labeled platform answer remain available. Questions outside the platform are blocked before connectors or Gemini are called.
 
 The dashboard’s headline count, country performance table, and daily order series are Macula OMS received-order views. Saleor remains diagnostic-only. “Why do Saleor and Macula differ?” receives a stage-aware comparison when both feeds are live, or an explicit availability warning otherwise. A matching Saleor and Macula count cannot be assumed without order-ID reconciliation and aligned snapshot times.
-
