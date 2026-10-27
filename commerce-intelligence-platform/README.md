@@ -19,6 +19,8 @@ cp .env.example .env
 
 Connector credentials are parameterized and optional. Missing connector credentials produce `NOT_CONFIGURED`; non-empty credentials produce only `CONFIGURED_BUT_NOT_VERIFIED` until a read-only source request succeeds and required fields are validated. Dashboard authentication is required: without the username, password hash, and session-signing secret, every commerce API responds with `503` and no dashboard data is exposed. Synthetic fixtures remain in explicitly labelled demo panels and are never substituted into live connector responses.
 
+The dashboard opens with all brands and business countries for the current Dubai reporting day. The filter/date controls and dashboard Excel/CSV export buttons are hidden only on the User management page; they remain available on other dashboard pages. Assistant question scope and assistant report downloads remain available.
+
 ### Configure Dashboard Login
 
 Run the interactive setup once from a real terminal:
@@ -27,11 +29,21 @@ Run the interactive setup once from a real terminal:
 npm run auth:configure
 ```
 
-The command asks for a username and a password of at least 12 characters. Password input is hidden; only a scrypt hash is stored in the workspace's gitignored `.secrets/dashboard-auth.env`. It also generates a private session-signing secret and fixes the idle timeout at 10 minutes. Restart the app after changing credentials.
+The command asks for the initial admin username and a password of at least 12 characters. Password input is hidden; only a scrypt hash is stored in the workspace's gitignored `.secrets/dashboard-auth.env`. After signing in, the admin can create, reset, and remove dashboard-managed viewer accounts from **User management**, and assign each managed viewer access to any combination of dashboard sections. New viewers start with every section selected; existing accounts without saved permissions retain their previous section access. Deployment-environment accounts remain protected and cannot be changed here. Permissions are enforced by the API as well as the navigation. **User management** remains admin-only, and Commerce Assistant is available to viewers only when every dashboard section is assigned. The default inactive-session timeout is 10 minutes; selecting **Remember me** keeps the signed session active for 30 days by default. Set `AUTH_REMEMBER_ME_DAYS` to configure the remembered-session timeout (1–365 days). Restart the app after changing credentials.
 
 The sign-in page includes an accessible **Show/Hide password** control. It only changes how the entered value is displayed in the browser; it does not change how the server hashes or verifies the password.
 
-For containers or hosted environments, provide `AUTH_USERNAME`, `AUTH_PASSWORD_HASH`, `AUTH_SESSION_SECRET` (at least 32 characters), and `AUTH_SESSION_TIMEOUT_MINUTES=10` through the platform's secret-management mechanism. Never bake these values into the image or repository.
+For containers or hosted environments, provide `AUTH_ADMIN_USERNAME`, `AUTH_ADMIN_PASSWORD_HASH`, `AUTH_VIEWER_USERNAME`, `AUTH_VIEWER_PASSWORD_HASH`, `AUTH_SESSION_SECRET` (at least 32 characters), and `AUTH_SESSION_TIMEOUT_MINUTES=10` through the platform's secret-management mechanism. Legacy `AUTH_USERNAME` and `AUTH_PASSWORD_HASH` remain accepted as the admin account during migration. Never bake these values into the image or repository.
+
+To generate those deployment variables without printing passwords, hashes, or the signing secret, run:
+
+```powershell
+npm run auth:configure:deployment
+```
+
+The command securely prompts only for the bootstrap administrator and writes `.secrets/dashboard-auth-deployment.env`. Import that file using the deployment platform's protected secret/environment-variable interface, then restart or redeploy the application. The administrator can create viewer accounts from the dashboard afterward. Do not commit, display, paste into chat, or store the generated file outside an approved secret store.
+
+Dashboard-managed viewer accounts are stored as scrypt hashes in `AUTH_MANAGED_USERS_FILE`. For a hosted container, set this variable to a writable path on persistent storage so accounts survive restarts and new releases. The default local path is the gitignored workspace `.secrets/dashboard-users.json`.
 
 ### Run in Development
 ```powershell
@@ -59,7 +71,7 @@ docker run -p 5174:5174 --env-file .env magrabi-commerce-platform
 
 | Category | Environment Variables | Read-Only Live Capability |
 |---|---|---|
-| **Dashboard Login** | `AUTH_USERNAME`, `AUTH_PASSWORD_HASH`, `AUTH_SESSION_SECRET`, `AUTH_SESSION_TIMEOUT_MINUTES` | Server-enforced login, signed HTTP-only session cookie, failed-login throttling, and 10-minute inactivity expiry |
+| **Dashboard Login** | `AUTH_ADMIN_USERNAME`, `AUTH_ADMIN_PASSWORD_HASH`, `AUTH_VIEWER_USERNAME`, `AUTH_VIEWER_PASSWORD_HASH`, `AUTH_SESSION_SECRET`, `AUTH_SESSION_TIMEOUT_MINUTES` | Server-enforced admin/viewer roles, signed HTTP-only session cookie, failed-login throttling, and 10-minute inactivity expiry |
 | **Saleor Core** | `SALEOR_GRAPHQL_URL`, `SALEOR_USERNAME`, `SALEOR_PASSWORD` | Diagnostic-only placed-order data for explicit reconciliation checks |
 | **Macula OMS** | `MACULA_API_URL`, `MACULA_TOKEN` or `MACULA_USERNAME` and `MACULA_PASSWORD` | Verified OMS receipt count; payment attribution from a sample of at most 100 orders |
 | **Payment Gateways** | Provider credential plus an approved read-only `*_REPORT_PATH` where no stable default exists | Authentication and response-shape verification; success metrics remain unavailable until provider fields are mapped |

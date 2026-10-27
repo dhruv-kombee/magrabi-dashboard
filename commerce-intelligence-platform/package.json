@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "test": "node --test",
     "auth:configure": "node scripts/configure-auth.js",
+    "auth:configure:deployment": "node scripts/configure-auth.js --deployment-env",
     "preview": "vite preview --port 5174",
     "start": "node server.js"
   },

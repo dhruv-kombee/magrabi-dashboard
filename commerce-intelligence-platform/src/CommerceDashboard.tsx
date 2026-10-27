@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react'
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { ChatAssistant } from './ChatAssistant'
 import type {
   BrandFilter,
@@ -52,6 +52,9 @@ type AnalyticsSummary = {
   clarity: AnalyticsSource[]
 }
 
+type ViewerPermission = Exclude<SectionKey, 'users'>
+type ManagedUser = { username: string; role: 'admin' | 'viewer'; permissions: ViewerPermission[]; managed: boolean }
+
 const sectionConfig: Array<{ key: SectionKey; label: string; title: string; subtitle: string }> = [
   {
     key: 'overview',
@@ -95,7 +98,18 @@ const sectionConfig: Array<{ key: SectionKey; label: string; title: string; subt
     title: 'Act on the right signal',
     subtitle: 'Thresholds, ownership and delivery routes — configurable without treating missing data as zero.',
   },
+  {
+    key: 'users',
+    label: 'User management',
+    title: 'Manage dashboard access',
+    subtitle: 'Create viewer accounts, reset their passwords, or remove access.',
+  },
 ]
+
+type DashboardSection = typeof sectionConfig[number]
+const viewerPermissionSections = sectionConfig.filter(
+  (section): section is DashboardSection & { key: ViewerPermission } => section.key !== 'users',
+)
 
 const sourceCatalog = [
   {
@@ -266,11 +280,10 @@ function formatChartDate(dateStr: string): string {
   }
 }
 
-export function CommerceDashboard() {
+export function CommerceDashboard({ role, username, permissions, onLogout }: { role: 'admin' | 'viewer'; username: string; permissions: SectionKey[]; onLogout: () => Promise<void> }) {
   const [section, setSection] = useState<SectionKey>('overview')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   useEffect(() => {
     const resize = () => setViewportWidth(window.innerWidth)
     window.addEventListener('resize', resize)
@@ -290,8 +303,17 @@ export function CommerceDashboard() {
   const [end, setEnd] = useState<number>(() => getCurrentDayRange('Dubai').end)
   const [source, setSource] = useState<TrafficSourceKey>('frontdoor')
   const [filtered, setFiltered] = useState(false)
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+  const visibleSections = useMemo(
+    () => role === 'admin' ? sectionConfig : sectionConfig.filter(({ key }) => permissions.includes(key)),
+    [role, permissions],
+  )
+  const permissionsKey = permissions.join('|')
 
-  // Filter form draft states (defaults to Today / Current Day)
+  useEffect(() => {
+    if (role === 'viewer' && !permissions.includes(section)) setSection(permissions[0] || 'overview')
+  }, [role, section, permissionsKey])
+
   const [formStart, setFormStart] = useState<string>(() => getCurrentDayRange('Dubai').formStart)
   const [formEnd, setFormEnd] = useState<string>(() => getCurrentDayRange('Dubai').formEnd)
   const [formBrand, setFormBrand] = useState<BrandFilter>('all')
@@ -427,6 +449,97 @@ export function CommerceDashboard() {
     text: string
     subtext: string
   } | null>(null)
+  const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([])
+  const viewerUsers = managedUsers.filter((user) => user.role === 'viewer')
+  const [userName, setUserName] = useState('')
+  const [userPermissions, setUserPermissions] = useState<ViewerPermission[]>(viewerPermissionSections.map(({ key }) => key))
+  const [editingViewer, setEditingViewer] = useState<string | null>(null)
+  const [editingPermissions, setEditingPermissions] = useState<ViewerPermission[]>([])
+  const [userPassword, setUserPassword] = useState('')
+  const [userPasswordConfirmation, setUserPasswordConfirmation] = useState('')
+  const [userManagementError, setUserManagementError] = useState('')
+  const [userManagementBusy, setUserManagementBusy] = useState(false)
+
+  const loadManagedUsers = useCallback(async () => {
+    const response = await fetch('/api/commerce/auth/users')
+    const payload = await response.json()
+    if (!response.ok) throw new Error(payload.error || 'Users could not be loaded.')
+    if (!Array.isArray(payload.users)) throw new Error('Users could not be loaded.')
+    setManagedUsers(payload.users)
+  }, [])
+
+  useEffect(() => {
+    if (role !== 'admin' || section !== 'users') return
+    setUserManagementError('')
+    void loadManagedUsers().catch((error) => setUserManagementError(error instanceof Error ? error.message : 'Users could not be loaded.'))
+  }, [role, section, loadManagedUsers])
+
+  const saveViewer = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (userPassword !== userPasswordConfirmation) { setUserManagementError('Passwords do not match.'); return }
+    setUserManagementBusy(true)
+    setUserManagementError('')
+    try {
+      const response = await fetch('/api/commerce/auth/users', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'save', username: userName, password: userPassword, permissions: userPermissions }),
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'User could not be saved.')
+      setUserName('')
+      setUserPassword('')
+      setUserPasswordConfirmation('')
+      setUserPermissions(viewerPermissionSections.map(({ key }) => key))
+      await loadManagedUsers()
+      showToast('Viewer account saved.')
+    } catch (error) {
+      setUserManagementError(error instanceof Error ? error.message : 'User could not be saved.')
+    } finally { setUserManagementBusy(false) }
+  }
+
+  const editViewerPermissions = (user: ManagedUser) => {
+    setEditingViewer(user.username)
+    setEditingPermissions(user.permissions)
+    setUserManagementError('')
+  }
+
+  const saveViewerPermissions = async (username: string) => {
+    setUserManagementBusy(true)
+    setUserManagementError('')
+    try {
+      const response = await fetch('/api/commerce/auth/users', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'permissions', username, permissions: editingPermissions }),
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Viewer permissions could not be saved.')
+      if (payload.updated !== true) throw new Error('Viewer account could not be found.')
+      await loadManagedUsers()
+      setEditingViewer(null)
+      showToast('Viewer permissions saved.')
+    } catch (error) {
+      setUserManagementError(error instanceof Error ? error.message : 'Viewer permissions could not be saved.')
+    } finally { setUserManagementBusy(false) }
+  }
+
+  const removeViewer = async (username: string) => {
+    setUserManagementBusy(true)
+    setUserManagementError('')
+    try {
+      const response = await fetch('/api/commerce/auth/users', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', username }),
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'User could not be removed.')
+      if (payload.deleted !== true) throw new Error('Viewer account could not be found.')
+      await loadManagedUsers()
+      if (editingViewer === username) setEditingViewer(null)
+      showToast('Viewer access removed.')
+    } catch (error) {
+      setUserManagementError(error instanceof Error ? error.message : 'User could not be removed.')
+    } finally { setUserManagementBusy(false) }
+  }
 
   useEffect(() => {
     if (!mobileNavOpen) return
@@ -607,6 +720,7 @@ export function CommerceDashboard() {
   const LIVE_CACHE_KEY = 'magrabi_macula_primary_summary_v2'
 
   const [liveSaleor, setLiveSaleor] = useState<LiveSaleorSummary | null>(() => {
+    if (role !== 'admin' && !permissions.includes('overview') && !permissions.includes('orders')) return null
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         const exactKey = `${LIVE_CACHE_KEY}_${brand}_${country}_${start}_${end}_${timezone}`
@@ -622,6 +736,7 @@ export function CommerceDashboard() {
   })
 
   const [liveLoading, setLiveLoading] = useState<boolean>(() => {
+    if (role !== 'admin' && !permissions.includes('overview') && !permissions.includes('orders')) return false
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         const exactKey = `${LIVE_CACHE_KEY}_${brand}_${country}_${start}_${end}_${timezone}`
@@ -644,6 +759,22 @@ export function CommerceDashboard() {
   const [analyticsError, setAnalyticsError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (role !== 'viewer') return
+    if (!permissions.includes('overview') && !permissions.includes('orders')) {
+      setLiveSaleor(null)
+      setLiveError(null)
+    }
+    if (!permissions.includes('orders')) setGatewaysTelemetry(null)
+    if (!permissions.includes('traffic')) setTrafficTelemetry(null)
+    if (!permissions.includes('infra')) setInfraTelemetry(null)
+    if (!permissions.includes('journey')) {
+      setAnalyticsSummary(null)
+      setAnalyticsError(null)
+    }
+    if (!permissions.includes('sources')) setHealthData(null)
+  }, [role, permissionsKey])
+
+  useEffect(() => {
     let isMounted = true
     const load = async (label: string, url: string, setter: (value: any) => void) => {
       try {
@@ -655,19 +786,19 @@ export function CommerceDashboard() {
         if (isMounted) setTelemetryErrors((current) => [...new Set([...current, `${label}: ${error instanceof Error ? error.message : 'request failed'}`])])
       }
     }
-    void Promise.all([
-      load('Connector inventory', '/api/commerce/health', setHealthData),
-      load('Payment gateways', '/api/commerce/gateways/telemetry', setGatewaysTelemetry),
-      load('Azure Monitor', '/api/commerce/traffic/edge', setTrafficTelemetry),
-      load('Grafana/APM', '/api/commerce/infra/apm', setInfraTelemetry),
-    ])
+    const requests: Promise<void>[] = []
+    if (role === 'admin' || permissions.includes('orders')) requests.push(load('Payment gateways', '/api/commerce/gateways/telemetry', setGatewaysTelemetry))
+    if (role === 'admin' || permissions.includes('traffic')) requests.push(load('Azure Monitor', '/api/commerce/traffic/edge', setTrafficTelemetry))
+    if (role === 'admin' || permissions.includes('infra')) requests.push(load('Grafana/APM', '/api/commerce/infra/apm', setInfraTelemetry))
+    if (role === 'admin' || permissions.includes('sources')) requests.push(load('Connector inventory', '/api/commerce/health', setHealthData))
+    void Promise.all(requests)
 
     return () => { isMounted = false }
-  }, [])
+  }, [role, permissionsKey])
 
   useEffect(() => {
     let isMounted = true
-    if (section !== 'journey') return () => { isMounted = false }
+    if (section !== 'journey' || (role !== 'admin' && !permissions.includes('journey'))) return () => { isMounted = false }
     const query = new URLSearchParams({ start: String(start), end: String(end) })
     setAnalyticsSummary(null)
     setAnalyticsError(null)
@@ -696,9 +827,10 @@ export function CommerceDashboard() {
       isMounted = false
       window.clearInterval(refreshTimer)
     }
-  }, [section, start, end])
+  }, [section, start, end, role, permissionsKey])
 
   useEffect(() => {
+    if (role !== 'admin' && !permissions.includes('overview') && !permissions.includes('orders')) return
     let isMounted = true
     const exactKey = `${LIVE_CACHE_KEY}_${brand}_${country}_${start}_${end}_${timezone}`
     try {
@@ -745,7 +877,7 @@ export function CommerceDashboard() {
     return () => {
       isMounted = false
     }
-  }, [brand, country, start, end, timezone])
+  }, [brand, country, start, end, timezone, role, permissionsKey])
 
   // Current Records
   const currentRecords = useMemo(
@@ -820,7 +952,6 @@ export function CommerceDashboard() {
               type="button"
               className={styles.currencyResetBtn}
               onClick={() => {
-                setCountry('all')
                 setSelectedRevenueCurrency('all')
               }}
             >
@@ -1045,9 +1176,6 @@ export function CommerceDashboard() {
       })
   }
 
-// Export handled by handleExport via exportReport
-
-
   // Dynamic comparison window label (e.g., 'previous week', 'previous month', 'previous day')
   const comparisonWindowLabel = useMemo(() => {
     if (liveSaleor?.windowComparisonLabel) {
@@ -1068,8 +1196,6 @@ export function CommerceDashboard() {
     const tzOffset = offsets[formTz] ?? 4
     const pad = (n: number) => String(n).padStart(2, '0')
     const now = new Date()
-
-    // Calculate current zoned date & time in target timezone
     const targetMs = now.getTime() + tzOffset * 3600000
     const d = new Date(targetMs)
 
@@ -1078,16 +1204,12 @@ export function CommerceDashboard() {
     const day = pad(d.getUTCDate())
     const hours = pad(d.getUTCHours())
     const minutes = pad(d.getUTCMinutes())
-
-    // End is ALWAYS current date and current exact time in target timezone!
     const endVal = `${year}-${month}-${day}T${hours}:${minutes}`
 
     let startVal: string
     if (days === 1) {
-      // Start of today in target timezone (00:00)
       startVal = `${year}-${month}-${day}T00:00`
     } else {
-      // N days window ending at current date and time
       const startDateTarget = new Date(targetMs - (days - 1) * 86400000)
       const sYear = startDateTarget.getUTCFullYear()
       const sMonth = pad(startDateTarget.getUTCMonth() + 1)
@@ -1264,7 +1386,7 @@ export function CommerceDashboard() {
       start,
       end,
       timezone,
-      liveSaleor: isFreshLiveSnapshot(liveSaleor) ? liveSaleor : null,
+      liveSaleor: (role === 'admin' || permissions.includes('overview') || permissions.includes('orders')) && isFreshLiveSnapshot(liveSaleor) ? liveSaleor : null,
       dailyPoints,
       currentWindowDays,
       comparisonWindowLabel,
@@ -2467,7 +2589,7 @@ export function CommerceDashboard() {
           </div>
           <div className={styles.navlabel}>WORKSPACE</div>
           <nav className={styles.nav}>
-            {sectionConfig.map((s) => (
+            {visibleSections.map((s) => (
               <button
                 key={s.key}
                 type="button"
@@ -2494,6 +2616,17 @@ export function CommerceDashboard() {
                 Commerce Intelligence Engine. Isolated from deployment operations.
               </p>
             </div>
+            <button
+              data-auth-logout
+              className={styles.sidebarLogout}
+              type="button"
+              onClick={() => { void onLogout() }}
+              aria-label={`Sign out ${username}`}
+            >
+              <span className={styles.sidebarUserDot} aria-hidden="true" />
+              <span className={styles.sidebarUsername}>{username}</span>
+              <span>Sign out</span>
+            </button>
           </div>
         </aside>
 
@@ -2546,6 +2679,12 @@ export function CommerceDashboard() {
           </header>
 
           <main className={styles.main}>
+            {role === 'viewer' && visibleSections.length === 0 ? (
+              <div className={`${styles.notice} ${styles.noticeInfo}`} role="status">
+                <div><b>No modules assigned.</b> Contact your administrator to request dashboard access.</div>
+              </div>
+            ) : (
+            <>
             {/* Header Controls */}
             <div className={styles.heading}>
               <div>
@@ -2553,141 +2692,105 @@ export function CommerceDashboard() {
                 <h1 className={styles.h1}>{activeSectionMeta.title}</h1>
                 <p className={styles.subtitle}>{activeSectionMeta.subtitle}</p>
               </div>
-              <div className={styles.pills}>
-                <button
-                  type="button"
-                  className={`${styles.btn} ${styles.btnPrimaryExcel}`}
-                  onClick={() => handleExport('xlsx')}
-                  title="Download beautifully styled Microsoft Excel report with brand colors, KPI cards, and formatted tables"
-                >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
-                    <line x1="8" y1="13" x2="16" y2="13"></line>
-                    <line x1="8" y1="17" x2="16" y2="17"></line>
-                    <polyline points="10 9 9 9 8 9"></polyline>
-                  </svg>
-                  {liveSaleor ? 'Export Styled Excel (.xlsx)' : 'Export Styled Excel'}
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.btn} ${styles.btnSecondaryCsv}`}
-                  onClick={() => handleExport('csv')}
-                  title="Download plain text CSV file"
-                >
-                  CSV
-                </button>
-              </div>
+              {section !== 'users' && (
+                <div className={styles.pills}>
+                  <button
+                    type="button"
+                    className={`${styles.btn} ${styles.btnPrimaryExcel}`}
+                    onClick={() => handleExport('xlsx')}
+                    title="Download beautifully styled Microsoft Excel report with brand colors, KPI cards, and formatted tables"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                      <line x1="8" y1="13" x2="16" y2="13"></line>
+                      <line x1="8" y1="17" x2="16" y2="17"></line>
+                      <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    {liveSaleor ? 'Export Styled Excel (.xlsx)' : 'Export Styled Excel'}
+                  </button>
+                  <button type="button" className={`${styles.btn} ${styles.btnSecondaryCsv}`} onClick={() => handleExport('csv')} title="Download plain text CSV file">
+                    CSV
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Quick Period Presets */}
-            <div className={styles.quickPresetsBar}>
-              <span className={styles.quickPresetsLabel}>Quick Periods:</span>
-              <button
-                type="button"
-                className={`${styles.quickPresetPill} ${currentWindowDays === 1 ? styles.quickPresetPillActive : ''}`}
-                onClick={() => handleQuickPreset(1)}
-              >
-                Today (vs Yesterday)
-              </button>
-              <button
-                type="button"
-                className={`${styles.quickPresetPill} ${currentWindowDays === 7 ? styles.quickPresetPillActive : ''}`}
-                onClick={() => handleQuickPreset(7)}
-              >
-                1 Week (vs Past Week)
-              </button>
-              <button
-                type="button"
-                className={`${styles.quickPresetPill} ${currentWindowDays === 14 ? styles.quickPresetPillActive : ''}`}
-                onClick={() => handleQuickPreset(14)}
-              >
-                14 Days (vs Past 14d)
-              </button>
-              <button
-                type="button"
-                className={`${styles.quickPresetPill} ${currentWindowDays >= 28 && currentWindowDays <= 32 ? styles.quickPresetPillActive : ''}`}
-                onClick={() => handleQuickPreset(30)}
-              >
-                1 Month (vs Previous Month)
-              </button>
-            </div>
-
-            {/* Filter Bar */}
-            <button type="button" className={styles.mobileFilterToggle} aria-expanded={mobileFiltersOpen} aria-controls="dashboard-filters" onClick={() => setMobileFiltersOpen((value) => !value)}>
-              <span>Filters & date range</span><span>{mobileFiltersOpen ? 'Close −' : 'Edit +'}</span>
-            </button>
-            <form id="dashboard-filters" className={`${styles.filterbar} ${mobileFiltersOpen ? '' : styles.mobileFiltersCollapsed}`} onSubmit={(event) => { handleFilterSubmit(event); setMobileFiltersOpen(false) }}>
-              <div>
-                <label htmlFor="brand">Brand</label>
-                <select
-                  id="brand"
-                  value={formBrand}
-                  onChange={(e) => setFormBrand(e.target.value as BrandFilter)}
-                >
-                  <option value="all">All brands</option>
-                  <option value="Magrabi">Magrabi</option>
-                  <option value="DoctorM">DoctorM</option>
-                </select>
-              </div>
-              <div>
-                <label htmlFor="country">Order country</label>
-                <select
-                  id="country"
-                  value={formCountry}
-                  onChange={(e) => setFormCountry(e.target.value as CountryFilter)}
-                >
-                  <option value="all">All countries</option>
-                  <option value="AE">United Arab Emirates</option>
-                  <option value="SA">Saudi Arabia</option>
-                  <option value="EG">Egypt</option>
-                  <option value="QA">Qatar</option>
-                  <option value="KW">Kuwait</option>
-                </select>
-              </div>
-              <CustomDatePicker
-                id="start"
-                label="From · inclusive"
-                value={formStart}
-                onChange={setFormStart}
-                align="left"
-                presetType="start"
-              />
-              <CustomDatePicker
-                id="end"
-                label="To · current time"
-                value={formEnd}
-                onChange={setFormEnd}
-                align="right"
-                presetType="end"
-              />
-              <div>
-                <label htmlFor="timezone">Reporting timezone</label>
-                <select
-                  id="timezone"
-                  value={formTz}
-                  onChange={(e) => {
-                    const newTz = e.target.value as TimezoneKey
-                    setFormTz(newTz)
-                    const range = getCurrentDayRange(newTz)
-                    setFormStart(range.formStart)
-                    setFormEnd(range.formEnd)
-                  }}
-                >
-                  <option value="Dubai">Dubai · UTC+04:00</option>
-                  <option value="UTC">UTC · UTC+00:00</option>
-                  <option value="IST">India · UTC+05:30</option>
-                </select>
-              </div>
-              <div className={styles.filteractions}>
-                <button type="button" className={`${styles.btn} ${styles.btnText}`} onClick={handleFilterReset}>
-                  Reset
+            {section !== 'users' && (
+              <>
+                <div className={styles.quickPresetsBar}>
+                  <span className={styles.quickPresetsLabel}>Quick Periods:</span>
+                  <button type="button" className={`${styles.quickPresetPill} ${currentWindowDays === 1 ? styles.quickPresetPillActive : ''}`} onClick={() => handleQuickPreset(1)}>Today (vs Yesterday)</button>
+                  <button type="button" className={`${styles.quickPresetPill} ${currentWindowDays === 7 ? styles.quickPresetPillActive : ''}`} onClick={() => handleQuickPreset(7)}>1 Week (vs Past Week)</button>
+                  <button type="button" className={`${styles.quickPresetPill} ${currentWindowDays === 14 ? styles.quickPresetPillActive : ''}`} onClick={() => handleQuickPreset(14)}>14 Days (vs Past 14d)</button>
+                  <button type="button" className={`${styles.quickPresetPill} ${currentWindowDays >= 28 && currentWindowDays <= 32 ? styles.quickPresetPillActive : ''}`} onClick={() => handleQuickPreset(30)}>1 Month (vs Previous Month)</button>
+                </div>
+                <button type="button" className={styles.mobileFilterToggle} aria-expanded={mobileFiltersOpen} aria-controls="dashboard-filters" onClick={() => setMobileFiltersOpen((value) => !value)}>
+                  <span>Filters &amp; date range</span><span>{mobileFiltersOpen ? 'Close −' : 'Edit +'}</span>
                 </button>
-                <button type="submit" className={`${styles.btn} ${styles.btnDark}`}>
-                  Apply
-                </button>
-              </div>
-            </form>
+                <form id="dashboard-filters" className={`${styles.filterbar} ${mobileFiltersOpen ? '' : styles.mobileFiltersCollapsed}`} onSubmit={(event) => { handleFilterSubmit(event); setMobileFiltersOpen(false) }}>
+                  <div>
+                    <label htmlFor="brand">Brand</label>
+                    <select id="brand" value={formBrand} onChange={(event) => setFormBrand(event.target.value as BrandFilter)}>
+                      <option value="all">All brands</option>
+                      <option value="Magrabi">Magrabi</option>
+                      <option value="DoctorM">DoctorM</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="country">Order country</label>
+                    <select id="country" value={formCountry} onChange={(event) => setFormCountry(event.target.value as CountryFilter)}>
+                      <option value="all">All countries</option>
+                      <option value="AE">United Arab Emirates</option>
+                      <option value="SA">Saudi Arabia</option>
+                      <option value="EG">Egypt</option>
+                      <option value="QA">Qatar</option>
+                      <option value="KW">Kuwait</option>
+                    </select>
+                  </div>
+                  <CustomDatePicker id="start" label="From · inclusive" value={formStart} onChange={setFormStart} align="left" presetType="start" />
+                  <CustomDatePicker id="end" label="To · current time" value={formEnd} onChange={setFormEnd} align="right" presetType="end" />
+                  <div>
+                    <label htmlFor="timezone">Reporting timezone</label>
+                    <select
+                      id="timezone"
+                      value={formTz}
+                      onChange={(event) => {
+                        const newTz = event.target.value as TimezoneKey
+                        setFormTz(newTz)
+                        const range = getCurrentDayRange(newTz)
+                        setFormStart(range.formStart)
+                        setFormEnd(range.formEnd)
+                      }}
+                    >
+                      <option value="Dubai">Dubai · UTC+04:00</option>
+                      <option value="UTC">UTC · UTC+00:00</option>
+                      <option value="IST">India · UTC+05:30</option>
+                    </select>
+                  </div>
+                  <div className={styles.filteractions}>
+                    <button type="button" className={`${styles.btn} ${styles.btnText}`} onClick={handleFilterReset}>Reset</button>
+                    <button type="submit" className={`${styles.btn} ${styles.btnDark}`}>Apply</button>
+                  </div>
+                </form>
+                <div className={styles.filtermeta}>
+                  <span>
+                    <strong>{brand === 'all' ? 'All brands' : brand} · {country === 'all' ? 'All business countries' : countries[country]?.name}</strong>
+                    {' '}· {formatTime(start, timezone)} → {formatTime(end, timezone)} {timezone}
+                  </span>
+                  <span>
+                    {liveSaleor?.live ? (
+                      <span style={{ color: '#186348' }}>
+                        {liveSaleor.stale ? '🟠' : '🟢'} <strong>{liveSaleor.stale ? 'Stale Macula snapshot; refresh failed' : 'Live Macula OMS primary data'}</strong> ({liveSaleor.period}) · Snapshot {new Date(liveSaleor.lastUpdated).toLocaleTimeString()}
+                      </span>
+                    ) : (
+                      <span>Fixed fixtures: 01 Sep–31 Oct 2026 UTC · <strong>{liveLoading ? 'Refreshing live feed...' : 'No live refresh'}</strong></span>
+                    )}
+                  </span>
+                </div>
+                {filterError && <div className={styles.noresult}>{filterError}</div>}
+              </>
+            )}
 
             {liveSaleor && !liveSaleor.live && (
               <div className={styles.configBanner}>
@@ -2706,29 +2809,6 @@ export function CommerceDashboard() {
                 {[liveError, ...telemetryErrors].filter(Boolean).join(' · ')}
               </div>
             )}
-
-            <div className={styles.filtermeta}>
-              <span>
-                <strong>
-                  {brand === 'all' ? 'All brands' : brand} ·{' '}
-                  {country === 'all' ? 'All business countries' : countries[country]?.name}
-                </strong>{' '}
-                · {formatTime(start, timezone)} → {formatTime(end, timezone)} {timezone}
-              </span>
-              <span>
-                {liveSaleor?.live ? (
-                  <span style={{ color: '#186348' }}>
-                    {liveSaleor.stale ? '🟠' : '🟢'} <strong>{liveSaleor.stale ? 'Stale Macula snapshot; refresh failed' : 'Live Macula OMS primary data'}</strong> ({liveSaleor.period}) · Snapshot {new Date(liveSaleor.lastUpdated).toLocaleTimeString()}
-                  </span>
-                ) : (
-                  <span>
-                    Fixed fixtures: 01 Sep–31 Oct 2026 UTC · <strong>{liveLoading ? 'Refreshing live feed...' : 'No live refresh'}</strong>
-                  </span>
-                )}
-              </span>
-            </div>
-
-            {filterError && <div className={styles.noresult}>{filterError}</div>}
 
             {/* OVERVIEW SECTION */}
             {section === 'overview' && (
@@ -4899,10 +4979,156 @@ export function CommerceDashboard() {
               </>
             )}
 
+            {/* ADMIN USER MANAGEMENT SECTION */}
+            {section === 'users' && role === 'admin' && (
+              <>
+                <div className={`${styles.notice} ${styles.noticeInfo}`}>
+                  <div>
+                    <b>Viewer access only.</b> Passwords are hashed on the server and are never returned to the browser. The deployment-managed administrator cannot be changed here.
+                  </div>
+                </div>
+                <div className={styles.userManagement}>
+                  <article className={styles.card}>
+                    <div className={styles.cardhead}>
+                      <div>
+                        <h2>Create or reset a viewer</h2>
+                        <p>Use 3–100 letters, numbers, dots, underscores, or hyphens for the username. Passwords must be at least 12 characters. Saving an existing managed username resets its password.</p>
+                      </div>
+                      <span className={`${styles.badge} ${styles.badgeLive}`}>ADMIN ONLY</span>
+                    </div>
+                    <div className={styles.cardbody}>
+                      <form onSubmit={saveViewer}>
+                        <div className={styles.alertform}>
+                          <div className={styles.field}>
+                            <label htmlFor="managed-username">Viewer username</label>
+                            <input
+                              id="managed-username"
+                              value={userName}
+                              onChange={(event) => {
+                                const nextUsername = event.target.value
+                                const existingViewer = viewerUsers.find((user) => user.username === nextUsername)
+                                setUserName(nextUsername)
+                                setUserPermissions(existingViewer?.permissions ?? viewerPermissionSections.map(({ key }) => key))
+                              }}
+                              autoComplete="off"
+                              pattern="[A-Za-z0-9._-]{3,100}"
+                              required
+                            />
+                          </div>
+                          <div className={styles.field}>
+                            <label htmlFor="managed-password">Password</label>
+                            <input id="managed-password" type="password" value={userPassword} onChange={(event) => setUserPassword(event.target.value)} autoComplete="new-password" minLength={12} required />
+                          </div>
+                          <div className={styles.field}>
+                            <label htmlFor="managed-password-confirmation">Confirm password</label>
+                            <input id="managed-password-confirmation" type="password" value={userPasswordConfirmation} onChange={(event) => setUserPasswordConfirmation(event.target.value)} autoComplete="new-password" minLength={12} required />
+                          </div>
+                        </div>
+                        <fieldset className={styles.permissionFieldset}>
+                          <legend>Module access</legend>
+                          <p>Select the tabs this viewer is allowed to open.</p>
+                          <div className={styles.permissionOptions}>
+                            {viewerPermissionSections.map(({ key, label }) => (
+                              <label className={styles.permissionOption} key={key} htmlFor={`new-viewer-permission-${key}`}>
+                                <input
+                                  id={`new-viewer-permission-${key}`}
+                                  type="checkbox"
+                                  checked={userPermissions.includes(key)}
+                                  onChange={(event) => setUserPermissions((current) => event.target.checked
+                                    ? [...current, key]
+                                    : current.filter((permission) => permission !== key))}
+                                />
+                                {label}
+                              </label>
+                            ))}
+                          </div>
+                          <small>Commerce Assistant is available only when all modules are allowed.</small>
+                        </fieldset>
+                        {userManagementError && <p className={styles.noresult} role="alert">{userManagementError}</p>}
+                        <button type="submit" className={`${styles.btn} ${styles.btnDark}`} disabled={userManagementBusy}>
+                          {userManagementBusy ? 'Saving…' : 'Save viewer account'}
+                        </button>
+                      </form>
+                    </div>
+                  </article>
+
+                  <article className={styles.card}>
+                    <div className={styles.cardhead}>
+                      <div>
+                        <h2>Viewer accounts</h2>
+                        <p>Change each viewer’s module access or remove dashboard-managed accounts. Deployment-managed accounts are read-only.</p>
+                      </div>
+                      <span className={`${styles.badge} ${styles.badgeGray}`}>{viewerUsers.length} VIEWERS</span>
+                    </div>
+                    <div className={styles.tablewrap} role="region" aria-label="Viewer accounts" tabIndex={0}>
+                      <table className={styles.table}>
+                        <thead><tr><th>USERNAME</th><th>ROLE</th><th>SOURCE</th><th>MODULE ACCESS</th><th>ACTION</th></tr></thead>
+                        <tbody>
+                          {viewerUsers.length === 0 ? (
+                            <tr><td colSpan={5}>No viewer accounts yet. Create one above.</td></tr>
+                          ) : viewerUsers.map((user) => (
+                            <React.Fragment key={user.username}>
+                              <tr>
+                                <td>{user.username}</td>
+                                <td>{user.role}</td>
+                                <td>{user.managed ? 'Dashboard managed' : 'Deployment environment'}</td>
+                                <td>{viewerPermissionSections.filter(({ key }) => user.permissions.includes(key)).map(({ label }) => label).join(', ') || 'No modules assigned'}</td>
+                                <td>
+                                  {user.managed ? (
+                                    <div className={styles.viewerActions}>
+                                      <button type="button" className={`${styles.btn} ${styles.btnSmall}`} disabled={userManagementBusy} onClick={() => editViewerPermissions(user)}>Edit access</button>
+                                      <button type="button" className={`${styles.btn} ${styles.btnSmall}`} disabled={userManagementBusy} onClick={() => void removeViewer(user.username)}>Remove</button>
+                                    </div>
+                                  ) : 'Protected'}
+                                </td>
+                              </tr>
+                              {editingViewer === user.username && user.managed && (
+                                <tr>
+                                  <td colSpan={5}>
+                                    <fieldset className={styles.permissionEditor}>
+                                      <legend>Module access for {user.username}</legend>
+                                      <div className={styles.permissionOptions}>
+                                        {viewerPermissionSections.map(({ key, label }) => (
+                                          <label className={styles.permissionOption} key={key} htmlFor={`edit-viewer-${user.username}-${key}`}>
+                                            <input
+                                              id={`edit-viewer-${user.username}-${key}`}
+                                              type="checkbox"
+                                              checked={editingPermissions.includes(key)}
+                                              onChange={(event) => setEditingPermissions((current) => event.target.checked
+                                                ? [...current, key]
+                                                : current.filter((permission) => permission !== key))}
+                                            />
+                                            {label}
+                                          </label>
+                                        ))}
+                                      </div>
+                                      <div className={styles.viewerActions}>
+                                        <button type="button" className={`${styles.btn} ${styles.btnSmall}`} disabled={userManagementBusy} onClick={() => void saveViewerPermissions(user.username)}>
+                                          {userManagementBusy ? 'Saving…' : 'Save access'}
+                                        </button>
+                                        <button type="button" className={`${styles.btn} ${styles.btnSmall}`} disabled={userManagementBusy} onClick={() => setEditingViewer(null)}>Cancel</button>
+                                      </div>
+                                      <small>Commerce Assistant is available only when all modules are allowed.</small>
+                                    </fieldset>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+                </div>
+              </>
+            )}
+
             <footer className={styles.sectionfoot}>
               <span>{liveSaleor?.live ? 'LIVE PANELS · Source and snapshot labels apply per panel.' : 'DEMO MODE · Synthetic fixtures are visibly labelled and are not live telemetry.'}</span>
               <span>Unavailable metrics remain unavailable; missing data is never converted to zero.</span>
             </footer>
+            </>
+            )}
           </main>
         </div>
       </div>
@@ -4970,7 +5196,9 @@ export function CommerceDashboard() {
       {/* Toast Notification */}
       {toastMessage && <div className={styles.toast}>{toastMessage}</div>}
 
-      <ChatAssistant filters={{ brand, country, timezone, start, end }} />
+      {(role === 'admin' || viewerPermissionSections.every(({ key }) => permissions.includes(key))) && (
+        <ChatAssistant filters={{ brand, country, timezone, start, end }} />
+      )}
     </div>
   )
 }
