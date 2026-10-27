@@ -293,6 +293,8 @@ export function CommerceDashboard() {
   const [countryView, setCountryView] = useState<'chart' | 'table'>('chart')
   const [journeyView, setJourneyView] = useState<'chart' | 'table'>('chart')
   const [trafficView, setTrafficView] = useState<'chart' | 'table'>('chart')
+  const [focusedJourneySeries, setFocusedJourneySeries] = useState<'current' | 'prior' | null>(null)
+  const [focusedTrafficSeries, setFocusedTrafficSeries] = useState<'rps' | '4xx' | '5xx' | null>(null)
   const [focusedCountry, setFocusedCountry] = useState<string | null>(null)
   const [countryHover, setCountryHover] = useState<{
     date: string
@@ -2036,11 +2038,16 @@ export function CommerceDashboard() {
             <div><span>Add-to-cart → order drop-off</span><strong>{fmt(totalDropOff)} · {pct(totalDropOff, currentAgg.steps[0])}</strong></div>
           </div>
           {journeyView === 'chart' ? <>
-            <div className={styles.chartLegend}>
-              <span className={styles.chartLegendBadge}><span className={styles.chartLegendDot} style={{ background: '#507b5b' }}></span>Selected window</span>
-              {priorPath && <span className={styles.chartLegendBadge}><span className={styles.chartLegendDot} style={{ background: '#94a3b8' }}></span>Prior window</span>}
+            <div className={styles.countryLegendBar}>
+              <span className={styles.trendLegendLabel}>Series:</span>
+              <button type="button" className={`${styles.countryLegendItem} ${focusedJourneySeries === 'current' ? styles.countryLegendItemFocused : ''}`} onClick={() => setFocusedJourneySeries((value) => value === 'current' ? null : 'current')}>
+                <span className={styles.countryLegendDot} style={{ background: '#198754' }} />Selected window <span>({averageRate.toFixed(2)}%)</span>
+              </button>
+              {priorPath && <button type="button" className={`${styles.countryLegendItem} ${focusedJourneySeries === 'prior' ? styles.countryLegendItemFocused : ''}`} onClick={() => setFocusedJourneySeries((value) => value === 'prior' ? null : 'prior')}>
+                <span className={styles.countryLegendDot} style={{ background: '#64748b' }} />Prior window
+              </button>}
             </div>
-            <div className={styles.chartWrapper}>
+            <div className={`${styles.chartWrapper} ${styles.countryStyleChart}`}>
             {journeyTrendHover && (
               <div
                 className={chartTooltipClass(journeyTrendHover.x, journeyTrendHover.y, w, h)}
@@ -2079,8 +2086,10 @@ export function CommerceDashboard() {
                   {p.date.split('-').slice(1).join('/')}
                 </text>
               ))}
-              <path d={convPath} fill="none" stroke="#507b5b" strokeWidth="2.5" />
-              {priorPath && <path d={priorPath} fill="none" stroke="#94a3b8" strokeWidth="2" strokeDasharray="5 4" />}
+              <path d={convPath} fill="none" stroke="#198754" strokeWidth="2.5" opacity={focusedJourneySeries && focusedJourneySeries !== 'current' ? 0.15 : 1} />
+              {priorPath && <path d={priorPath} fill="none" stroke="#64748b" strokeWidth="2" strokeDasharray="5 4" opacity={focusedJourneySeries && focusedJourneySeries !== 'prior' ? 0.15 : 1} />}
+              {pts.map((point, i) => <circle key={`current-${point.date}`} cx={getX(i)} cy={getY(point.conversionRate)} r="3.5" fill="#fff" stroke="#198754" strokeWidth="2" opacity={focusedJourneySeries && focusedJourneySeries !== 'current' ? 0.15 : 1} />)}
+              {priorPath && priorJourneyTrendPoints.map((rate, i) => <circle key={`prior-${i}`} cx={getX(i)} cy={getY(rate)} r="3" fill="#fff" stroke="#64748b" strokeWidth="1.8" opacity={focusedJourneySeries && focusedJourneySeries !== 'prior' ? 0.15 : 1} />)}
               {pts.map((p, i) => {
                 const cx = getX(i)
                 const cy = getY(p.conversionRate)
@@ -2099,6 +2108,7 @@ export function CommerceDashboard() {
               })}
             </svg>
             </div>
+            <div className={styles.trendChartFooter}>Daily conversion trends in {timezone} · hover any date point for details · click a series in the legend to isolate it.</div>
           </> : (
             <div className={styles.tablewrap} role="region" aria-label="Customer journey daily trend table" tabIndex={0}>
               <table className={styles.table}>
@@ -2176,13 +2186,14 @@ export function CommerceDashboard() {
             <div><span>Peak throughput</span><strong>{peakTraffic.rps.toFixed(2)} RPS · {String(peakTraffic.date || peakTraffic.timestamp).slice(5, 10).replace('-', '/')}</strong></div>
             <div><span>Peak HTTP error rate</span><strong>{peakError ? `${peakError.errorRatePct.toFixed(2)}% · ${String(peakError.date || peakError.timestamp).slice(5, 10).replace('-', '/')}` : 'Not available'}</strong></div>
           </div>
-          {trafficView === 'chart' ? <><div className={styles.chartLegend}>
-            <span className={styles.chartLegendBadge}><span className={styles.chartLegendDot} style={{ background: '#0284c7' }}></span>Traffic Throughput (RPS)</span>
-            {code4xxPath && <span className={styles.chartLegendBadge}><span className={styles.chartLegendDot} style={{ background: '#f59e0b' }}></span>4xx rate</span>}
-            {code5xxPath && <span className={styles.chartLegendBadge}><span className={styles.chartLegendDot} style={{ background: '#ef4444' }}></span>5xx rate</span>}
+          {trafficView === 'chart' ? <><div className={styles.countryLegendBar}>
+            <span className={styles.trendLegendLabel}>Series:</span>
+            <button type="button" className={`${styles.countryLegendItem} ${focusedTrafficSeries === 'rps' ? styles.countryLegendItemFocused : ''}`} onClick={() => setFocusedTrafficSeries((value) => value === 'rps' ? null : 'rps')}><span className={styles.countryLegendDot} style={{ background: '#0284c7' }} />Traffic throughput <span>({averageRps.toFixed(2)} RPS avg)</span></button>
+            {code4xxPath && <button type="button" className={`${styles.countryLegendItem} ${focusedTrafficSeries === '4xx' ? styles.countryLegendItemFocused : ''}`} onClick={() => setFocusedTrafficSeries((value) => value === '4xx' ? null : '4xx')}><span className={styles.countryLegendDot} style={{ background: '#f59e0b' }} />4xx rate</button>}
+            {code5xxPath && <button type="button" className={`${styles.countryLegendItem} ${focusedTrafficSeries === '5xx' ? styles.countryLegendItemFocused : ''}`} onClick={() => setFocusedTrafficSeries((value) => value === '5xx' ? null : '5xx')}><span className={styles.countryLegendDot} style={{ background: '#ef4444' }} />5xx rate</button>}
             {!errorPath && <span className={`${styles.badge} ${styles.badgePending}`}>HTTP STATUS TREND UNAVAILABLE</span>}
           </div>
-          <div className={styles.chartWrapper}>
+          <div className={`${styles.chartWrapper} ${styles.countryStyleChart}`}>
             {trafficTrendHover && (
               <div
                 className={chartTooltipClass(trafficTrendHover.x, trafficTrendHover.y, w, h)}
@@ -2227,9 +2238,12 @@ export function CommerceDashboard() {
                   </text>
                 )
               })}
-              <path d={rpsPath} fill="none" stroke="#0284c7" strokeWidth="2.5" />
-              {code4xxPath && <path d={code4xxPath} fill="none" stroke="#f59e0b" strokeWidth="2" strokeDasharray="5 3" />}
-              {code5xxPath && <path d={code5xxPath} fill="none" stroke="#ef4444" strokeWidth="2.5" />}
+              <path d={rpsPath} fill="none" stroke="#0284c7" strokeWidth="2.5" opacity={focusedTrafficSeries && focusedTrafficSeries !== 'rps' ? 0.15 : 1} />
+              {code4xxPath && <path d={code4xxPath} fill="none" stroke="#f59e0b" strokeWidth="2" opacity={focusedTrafficSeries && focusedTrafficSeries !== '4xx' ? 0.15 : 1} />}
+              {code5xxPath && <path d={code5xxPath} fill="none" stroke="#ef4444" strokeWidth="2.5" opacity={focusedTrafficSeries && focusedTrafficSeries !== '5xx' ? 0.15 : 1} />}
+              {trends.map((point: any, i: number) => <circle key={`rps-${i}`} cx={getX(i)} cy={getY(point.rps)} r="3.5" fill="#fff" stroke="#0284c7" strokeWidth="2" opacity={focusedTrafficSeries && focusedTrafficSeries !== 'rps' ? 0.15 : 1} />)}
+              {code4xxPath && trends.map((point: any, i: number) => <circle key={`4xx-${i}`} cx={getX(i)} cy={getErrorY((point.code4xx / point.totalRequests) * 100)} r="3" fill="#fff" stroke="#f59e0b" strokeWidth="1.8" opacity={focusedTrafficSeries && focusedTrafficSeries !== '4xx' ? 0.15 : 1} />)}
+              {code5xxPath && trends.map((point: any, i: number) => <circle key={`5xx-${i}`} cx={getX(i)} cy={getErrorY((point.code5xx / point.totalRequests) * 100)} r="3" fill="#fff" stroke="#ef4444" strokeWidth="1.8" opacity={focusedTrafficSeries && focusedTrafficSeries !== '5xx' ? 0.15 : 1} />)}
               {trends.map((t: any, i: number) => {
                 const cx = getX(i)
                 const cy = getY(t.rps)
@@ -2248,7 +2262,7 @@ export function CommerceDashboard() {
                 )
               })}
             </svg>
-          </div></> : (
+          </div><div className={styles.trendChartFooter}>Daily traffic and HTTP error trends · hover any date point for details · click a series in the legend to isolate it.</div></> : (
             <div className={styles.tablewrap} role="region" aria-label="Traffic and errors daily trend table" tabIndex={0}>
               <table className={styles.table}>
                 <thead><tr><th>Date</th><th>Requests</th><th>RPS</th><th>4xx</th><th>5xx</th><th>Error rate</th></tr></thead>
