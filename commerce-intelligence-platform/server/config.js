@@ -189,6 +189,15 @@ export const config = {
     get memoryQuery() { return getEnv('GRAFANA_MEMORY_QUERY') },
   },
 
+  // Read-only Google Analytics 4 and Microsoft Clarity exports
+  analytics: {
+    get ga4ServiceAccountJson() { return getEnv('GA4_SERVICE_ACCOUNT_JSON') },
+    get ga4Properties() { return getEnv('GA4_PROPERTIES') },
+    get clarityProjects() { return getEnv('CLARITY_PROJECTS') },
+    get ga4CacheTtlMs() { return Math.max(60_000, parseInt(getEnv('GA4_CACHE_TTL_SECONDS', '300'), 10) * 1000) },
+    get clarityCacheTtlMs() { return Math.max(60_000, parseInt(getEnv('CLARITY_CACHE_TTL_SECONDS', '86400'), 10) * 1000) },
+  },
+
   // Natural-language assistant (server-side only; never exposed to the browser)
   assistant: {
     get geminiApiKey() { return getEnv('GEMINI_API_KEY') || getEnv('GOOGLE_API_KEY') },

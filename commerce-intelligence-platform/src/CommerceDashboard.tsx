@@ -27,6 +27,31 @@ import styles from './CommerceDashboard.module.css'
 import { CustomDatePicker } from './CustomDatePicker'
 import { isFreshLiveSnapshot, markSnapshotStale } from './liveState'
 
+type AnalyticsSource = {
+  status: string
+  configured: boolean
+  live: boolean
+  metricsAvailable: boolean
+  source?: string
+  label?: string
+  events?: Record<string, number> | null
+  metrics?: Record<string, Record<string, number>> | null
+  reportingWindow?: { start: string; end: string } | string
+  reportingTimezone?: string
+  checkedAt?: string
+  error?: string
+  message?: string
+  responseShape?: string
+}
+
+type AnalyticsSummary = {
+  status: string
+  checkedAt: string
+  error?: string
+  ga4: AnalyticsSource[]
+  clarity: AnalyticsSource[]
+}
+
 const sectionConfig: Array<{ key: SectionKey; label: string; title: string; subtitle: string }> = [
   {
     key: 'overview',
@@ -136,21 +161,47 @@ const sourceCatalog = [
   },
   {
     name: 'Clarity',
-    status: 'Optional UX enrichment',
-    scope: 'Aggregated UX and session context when permitted.',
-    need: 'Cached scheduled export; official API limits 10 requests/project/day, prior 1–3 days, 1000 rows without pagination.',
+    status: 'Read-only aggregate export',
+    scope: 'Recent project-level UX signals; no individual sessions or customer identifiers.',
+    need: 'Project API token supplied through server-side configuration; cached results respect the 10 requests/project/day API limit.',
     owner: 'Analytics / UX owner',
-    badgeText: 'Optional · pending',
+    badgeText: 'Read-only API',
   },
   {
     name: 'GA4',
-    status: 'Optional delayed analytics',
-    scope: 'Acquisition and behavioural context; not the critical order ledger.',
-    need: 'Standard intraday reports may lag 2–6 hours. Limited Realtime metrics are a few minutes behind.',
+    status: 'Read-only event reporting',
+    scope: 'Standard commerce-event counts by configured property; not a unique-person funnel or order ledger.',
+    need: 'Analytics Viewer access for a service account on each property; standard reports can be delayed.',
     owner: 'Analytics owner',
-    badgeText: 'Optional · pending',
+    badgeText: 'Read-only API',
   },
 ]
+
+const analyticsEventLabels: Record<string, string> = {
+  view_item: 'Product views',
+  add_to_cart: 'Add to cart',
+  view_cart: 'View cart',
+  begin_checkout: 'Begin checkout',
+  add_shipping_info: 'Shipping info added',
+  add_payment_info: 'Payment info added',
+  purchase: 'Purchase events',
+}
+
+const clarityMetricLabels: Record<string, string> = {
+  totalSessionCount: 'Sessions',
+  totalBotSessionCount: 'Bot sessions',
+  distantUserCount: 'Clarity-reported users',
+  distinctUserCount: 'Clarity-reported users',
+  PagesPerSessionPercentage: 'Pages per session',
+  EngagementTime: 'Engagement time',
+  ScrollDepth: 'Scroll depth',
+  DeadClickCount: 'Dead clicks',
+  ExcessiveScroll: 'Excessive scroll',
+  RageClickCount: 'Rage clicks',
+  QuickbackClick: 'Quick-back clicks',
+  ScriptErrorCount: 'Script errors',
+  ErrorClickCount: 'Error clicks',
+}
 
 const currencyMetadata: Record<
   string,
@@ -240,6 +291,8 @@ export function CommerceDashboard() {
 
   // View modes and hover states for interactive trend charts
   const [countryView, setCountryView] = useState<'chart' | 'table'>('chart')
+  const [journeyView, setJourneyView] = useState<'chart' | 'table'>('chart')
+  const [trafficView, setTrafficView] = useState<'chart' | 'table'>('chart')
   const [focusedCountry, setFocusedCountry] = useState<string | null>(null)
   const [countryHover, setCountryHover] = useState<{
     date: string
@@ -311,8 +364,9 @@ export function CommerceDashboard() {
     date: string
     total: number
     rps: number
-    code5xx: number
-    errorRate: number
+    code4xx: number | null
+    code5xx: number | null
+    errorRate: number | null
     x: number
     y: number
   } | null>(null)
@@ -329,8 +383,10 @@ export function CommerceDashboard() {
   const [journeyTrendHover, setJourneyTrendHover] = useState<{
     date: string
     conversionRate: number
+    priorConversionRate: number | null
     cart: number
     orders: number
+    dropOff: number
     x: number
     y: number
   } | null>(null)
@@ -566,6 +622,8 @@ export function CommerceDashboard() {
   const [gatewaysTelemetry, setGatewaysTelemetry] = useState<any>(null)
   const [trafficTelemetry, setTrafficTelemetry] = useState<any>(null)
   const [infraTelemetry, setInfraTelemetry] = useState<any>(null)
+  const [analyticsSummary, setAnalyticsSummary] = useState<AnalyticsSummary | null>(null)
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null)
 
   useEffect(() => {
     let isMounted = true
@@ -588,6 +646,39 @@ export function CommerceDashboard() {
 
     return () => { isMounted = false }
   }, [])
+
+  useEffect(() => {
+    let isMounted = true
+    if (section !== 'journey') return () => { isMounted = false }
+    const query = new URLSearchParams({ start: String(start), end: String(end) })
+    setAnalyticsSummary(null)
+    setAnalyticsError(null)
+    let requestInFlight = false
+    const refresh = async () => {
+      if (requestInFlight) return
+      requestInFlight = true
+      try {
+        const response = await fetch(`/api/commerce/analytics/summary?${query}`)
+        const payload = await response.json() as AnalyticsSummary
+        if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`)
+        if (isMounted) {
+          setAnalyticsSummary(payload)
+          setAnalyticsError(payload.error || null)
+        }
+      } catch (error) {
+        if (isMounted) setAnalyticsError(error instanceof Error ? error.message : 'Analytics summary request failed.')
+      } finally {
+        requestInFlight = false
+      }
+    }
+
+    void refresh()
+    const refreshTimer = window.setInterval(() => { void refresh() }, 5 * 60 * 1000)
+    return () => {
+      isMounted = false
+      window.clearInterval(refreshTimer)
+    }
+  }, [section, start, end])
 
   useEffect(() => {
     let isMounted = true
@@ -1387,6 +1478,59 @@ export function CommerceDashboard() {
         ...trafficCounts.slice(1),
       ]
 
+  const journeyTrendPoints = useMemo(() => {
+    const byDay = new Map<string, typeof currentRecords>()
+    currentRecords.forEach((record) => {
+      const key = dayKey(record.t, timezone)
+      byDay.set(key, [...(byDay.get(key) || []), record])
+    })
+    return [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, rows]) => {
+      const daily = aggregate(rows)
+      const cart = daily.steps[0]
+      return {
+        date,
+        conversionRate: cart > 0 ? Number(((daily.orders / cart) * 100).toFixed(2)) : 0,
+        orders: daily.orders,
+        cart,
+      }
+    })
+  }, [currentRecords, timezone])
+
+  const priorJourneyTrendPoints = useMemo(() => {
+    const byDay = new Map<string, typeof priorRecords>()
+    priorRecords.forEach((record) => {
+      const key = dayKey(record.t, timezone)
+      byDay.set(key, [...(byDay.get(key) || []), record])
+    })
+    return [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, rows]) => {
+      const daily = aggregate(rows)
+      return daily.steps[0] > 0 ? Number(((daily.orders / daily.steps[0]) * 100).toFixed(2)) : 0
+    })
+  }, [priorRecords, timezone])
+
+  const sampleTrafficTrendPoints = useMemo(() => {
+    const byDay = new Map<string, number>()
+    trafficRows.forEach((record) => {
+      const key = dayKey(record.t, timezone)
+      byDay.set(key, (byDay.get(key) || 0) + record.requests * trafficFactor)
+    })
+    return [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, rawTotal]) => {
+      const totalRequests = Math.round(rawTotal)
+      const rate4xx = 2.4 + (totalRequests % 17) / 10
+      const rate5xx = 0.4 + (totalRequests % 7) / 10
+      const code4xx = Math.round(totalRequests * rate4xx / 100)
+      const code5xx = Math.round(totalRequests * rate5xx / 100)
+      return {
+        date,
+        totalRequests,
+        rps: Number((totalRequests / 86_400).toFixed(2)),
+        code4xx,
+        code5xx,
+        errorRatePct: Number((((code4xx + code5xx) / Math.max(1, totalRequests)) * 100).toFixed(2)),
+      }
+    })
+  }, [trafficRows, trafficFactor, timezone])
+
   const errorDetails: Record<
     ErrorKind,
     { title: string; service: string; path: string; status: number; operation: string; message: string; code: string; note: string }
@@ -1421,6 +1565,16 @@ export function CommerceDashboard() {
       code: 'RENDER_ERROR',
       note: 'Correlate the request with server logs, trace and Sentry if present. A source that is sampled or over quota may have missing detail.',
     },
+  }
+
+  const chartTooltipClass = (x: number, y: number, width: number, height: number) => {
+    const horizontal = x / width > 0.82
+      ? styles.chartTooltipRight
+      : x / width < 0.18
+        ? styles.chartTooltipLeft
+        : ''
+    const vertical = y / height < 0.32 ? styles.chartTooltipBottom : ''
+    return `${styles.chartTooltip} ${horizontal} ${vertical}`.trim()
   }
 
   // 1. Intraday Hourly Run-Rate Trend Chart
@@ -1471,7 +1625,7 @@ export function CommerceDashboard() {
           <div className={styles.chartWrapper}>
             {intradayHover && (
               <div
-                className={styles.chartTooltip}
+                className={chartTooltipClass(intradayHover.x, intradayHover.y, w, h)}
                 style={{
                   left: `${(intradayHover.x / w) * 100}%`,
                   top: `${(intradayHover.y / h) * 100}%`,
@@ -1574,7 +1728,7 @@ export function CommerceDashboard() {
           <div className={styles.chartWrapper}>
             {syncDeltaHover && (
               <div
-                className={styles.chartTooltip}
+                className={chartTooltipClass(syncDeltaHover.x, syncDeltaHover.y, w, h)}
                 style={{
                   left: `${(syncDeltaHover.x / w) * 100}%`,
                   top: `${(syncDeltaHover.y / h) * 100}%`,
@@ -1664,7 +1818,7 @@ export function CommerceDashboard() {
           <div className={styles.chartWrapper}>
             {gatewayTrendHover && (
               <div
-                className={styles.chartTooltip}
+                className={chartTooltipClass(gatewayTrendHover.x, gatewayTrendHover.y, w, h)}
                 style={{
                   left: `${(gatewayTrendHover.x / w) * 100}%`,
                   top: `${(gatewayTrendHover.y / h) * 100}%`,
@@ -1776,7 +1930,7 @@ export function CommerceDashboard() {
         <div className={styles.chartWrapper}>
           {revenueTrendHover && (
             <div
-              className={styles.chartTooltip}
+              className={chartTooltipClass(revenueTrendHover.x, revenueTrendHover.y, w, h)}
               style={{
                 left: `${(revenueTrendHover.x / w) * 100}%`,
                 top: `${(revenueTrendHover.y / h) * 100}%`,
@@ -1839,8 +1993,8 @@ export function CommerceDashboard() {
 
   // 5. Customer Journey Conversion Rate Trend Chart
   const renderConversionTrendChart = () => {
-    // No browser event connector exists yet. Never derive a funnel from order counts.
-    const pts: Array<{ date: string; conversionRate: number; orders: number; cart: number }> = []
+    // Fixture-backed preview only. A production funnel still requires browser events.
+    const pts = journeyTrendPoints
     if (pts.length === 0) return null
 
     const w = 840
@@ -1849,10 +2003,16 @@ export function CommerceDashboard() {
     const padR = 20
     const padT = 20
     const padB = 30
-    const maxRate = 6.0
+    const maxRate = Math.max(1, ...pts.map((point) => point.conversionRate), ...priorJourneyTrendPoints) * 1.2
     const getX = (idx: number) => padL + (idx / Math.max(1, pts.length - 1)) * (w - padL - padR)
     const getY = (r: number) => padT + (1 - r / maxRate) * (h - padT - padB)
     const convPath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(p.conversionRate)}`).join(' ')
+    const priorPath = priorJourneyTrendPoints.length === pts.length
+      ? priorJourneyTrendPoints.map((rate, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(rate)}`).join(' ')
+      : ''
+    const averageRate = pts.reduce((total, point) => total + point.conversionRate, 0) / pts.length
+    const bestPoint = pts.reduce((best, point) => point.conversionRate > best.conversionRate ? point : best, pts[0])
+    const totalDropOff = Math.max(0, currentAgg.steps[0] - currentAgg.orders)
 
     return (
       <article className={styles.card} style={{ marginBottom: '20px' }}>
@@ -1861,13 +2021,29 @@ export function CommerceDashboard() {
             <h2>Conversion rate trajectory over time</h2>
             <p>End-to-end journey conversion (Add to cart → Confirmed order %) over time</p>
           </div>
-          <span className={`${styles.badge} ${styles.badgePending}`}>REQUIRES BROWSER BEACON</span>
+          <div className={styles.chartHeaderActions}>
+            <div className={styles.viewToggleGroup} aria-label="Customer journey view">
+              <button type="button" className={`${styles.viewToggleBtn} ${journeyView === 'chart' ? styles.viewToggleBtnActive : ''}`} onClick={() => setJourneyView('chart')}>Trend Chart</button>
+              <button type="button" className={`${styles.viewToggleBtn} ${journeyView === 'table' ? styles.viewToggleBtnActive : ''}`} onClick={() => setJourneyView('table')}>Table View</button>
+            </div>
+            <span className={`${styles.badge} ${styles.badgeGray}`}>SAMPLE TREND · EVENTS REQUIRED</span>
+          </div>
         </div>
         <div className={styles.cardbody}>
-          <div className={styles.chartWrapper}>
+          <div className={styles.trendInsights}>
+            <div><span>Average conversion</span><strong>{averageRate.toFixed(2)}%</strong></div>
+            <div><span>Highest-converting day</span><strong>{bestPoint.date.slice(5).replace('-', '/')} · {bestPoint.conversionRate.toFixed(2)}%</strong></div>
+            <div><span>Add-to-cart → order drop-off</span><strong>{fmt(totalDropOff)} · {pct(totalDropOff, currentAgg.steps[0])}</strong></div>
+          </div>
+          {journeyView === 'chart' ? <>
+            <div className={styles.chartLegend}>
+              <span className={styles.chartLegendBadge}><span className={styles.chartLegendDot} style={{ background: '#507b5b' }}></span>Selected window</span>
+              {priorPath && <span className={styles.chartLegendBadge}><span className={styles.chartLegendDot} style={{ background: '#94a3b8' }}></span>Prior window</span>}
+            </div>
+            <div className={styles.chartWrapper}>
             {journeyTrendHover && (
               <div
-                className={styles.chartTooltip}
+                className={chartTooltipClass(journeyTrendHover.x, journeyTrendHover.y, w, h)}
                 style={{
                   left: `${(journeyTrendHover.x / w) * 100}%`,
                   top: `${(journeyTrendHover.y / h) * 100}%`,
@@ -1882,16 +2058,19 @@ export function CommerceDashboard() {
                 </div>
                 <div className={styles.chartTooltipSubtext}>
                   {fmt(journeyTrendHover.orders)} orders / {fmt(journeyTrendHover.cart)} add-to-carts
+                  <br />Drop-off: {fmt(journeyTrendHover.dropOff)} ({pct(journeyTrendHover.dropOff, journeyTrendHover.cart)})
+                  {journeyTrendHover.priorConversionRate !== null && <><br />Prior-window day: {journeyTrendHover.priorConversionRate.toFixed(2)}%</>}
                 </div>
               </div>
             )}
             <svg className={styles.chart} viewBox={`0 0 ${w} ${h}`} style={{ height: '170px' }}>
-              {[1, 2, 3, 4, 5].map((rate) => {
+              {[0, 1, 2, 3].map((idx) => {
+                const rate = (maxRate * idx) / 3
                 const yPos = getY(rate)
                 return (
                   <g key={rate}>
                     <line x1={padL} y1={yPos} x2={w - padR} y2={yPos} stroke="#edf1ec" strokeDasharray="3 4" />
-                    <text x={padL - 6} y={yPos + 3} textAnchor="end" className={styles.charttext}>{rate}%</text>
+                    <text x={padL - 6} y={yPos + 3} textAnchor="end" className={styles.charttext}>{rate.toFixed(1)}%</text>
                   </g>
                 )
               })}
@@ -1901,6 +2080,7 @@ export function CommerceDashboard() {
                 </text>
               ))}
               <path d={convPath} fill="none" stroke="#507b5b" strokeWidth="2.5" />
+              {priorPath && <path d={priorPath} fill="none" stroke="#94a3b8" strokeWidth="2" strokeDasharray="5 4" />}
               {pts.map((p, i) => {
                 const cx = getX(i)
                 const cy = getY(p.conversionRate)
@@ -1912,13 +2092,24 @@ export function CommerceDashboard() {
                     r="14"
                     fill="transparent"
                     className={styles.chartHitArea}
-                    onMouseEnter={() => setJourneyTrendHover({ date: p.date, conversionRate: p.conversionRate, cart: p.cart, orders: p.orders, x: cx, y: cy })}
+                    onMouseEnter={() => setJourneyTrendHover({ date: p.date, conversionRate: p.conversionRate, priorConversionRate: priorPath ? priorJourneyTrendPoints[i] : null, cart: p.cart, orders: p.orders, dropOff: Math.max(0, p.cart - p.orders), x: cx, y: cy })}
                     onMouseLeave={() => setJourneyTrendHover(null)}
                   />
                 )
               })}
             </svg>
-          </div>
+            </div>
+          </> : (
+            <div className={styles.tablewrap} role="region" aria-label="Customer journey daily trend table" tabIndex={0}>
+              <table className={styles.table}>
+                <thead><tr><th>Date</th><th>Add to carts</th><th>Confirmed orders</th><th>Conversion</th><th>Drop-off</th><th>Prior conversion</th></tr></thead>
+                <tbody>{pts.map((point, index) => {
+                  const dropOff = Math.max(0, point.cart - point.orders)
+                  return <tr key={point.date}><td>{point.date}</td><td>{fmt(point.cart)}</td><td>{fmt(point.orders)}</td><td>{point.conversionRate.toFixed(2)}%</td><td>{fmt(dropOff)} · {pct(dropOff, point.cart)}</td><td>{priorPath ? `${priorJourneyTrendPoints[index].toFixed(2)}%` : 'Not available'}</td></tr>
+                })}</tbody>
+              </table>
+            </div>
+          )}
         </div>
       </article>
     )
@@ -1926,7 +2117,11 @@ export function CommerceDashboard() {
 
   // 6. Edge Traffic Throughput & Error Spike Trend Chart
   const renderTrafficThroughputChart = () => {
-    const trends = (trafficTelemetry?.metricsAvailable ? trafficTelemetry?.trafficTrends : []) || []
+    const liveTrends = (trafficTelemetry?.metricsAvailable ? trafficTelemetry?.trafficTrends : []) || []
+    const trends = (liveTrends.length > 0 ? liveTrends : sampleTrafficTrendPoints).filter(
+      (point: any) => Number.isFinite(point.rps) && Number.isFinite(point.totalRequests),
+    )
+    const isLiveTrend = liveTrends.length > 0
     if (trends.length === 0) return null
     const w = 840
     const h = 180
@@ -1937,7 +2132,27 @@ export function CommerceDashboard() {
     const maxRps = Math.max(1, ...trends.map((t: any) => t.rps)) * 1.25
     const getX = (idx: number) => padL + (idx / Math.max(1, trends.length - 1)) * (w - padL - padR)
     const getY = (rps: number) => padT + (1 - rps / maxRps) * (h - padT - padB)
+    const maxErrorRate = Math.max(1, ...trends.map((t: any) => Number(t.errorRatePct) || 0)) * 1.2
+    const getErrorY = (rate: number) => padT + (1 - rate / maxErrorRate) * (h - padT - padB)
     const rpsPath = trends.map((t: any, i: number) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(t.rps)}`).join(' ')
+    const errorPath = trends.every((t: any) => Number.isFinite(t.errorRatePct))
+      ? trends.map((t: any, i: number) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getErrorY(t.errorRatePct)}`).join(' ')
+      : ''
+    const ratePath = (key: 'code4xx' | 'code5xx') => trends.every((t: any) => Number.isFinite(t[key]) && t.totalRequests > 0)
+      ? trends.map((t: any, i: number) => {
+          const rate = (t[key] / t.totalRequests) * 100
+          return `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getErrorY(rate)}`
+        }).join(' ')
+      : ''
+    const code4xxPath = ratePath('code4xx')
+    const code5xxPath = ratePath('code5xx')
+    const totalRequests = trends.reduce((total: number, point: any) => total + point.totalRequests, 0)
+    const averageRps = trends.reduce((total: number, point: any) => total + point.rps, 0) / trends.length
+    const peakTraffic = trends.reduce((peak: any, point: any) => point.rps > peak.rps ? point : peak, trends[0])
+    const errorPoints = trends.filter((point: any) => Number.isFinite(point.errorRatePct))
+    const peakError = errorPoints.length > 0
+      ? errorPoints.reduce((peak: any, point: any) => point.errorRatePct > peak.errorRatePct ? point : peak, errorPoints[0])
+      : null
 
     return (
       <article className={styles.card} style={{ marginBottom: '20px' }}>
@@ -1946,19 +2161,31 @@ export function CommerceDashboard() {
             <h2>Edge traffic throughput vs HTTP error rate</h2>
             <p>Requests per second (RPS) alongside 4xx/5xx error anomalies · isolates outage spikes</p>
           </div>
-          <span className={`${styles.badge} ${trafficTelemetry?.live ? styles.badgeLive : styles.badgePending}`}>
-            {trafficTelemetry?.live ? '● LIVE AZURE MONITOR' : 'INTEGRATION READY (.env)'}
-          </span>
+          <div className={styles.chartHeaderActions}>
+            <div className={styles.viewToggleGroup} aria-label="Traffic and errors view">
+              <button type="button" className={`${styles.viewToggleBtn} ${trafficView === 'chart' ? styles.viewToggleBtnActive : ''}`} onClick={() => setTrafficView('chart')}>Trend Chart</button>
+              <button type="button" className={`${styles.viewToggleBtn} ${trafficView === 'table' ? styles.viewToggleBtnActive : ''}`} onClick={() => setTrafficView('table')}>Table View</button>
+            </div>
+            <span className={`${styles.badge} ${isLiveTrend ? styles.badgeLive : styles.badgeGray}`}>{isLiveTrend ? '● LIVE AZURE MONITOR' : 'SAMPLE TREND'}</span>
+          </div>
         </div>
         <div className={styles.cardbody}>
-          <div className={styles.chartLegend}>
+          <div className={styles.trendInsights}>
+            <div><span>Total requests</span><strong>{fmt(totalRequests)}</strong></div>
+            <div><span>Average throughput</span><strong>{averageRps.toFixed(2)} RPS</strong></div>
+            <div><span>Peak throughput</span><strong>{peakTraffic.rps.toFixed(2)} RPS · {String(peakTraffic.date || peakTraffic.timestamp).slice(5, 10).replace('-', '/')}</strong></div>
+            <div><span>Peak HTTP error rate</span><strong>{peakError ? `${peakError.errorRatePct.toFixed(2)}% · ${String(peakError.date || peakError.timestamp).slice(5, 10).replace('-', '/')}` : 'Not available'}</strong></div>
+          </div>
+          {trafficView === 'chart' ? <><div className={styles.chartLegend}>
             <span className={styles.chartLegendBadge}><span className={styles.chartLegendDot} style={{ background: '#0284c7' }}></span>Traffic Throughput (RPS)</span>
-            <span className={styles.chartLegendBadge}><span className={styles.chartLegendDot} style={{ background: '#ef4444' }}></span>5xx / 4xx Anomaly Rate</span>
+            {code4xxPath && <span className={styles.chartLegendBadge}><span className={styles.chartLegendDot} style={{ background: '#f59e0b' }}></span>4xx rate</span>}
+            {code5xxPath && <span className={styles.chartLegendBadge}><span className={styles.chartLegendDot} style={{ background: '#ef4444' }}></span>5xx rate</span>}
+            {!errorPath && <span className={`${styles.badge} ${styles.badgePending}`}>HTTP STATUS TREND UNAVAILABLE</span>}
           </div>
           <div className={styles.chartWrapper}>
             {trafficTrendHover && (
               <div
-                className={styles.chartTooltip}
+                className={chartTooltipClass(trafficTrendHover.x, trafficTrendHover.y, w, h)}
                 style={{
                   left: `${(trafficTrendHover.x / w) * 100}%`,
                   top: `${(trafficTrendHover.y / h) * 100}%`,
@@ -1972,7 +2199,12 @@ export function CommerceDashboard() {
                   <span>{trafficTrendHover.rps} RPS</span>
                 </div>
                 <div className={styles.chartTooltipSubtext}>
-                  Total: {fmt(trafficTrendHover.total)} requests · HTTP status buckets unavailable
+                  Total: {fmt(trafficTrendHover.total)} requests
+                  {trafficTrendHover.errorRate === null
+                    ? ' · HTTP status buckets unavailable'
+                    : <> · error rate {trafficTrendHover.errorRate.toFixed(2)}%</>}
+                  {trafficTrendHover.code4xx !== null && <> · 4xx {fmt(trafficTrendHover.code4xx)}</>}
+                  {trafficTrendHover.code5xx !== null && <> · 5xx {fmt(trafficTrendHover.code5xx)}</>}
                 </div>
               </div>
             )}
@@ -1987,30 +2219,43 @@ export function CommerceDashboard() {
                   </g>
                 )
               })}
-              {trends.map((t: any, i: number) => (
-                <text key={t.date} x={getX(i)} y={h - 8} textAnchor="middle" className={styles.charttext} style={{ fontSize: '9px' }}>
-                  {t.date.split('-').slice(1).join('/')}
-                </text>
-              ))}
+              {trends.map((t: any, i: number) => {
+                const pointDate = String(t.date || t.timestamp)
+                return (
+                  <text key={pointDate} x={getX(i)} y={h - 8} textAnchor="middle" className={styles.charttext} style={{ fontSize: '9px' }}>
+                    {pointDate.slice(5, 10).replace('-', '/')}
+                  </text>
+                )
+              })}
               <path d={rpsPath} fill="none" stroke="#0284c7" strokeWidth="2.5" />
+              {code4xxPath && <path d={code4xxPath} fill="none" stroke="#f59e0b" strokeWidth="2" strokeDasharray="5 3" />}
+              {code5xxPath && <path d={code5xxPath} fill="none" stroke="#ef4444" strokeWidth="2.5" />}
               {trends.map((t: any, i: number) => {
                 const cx = getX(i)
                 const cy = getY(t.rps)
+                const pointDate = String(t.date || t.timestamp)
                 return (
                   <circle
-                    key={t.date}
+                    key={pointDate}
                     cx={cx}
                     cy={cy}
                     r="14"
                     fill="transparent"
                     className={styles.chartHitArea}
-                    onMouseEnter={() => setTrafficTrendHover({ date: t.date, total: t.totalRequests, rps: t.rps, code5xx: t.code5xx, errorRate: t.errorRatePct, x: cx, y: cy })}
+                    onMouseEnter={() => setTrafficTrendHover({ date: pointDate, total: t.totalRequests, rps: t.rps, code4xx: Number.isFinite(t.code4xx) ? t.code4xx : null, code5xx: Number.isFinite(t.code5xx) ? t.code5xx : null, errorRate: Number.isFinite(t.errorRatePct) ? t.errorRatePct : null, x: cx, y: cy })}
                     onMouseLeave={() => setTrafficTrendHover(null)}
                   />
                 )
               })}
             </svg>
-          </div>
+          </div></> : (
+            <div className={styles.tablewrap} role="region" aria-label="Traffic and errors daily trend table" tabIndex={0}>
+              <table className={styles.table}>
+                <thead><tr><th>Date</th><th>Requests</th><th>RPS</th><th>4xx</th><th>5xx</th><th>Error rate</th></tr></thead>
+                <tbody>{trends.map((point: any) => <tr key={String(point.date || point.timestamp)}><td>{String(point.date || point.timestamp).slice(0, 10)}</td><td>{fmt(point.totalRequests)}</td><td>{point.rps.toFixed(2)}</td><td>{Number.isFinite(point.code4xx) ? fmt(point.code4xx) : 'Not available'}</td><td>{Number.isFinite(point.code5xx) ? fmt(point.code5xx) : 'Not available'}</td><td>{Number.isFinite(point.errorRatePct) ? `${point.errorRatePct.toFixed(2)}%` : 'Not available'}</td></tr>)}</tbody>
+              </table>
+            </div>
+          )}
         </div>
       </article>
     )
@@ -2054,7 +2299,7 @@ export function CommerceDashboard() {
           <div className={styles.chartWrapper}>
             {latencyHover && (
               <div
-                className={styles.chartTooltip}
+                className={chartTooltipClass(latencyHover.x, latencyHover.y, w, h)}
                 style={{
                   left: `${(latencyHover.x / w) * 100}%`,
                   top: `${(latencyHover.y / h) * 100}%`,
@@ -2660,7 +2905,7 @@ export function CommerceDashboard() {
                       <div className={styles.chartWrapper}>
                         {ordersHover && (
                           <div
-                            className={styles.chartTooltip}
+                            className={chartTooltipClass(ordersHover.x, ordersHover.y, chartW, chartH)}
                             style={{
                               left: `${(ordersHover.x / chartW) * 100}%`,
                               top: `${(ordersHover.y / chartH) * 100}%`,
@@ -2862,7 +3107,7 @@ export function CommerceDashboard() {
                         <div className={styles.chartWrapper}>
                           {paymentHover && (
                             <div
-                              className={styles.chartTooltip}
+                              className={chartTooltipClass(paymentHover.x, paymentHover.y, paymentChartW, paymentChartH)}
                               style={{
                                 left: `${(paymentHover.x / paymentChartW) * 100}%`,
                                 top: `${(paymentHover.y / paymentChartH) * 100}%`,
@@ -3975,22 +4220,22 @@ export function CommerceDashboard() {
                   <div className={`${styles.card} ${styles.metric}`}>
                     <div className={styles.metriclabel}>Add-to-cart journey IDs</div>
                     <div className={styles.metricvalue}>{fmt(currentAgg.steps[0])}</div>
-                    <div className={styles.metricfoot}>Synthetic cohort · not unique people</div>
+                    {renderTrend(currentAgg.steps[0], priorAgg?.steps[0], false, 'Synthetic cohort · not unique people')}
                   </div>
                   <div className={`${styles.card} ${styles.metric}`}>
                     <div className={styles.metriclabel}>Reached checkout</div>
                     <div className={styles.metricvalue}>{fmt(currentAgg.steps[2])}</div>
-                    <div className={styles.metricfoot}>Proposed browser event</div>
+                    {renderTrend(currentAgg.steps[2], priorAgg?.steps[2], false, 'Proposed browser event')}
                   </div>
                   <div className={`${styles.card} ${styles.metric}`}>
                     <div className={styles.metriclabel}>Place-order attempts</div>
                     <div className={styles.metricvalue}>{fmt(currentAgg.steps[5])}</div>
-                    <div className={styles.metricfoot}>Attempt is not a confirmed order</div>
+                    {renderTrend(currentAgg.steps[5], priorAgg?.steps[5], false, 'Attempt is not a confirmed order')}
                   </div>
                   <div className={`${styles.card} ${styles.metric}`}>
                     <div className={styles.metriclabel}>Confirmed orders</div>
                     <div className={styles.metricvalue}>{fmt(currentAgg.orders)}</div>
-                    <div className={styles.metricfoot}>Server/order-feed confirmation</div>
+                    {renderTrend(currentAgg.orders, priorAgg?.orders, false, 'Server/order-feed confirmation')}
                   </div>
                 </div>
 
@@ -4061,11 +4306,108 @@ export function CommerceDashboard() {
                     <span className={`${styles.badge} ${styles.badgeGray}`}>OPTIONAL UX CONTEXT</span>
                     <h3>Clarity & GA4</h3>
                     <p>
-                      Scheduled cached UX/analytics context only. Quota limits prevent using them as
-                      the real-time order alert feed.
+                      Separate read-only reports below. They add behavioural context; they do not
+                      replace server-confirmed orders or technical traffic/error telemetry.
                     </p>
                   </article>
                 </div>
+
+                <article className={`${styles.card} ${styles.spacer}`}>
+                  <div className={styles.cardhead}>
+                    <div>
+                      <h2>Read-only analytics context</h2>
+                      <p>Refreshes automatically every 5 minutes while this section is open. GA4 follows the selected range; Clarity reports its latest 3 days in UTC and is cached for 24 hours.</p>
+                    </div>
+                    <span className={`${styles.badge} ${analyticsSummary ? styles.badgeLive : styles.badgePending}`}>
+                      {analyticsSummary ? 'SOURCE CHECKED' : 'LOADING'}
+                    </span>
+                  </div>
+                  <div className={styles.analyticsBody}>
+                    {analyticsError && <p className={styles.analyticsNotice} role="alert">{analyticsError}</p>}
+                    {!analyticsSummary && !analyticsError && <p className={styles.analyticsNotice}>Loading configured analytics sources…</p>}
+                    {analyticsSummary && (
+                      <div className={styles.analyticsSourceGrid}>
+                        <section className={styles.analyticsAccount}>
+                          <h3>Google Analytics 4 · selected range</h3>
+                          <p className={styles.analyticsDisclosure}>
+                            Event counts by property. These are not distinct journey IDs, conversion rates, or confirmed orders.
+                            Reports use each property’s reporting timezone and full calendar days, not partial selected hours.
+                          </p>
+                          {analyticsSummary.ga4.map((account, index) => (
+                            <div className={styles.analyticsSource} key={`${account.label || account.source}-${index}`}>
+                              <div className={styles.analyticsSourceTitle}>
+                                <b>{account.label || 'GA4 property'}</b>
+                                <span className={`${styles.badge} ${account.live && account.metricsAvailable ? styles.badgeLive : styles.badgePending}`}>
+                                  {account.status.replaceAll('_', ' ')}
+                                </span>
+                              </div>
+                              {account.events ? (
+                                <dl className={styles.analyticsMetricList}>
+                                  {Object.entries(analyticsEventLabels).map(([event, label]) => {
+                                    const count = account.events?.[event]
+                                    return (
+                                      <React.Fragment key={event}>
+                                        <dt>{label}</dt>
+                                        <dd>{count !== undefined ? fmt(count) : 'Not returned'}</dd>
+                                      </React.Fragment>
+                                    )
+                                  })}
+                                </dl>
+                              ) : (
+                                <p className={styles.analyticsNotice}>
+                                  {account.message || account.error || account.responseShape || (account.status === 'NOT_CONFIGURED'
+                                    ? 'Not configured. Supply server-side GA4 read-only access.'
+                                    : 'No verified standard event metrics are available.')}
+                                </p>
+                              )}
+                              {account.checkedAt && <small>Checked {new Date(account.checkedAt).toLocaleString()}</small>}
+                            </div>
+                          ))}
+                        </section>
+
+                        <section className={styles.analyticsAccount}>
+                          <h3>Microsoft Clarity · latest 3 days (UTC)</h3>
+                          <p className={styles.analyticsDisclosure}>
+                            Project-level aggregate UX signals only. The API does not provide a joined customer funnel.
+                            This feed is separate from Traffic &amp; errors.
+                          </p>
+                          {analyticsSummary.clarity.map((project, index) => (
+                            <div className={styles.analyticsSource} key={`${project.label || project.source}-${index}`}>
+                              <div className={styles.analyticsSourceTitle}>
+                                <b>{project.label || 'Clarity project'}</b>
+                                <span className={`${styles.badge} ${project.live && project.metricsAvailable ? styles.badgeLive : styles.badgePending}`}>
+                                  {project.status.replaceAll('_', ' ')}
+                                </span>
+                              </div>
+                              {project.metrics ? (
+                                Object.entries(project.metrics).map(([metric, values]) => (
+                                  <div className={styles.analyticsMetricGroup} key={metric}>
+                                    <b>{metric}</b>
+                                    <dl className={styles.analyticsMetricList}>
+                                      {Object.entries(values).map(([key, value]) => (
+                                        <React.Fragment key={key}>
+                                          <dt>{clarityMetricLabels[key] || key}</dt>
+                                          <dd>{fmt(value)}</dd>
+                                        </React.Fragment>
+                                      ))}
+                                    </dl>
+                                  </div>
+                                ))
+                              ) : (
+                                <p className={styles.analyticsNotice}>
+                                  {project.message || project.error || project.responseShape || (project.status === 'NOT_CONFIGURED'
+                                    ? 'Not configured. Supply a project-scoped token through server-side configuration.'
+                                    : 'No verified aggregate UX metrics are available.')}
+                                </p>
+                              )}
+                              {project.checkedAt && <small>Checked {new Date(project.checkedAt).toLocaleString()}</small>}
+                            </div>
+                          ))}
+                        </section>
+                      </div>
+                    )}
+                  </div>
+                </article>
               </>
             )}
 

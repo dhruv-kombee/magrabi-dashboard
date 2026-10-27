@@ -3,6 +3,7 @@ import { fetchMaculaSummary } from './services/macula.js'
 import { fetchGatewayTelemetry, getGatewaysConfigurationStatus } from './services/gateways.js'
 import { fetchTrafficTelemetry, getTrafficConfiguration } from './services/traffic.js'
 import { fetchInfraTelemetry, isInfraConfigured } from './services/infra.js'
+import { fetchAnalyticsSummary, getAnalyticsConfigurationStatus } from './services/analytics.js'
 import { evaluateAlertRule, isAlertChannelConfigured } from './services/alerts.js'
 import { answerCommerceQuestion } from './services/assistant.js'
 import { redactError } from './services/http.js'
@@ -20,7 +21,7 @@ import {
 
 const queryCache = new Map()
 const CACHE_TTL_MS = 60 * 1000
-const GET_ROUTES = new Set(['/api/commerce/auth/session', '/api/commerce/health', '/api/commerce/orders/summary', '/api/commerce/gateways/telemetry', '/api/commerce/traffic/edge', '/api/commerce/infra/apm'])
+const GET_ROUTES = new Set(['/api/commerce/auth/session', '/api/commerce/health', '/api/commerce/orders/summary', '/api/commerce/gateways/telemetry', '/api/commerce/traffic/edge', '/api/commerce/infra/apm', '/api/commerce/analytics/summary'])
 const POST_ROUTES = new Set(['/api/commerce/auth/login', '/api/commerce/auth/logout', '/api/commerce/auth/activity', '/api/commerce/assistant/query', '/api/commerce/alerts/evaluate'])
 
 function readJsonBody(req, maxBytes = 128 * 1024) {
@@ -65,6 +66,7 @@ const configuredStatus = (configured) => configured ? 'CONFIGURED_BUT_NOT_VERIFI
 function healthPayload() {
   const gateways = getGatewaysConfigurationStatus()
   const traffic = getTrafficConfiguration()
+  const analytics = getAnalyticsConfigurationStatus()
   const alerts = isAlertChannelConfigured()
   const connector = (name, configured, requiredKeys, extra = {}) => ({ name, configured, status: configuredStatus(configured), requiredKeys, ...extra })
   return {
@@ -76,6 +78,8 @@ function healthPayload() {
       ...Object.fromEntries(Object.entries(gateways).map(([key, value]) => [key, connector(value.name, value.configured, value.requiredKeys, { codeStatus: value.reportPath ? 'COMPLETE' : 'CODE_INCOMPLETE' })])),
       azureFrontDoor: connector('Azure Front Door / Monitor', traffic.configured, ['AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET'], { authPaths: { servicePrincipal: traffic.servicePrincipal, userAccount: traffic.userAccount } }),
       grafana: connector('Observability & APM (Grafana)', isInfraConfigured(), ['ECOM_GRAFANA_TOKEN', 'PROMETHEUS_DATASOURCE_UID', 'GRAFANA_LATENCY_QUERY']),
+      ga4: connector('Google Analytics 4 Data API', analytics.ga4.configured, ['GA4_SERVICE_ACCOUNT_JSON', 'GA4_PROPERTIES'], { status: analytics.ga4.status, propertyLabels: analytics.ga4.propertyLabels }),
+      clarity: connector('Microsoft Clarity Data Export API', analytics.clarity.configured, ['CLARITY_PROJECTS'], { status: analytics.clarity.status, projectLabels: analytics.clarity.projectLabels }),
       alerts: connector('Incident Alerts (Teams / Email)', alerts.teams || alerts.email, ['TEAMS_WEBHOOK_URL or SMTP_*'], { deliveryEnabled: config.alerts.deliveryEnabled, status: config.alerts.deliveryEnabled ? 'CONFIGURED_BUT_NOT_VERIFIED' : 'COMPLETE' }),
       assistant: connector('Commerce Assist (Gemini)', hasEnv('GEMINI_API_KEY') || hasEnv('GOOGLE_API_KEY'), ['GEMINI_API_KEY'], { fallback: 'Built-in grounded platform answer engine' }),
       customerJourney: { name: 'Customer journey events', configured: false, status: 'METRICS_UNAVAILABLE', codeStatus: 'CODE_INCOMPLETE', requiredKeys: [], message: 'Requires consented browser and server-confirmed event instrumentation.' },
@@ -258,6 +262,7 @@ export async function handleApiRequest(req, res) {
     if (pathname === '/api/commerce/gateways/telemetry') { sendJson(res, await fetchGatewayTelemetry()); return true }
     if (pathname === '/api/commerce/traffic/edge') { sendJson(res, await fetchTrafficTelemetry({ start: urlObj.searchParams.get('start'), end: urlObj.searchParams.get('end') })); return true }
     if (pathname === '/api/commerce/infra/apm') { sendJson(res, await fetchInfraTelemetry({ start: urlObj.searchParams.get('start'), end: urlObj.searchParams.get('end') })); return true }
+    if (pathname === '/api/commerce/analytics/summary') { sendJson(res, await fetchAnalyticsSummary({ start: urlObj.searchParams.get('start'), end: urlObj.searchParams.get('end') })); return true }
     if (pathname === '/api/commerce/assistant/query') { sendJson(res, await answerCommerceQuestion(await readJsonBody(req))); return true }
     if (pathname === '/api/commerce/alerts/evaluate') {
       const parsed = await readJsonBody(req)
