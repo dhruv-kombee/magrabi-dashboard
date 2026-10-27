@@ -13,6 +13,7 @@ import {
   validateViewerPermissions,
   VIEWER_PERMISSIONS,
 } from './userStore.js'
+import { config } from './config.js'
 
 let temporaryDirectory
 let originalUsersFile
@@ -73,4 +74,20 @@ test('managed usernames accept only a bounded safe character set', () => {
   assert.equal(validateManagedUsername('viewer_2026'), true)
   assert.equal(validateManagedUsername('../viewer'), false)
   assert.equal(validateManagedUsername('ab'), false)
+})
+
+test('Render defaults managed viewer storage to the persistent disk mount', () => {
+  const originalRender = process.env.RENDER
+  const originalUsersFile = process.env.AUTH_MANAGED_USERS_FILE
+  process.env.RENDER = 'true'
+  delete process.env.AUTH_MANAGED_USERS_FILE
+
+  try {
+    assert.equal(config.auth.managedUsersFile, '/var/data/dashboard-users.json')
+  } finally {
+    if (originalRender === undefined) delete process.env.RENDER
+    else process.env.RENDER = originalRender
+    if (originalUsersFile === undefined) delete process.env.AUTH_MANAGED_USERS_FILE
+    else process.env.AUTH_MANAGED_USERS_FILE = originalUsersFile
+  }
 })

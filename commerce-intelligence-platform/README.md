@@ -43,7 +43,7 @@ npm run auth:configure:deployment
 
 The command securely prompts only for the bootstrap administrator and writes `.secrets/dashboard-auth-deployment.env`. Import that file using the deployment platform's protected secret/environment-variable interface, then restart or redeploy the application. The administrator can create viewer accounts from the dashboard afterward. Do not commit, display, paste into chat, or store the generated file outside an approved secret store.
 
-Dashboard-managed viewer accounts are stored as scrypt hashes in `AUTH_MANAGED_USERS_FILE`. For a hosted container, set this variable to a writable path on persistent storage so accounts survive restarts and new releases. The default local path is the gitignored workspace `.secrets/dashboard-users.json`.
+Dashboard-managed viewer accounts are stored as scrypt hashes in `AUTH_MANAGED_USERS_FILE`. The default local path is the gitignored workspace `.secrets/dashboard-users.json`. On Render, the default path is `/var/data/dashboard-users.json`; attach a persistent disk to the web service with mount path `/var/data` so viewer accounts can be created and survive restarts and releases. If you mount the disk elsewhere, set `AUTH_MANAGED_USERS_FILE` to a file under that mount. Render disks are available to only one service instance, so keep the service at one instance while using this file store.
 
 ### Run in Development
 ```powershell
