@@ -33,6 +33,14 @@ The sign-in page includes an accessible **Show/Hide password** control. It only 
 
 For containers or hosted environments, provide `AUTH_ADMIN_USERNAME`, `AUTH_ADMIN_PASSWORD_HASH`, `AUTH_VIEWER_USERNAME`, `AUTH_VIEWER_PASSWORD_HASH`, `AUTH_SESSION_SECRET` (at least 32 characters), and `AUTH_SESSION_TIMEOUT_MINUTES=10` through the platform's secret-management mechanism. Legacy `AUTH_USERNAME` and `AUTH_PASSWORD_HASH` remain accepted as the admin account during migration. Never bake these values into the image or repository.
 
+To generate those deployment variables without printing passwords, hashes, or the signing secret, run:
+
+```powershell
+npm run auth:configure:deployment
+```
+
+The command securely prompts for both accounts and writes `.secrets/dashboard-auth-deployment.env`. Import that file using the deployment platform's protected secret/environment-variable interface, then restart or redeploy the application. Do not commit, display, paste into chat, or store the generated file outside an approved secret store.
+
 ### Run in Development
 ```powershell
 npm run dev
