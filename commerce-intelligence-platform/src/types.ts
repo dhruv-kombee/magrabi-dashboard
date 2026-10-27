@@ -6,6 +6,7 @@ export type SectionKey =
   | 'infra'
   | 'sources'
   | 'alerts'
+  | 'users'
 
 export type BrandFilter = 'all' | 'Magrabi' | 'DoctorM'
 export type CountryFilter = 'all' | 'AE' | 'SA' | 'EG' | 'QA' | 'KW'

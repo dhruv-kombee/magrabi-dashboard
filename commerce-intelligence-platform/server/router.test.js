@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { canAccessPath } from './router.js'
 
 test('viewer cannot access connector inventory or alert-rule evaluation', () => {
+  assert.equal(canAccessPath('viewer', '/api/commerce/auth/users'), false)
   assert.equal(canAccessPath('viewer', '/api/commerce/health'), false)
   assert.equal(canAccessPath('viewer', '/api/commerce/alerts/evaluate'), false)
 })

@@ -1,6 +1,7 @@
-import { createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto'
+import { createHash, createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto'
 import { promisify } from 'node:util'
 import { config } from './config.js'
+import { readManagedUsers } from './userStore.js'
 
 const scrypt = promisify(scryptCallback)
 const COOKIE_NAME = 'magrabi_ci_session'
@@ -53,11 +54,15 @@ function sign(payload, secret = config.auth.sessionSecret) {
   return createHmac('sha256', secret).update(payload).digest('base64url')
 }
 
+const credentialVersion = (passwordHash) => createHash('sha256').update(passwordHash).digest('base64url').slice(0, 16)
+
 export function configuredUsers() {
-  return [
+  const environmentUsers = [
     { username: config.auth.adminUsername, passwordHash: config.auth.adminPasswordHash, role: 'admin' },
     { username: config.auth.viewerUsername, passwordHash: config.auth.viewerPasswordHash, role: 'viewer' },
   ].filter((user) => user.username && user.passwordHash)
+  const reserved = new Set(environmentUsers.map((user) => user.username))
+  return [...environmentUsers, ...readManagedUsers().filter((user) => !reserved.has(user.username))]
 }
 
 export async function authenticateUser(username, password) {
@@ -67,7 +72,8 @@ export async function authenticateUser(username, password) {
 }
 
 export function createSessionToken(username = config.auth.adminUsername, role = 'admin', now = Date.now()) {
-  const payload = encode(JSON.stringify({ username, role, issuedAt: now, lastActivityAt: now, nonce: randomBytes(16).toString('base64url') }))
+  const user = configuredUsers().find((candidate) => candidate.username === username && candidate.role === role)
+  const payload = encode(JSON.stringify({ username, role, credentialVersion: user ? credentialVersion(user.passwordHash) : '', issuedAt: now, lastActivityAt: now, nonce: randomBytes(16).toString('base64url') }))
   return `${payload}.${sign(payload)}`
 }
 
@@ -77,7 +83,7 @@ export function verifySessionToken(token, now = Date.now()) {
     if (!payload || !signature || extra || !safeEqual(signature, sign(payload))) return null
     const session = JSON.parse(decode(payload))
     const timeoutMs = config.auth.sessionTimeoutSeconds * 1000
-    const configuredUser = configuredUsers().find((user) => user.username === session.username && user.role === session.role)
+    const configuredUser = configuredUsers().find((user) => user.username === session.username && user.role === session.role && credentialVersion(user.passwordHash) === session.credentialVersion)
     if (!configuredUser || !Number.isFinite(session.lastActivityAt)) return null
     if (session.lastActivityAt > now + 30_000 || now - session.lastActivityAt >= timeoutMs) return null
     return { ...session, expiresAt: session.lastActivityAt + timeoutMs }
@@ -112,7 +118,7 @@ export function clearSessionCookie(req, res) {
 }
 
 export function refreshSession(req, res, session, now = Date.now()) {
-  const payload = encode(JSON.stringify({ username: session.username, role: session.role, issuedAt: session.issuedAt, lastActivityAt: now, nonce: randomBytes(16).toString('base64url') }))
+  const payload = encode(JSON.stringify({ username: session.username, role: session.role, credentialVersion: session.credentialVersion, issuedAt: session.issuedAt, lastActivityAt: now, nonce: randomBytes(16).toString('base64url') }))
   setSessionCookie(req, res, `${payload}.${sign(payload)}`)
   return { ...session, lastActivityAt: now, expiresAt: now + config.auth.sessionTimeoutSeconds * 1000 }
 }

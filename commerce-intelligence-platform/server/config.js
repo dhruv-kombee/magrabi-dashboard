@@ -115,6 +115,7 @@ export const config = {
     get adminPasswordHash() { return getEnv('AUTH_ADMIN_PASSWORD_HASH', getEnv('AUTH_PASSWORD_HASH')) },
     get viewerUsername() { return getEnv('AUTH_VIEWER_USERNAME') },
     get viewerPasswordHash() { return getEnv('AUTH_VIEWER_PASSWORD_HASH') },
+    get managedUsersFile() { return getEnv('AUTH_MANAGED_USERS_FILE', path.join(workspaceDir, '.secrets', 'dashboard-users.json')) },
     get sessionSecret() { return getEnv('AUTH_SESSION_SECRET') },
     get sessionTimeoutSeconds() {
       const minutes = parseInt(getEnv('AUTH_SESSION_TIMEOUT_MINUTES', '10'), 10)

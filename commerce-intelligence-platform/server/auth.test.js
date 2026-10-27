@@ -61,3 +61,10 @@ test('tampered session token is rejected', () => {
   const [payload, signature] = token.split('.')
   assert.equal(verifySessionToken(`${payload}.${signature.slice(0, -1)}x`), null)
 })
+
+test('changing a user password invalidates sessions signed for the previous credential', async () => {
+  const issuedAt = Date.now()
+  const token = createSessionToken('security-test-viewer', 'viewer', issuedAt)
+  process.env.AUTH_VIEWER_PASSWORD_HASH = await hashPassword('replacement-viewer-password')
+  assert.equal(verifySessionToken(token, issuedAt + 1_000), null)
+})

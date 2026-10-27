@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react'
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { ChatAssistant } from './ChatAssistant'
 import type {
   BrandFilter,
@@ -52,6 +52,8 @@ type AnalyticsSummary = {
   clarity: AnalyticsSource[]
 }
 
+type ManagedUser = { username: string; role: 'admin' | 'viewer'; managed: boolean }
+
 const sectionConfig: Array<{ key: SectionKey; label: string; title: string; subtitle: string }> = [
   {
     key: 'overview',
@@ -94,6 +96,12 @@ const sectionConfig: Array<{ key: SectionKey; label: string; title: string; subt
     label: 'Alerts & rules',
     title: 'Act on the right signal',
     subtitle: 'Thresholds, ownership and delivery routes — configurable without treating missing data as zero.',
+  },
+  {
+    key: 'users',
+    label: 'User management',
+    title: 'Manage dashboard access',
+    subtitle: 'Create viewer accounts, reset their passwords, or remove access.',
   },
 ]
 
@@ -291,12 +299,12 @@ export function CommerceDashboard({ role }: { role: 'admin' | 'viewer' }) {
   const [source, setSource] = useState<TrafficSourceKey>('frontdoor')
   const [filtered, setFiltered] = useState(false)
   const visibleSections = useMemo(
-    () => role === 'admin' ? sectionConfig : sectionConfig.filter(({ key }) => key !== 'sources' && key !== 'alerts'),
+    () => role === 'admin' ? sectionConfig : sectionConfig.filter(({ key }) => !['sources', 'alerts', 'users'].includes(key)),
     [role],
   )
 
   useEffect(() => {
-    if (role === 'viewer' && (section === 'sources' || section === 'alerts')) setSection('overview')
+    if (role === 'viewer' && ['sources', 'alerts', 'users'].includes(section)) setSection('overview')
   }, [role, section])
 
   // Filter form draft states (defaults to Today / Current Day)
@@ -435,6 +443,64 @@ export function CommerceDashboard({ role }: { role: 'admin' | 'viewer' }) {
     text: string
     subtext: string
   } | null>(null)
+  const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([])
+  const [userName, setUserName] = useState('')
+  const [userPassword, setUserPassword] = useState('')
+  const [userPasswordConfirmation, setUserPasswordConfirmation] = useState('')
+  const [userManagementError, setUserManagementError] = useState('')
+  const [userManagementBusy, setUserManagementBusy] = useState(false)
+
+  const loadManagedUsers = useCallback(async () => {
+    const response = await fetch('/api/commerce/auth/users')
+    const payload = await response.json()
+    if (!response.ok) throw new Error(payload.error || 'Users could not be loaded.')
+    setManagedUsers(payload.users || [])
+  }, [])
+
+  useEffect(() => {
+    if (role !== 'admin' || section !== 'users') return
+    setUserManagementError('')
+    void loadManagedUsers().catch((error) => setUserManagementError(error instanceof Error ? error.message : 'Users could not be loaded.'))
+  }, [role, section, loadManagedUsers])
+
+  const saveViewer = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (userPassword !== userPasswordConfirmation) { setUserManagementError('Passwords do not match.'); return }
+    setUserManagementBusy(true)
+    setUserManagementError('')
+    try {
+      const response = await fetch('/api/commerce/auth/users', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'save', username: userName, password: userPassword }),
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'User could not be saved.')
+      setUserName('')
+      setUserPassword('')
+      setUserPasswordConfirmation('')
+      await loadManagedUsers()
+      showToast('Viewer account saved.')
+    } catch (error) {
+      setUserManagementError(error instanceof Error ? error.message : 'User could not be saved.')
+    } finally { setUserManagementBusy(false) }
+  }
+
+  const removeViewer = async (username: string) => {
+    setUserManagementBusy(true)
+    setUserManagementError('')
+    try {
+      const response = await fetch('/api/commerce/auth/users', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', username }),
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'User could not be removed.')
+      await loadManagedUsers()
+      showToast('Viewer access removed.')
+    } catch (error) {
+      setUserManagementError(error instanceof Error ? error.message : 'User could not be removed.')
+    } finally { setUserManagementBusy(false) }
+  }
 
   useEffect(() => {
     if (!mobileNavOpen) return
@@ -4900,6 +4966,79 @@ export function CommerceDashboard({ role }: { role: 'admin' | 'viewer' }) {
                             <td>Host + environment</td>
                             <td>DevOps on-call</td>
                           </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+                </div>
+              </>
+            )}
+
+            {/* ADMIN USER MANAGEMENT SECTION */}
+            {section === 'users' && role === 'admin' && (
+              <>
+                <div className={`${styles.notice} ${styles.noticeInfo}`}>
+                  <div>
+                    <b>Viewer access only.</b> Passwords are hashed on the server and are never returned to the browser. The deployment-managed administrator cannot be changed here.
+                  </div>
+                </div>
+                <div className={styles.gridHalf}>
+                  <article className={styles.card}>
+                    <div className={styles.cardhead}>
+                      <div>
+                        <h2>Create or reset a viewer</h2>
+                        <p>Using an existing managed username resets that viewer's password.</p>
+                      </div>
+                      <span className={`${styles.badge} ${styles.badgeLive}`}>ADMIN ONLY</span>
+                    </div>
+                    <div className={styles.cardbody}>
+                      <form onSubmit={saveViewer}>
+                        <div className={styles.alertform}>
+                          <div className={styles.field}>
+                            <label htmlFor="managed-username">Viewer username</label>
+                            <input id="managed-username" value={userName} onChange={(event) => setUserName(event.target.value)} autoComplete="off" pattern="[A-Za-z0-9._-]{3,100}" required />
+                          </div>
+                          <div className={styles.field}>
+                            <label htmlFor="managed-password">Password</label>
+                            <input id="managed-password" type="password" value={userPassword} onChange={(event) => setUserPassword(event.target.value)} autoComplete="new-password" minLength={12} required />
+                          </div>
+                          <div className={styles.field}>
+                            <label htmlFor="managed-password-confirmation">Confirm password</label>
+                            <input id="managed-password-confirmation" type="password" value={userPasswordConfirmation} onChange={(event) => setUserPasswordConfirmation(event.target.value)} autoComplete="new-password" minLength={12} required />
+                          </div>
+                        </div>
+                        {userManagementError && <p className={styles.noresult} role="alert">{userManagementError}</p>}
+                        <button type="submit" className={`${styles.btn} ${styles.btnDark}`} disabled={userManagementBusy}>
+                          {userManagementBusy ? 'Saving…' : 'Save viewer account'}
+                        </button>
+                      </form>
+                    </div>
+                  </article>
+
+                  <article className={styles.card}>
+                    <div className={styles.cardhead}>
+                      <div>
+                        <h2>Dashboard accounts</h2>
+                        <p>Deployment-managed accounts are read-only here.</p>
+                      </div>
+                      <span className={`${styles.badge} ${styles.badgeGray}`}>{managedUsers.length} ACCOUNTS</span>
+                    </div>
+                    <div className={styles.tablewrap} role="region" aria-label="Dashboard accounts" tabIndex={0}>
+                      <table className={styles.table}>
+                        <thead><tr><th>USERNAME</th><th>ROLE</th><th>SOURCE</th><th>ACTION</th></tr></thead>
+                        <tbody>
+                          {managedUsers.map((user) => (
+                            <tr key={`${user.role}-${user.username}`}>
+                              <td>{user.username}</td>
+                              <td>{user.role}</td>
+                              <td>{user.managed ? 'Dashboard managed' : 'Deployment environment'}</td>
+                              <td>
+                                {user.managed ? (
+                                  <button type="button" className={`${styles.btn} ${styles.btnSmall}`} disabled={userManagementBusy} onClick={() => void removeViewer(user.username)}>Remove</button>
+                                ) : 'Protected'}
+                              </td>
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>

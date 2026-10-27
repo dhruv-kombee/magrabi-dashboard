@@ -27,7 +27,7 @@ Run the interactive setup once from a real terminal:
 npm run auth:configure
 ```
 
-The command asks for separate admin and viewer usernames and passwords of at least 12 characters. Password input is hidden; only scrypt hashes are stored in the workspace's gitignored `.secrets/dashboard-auth.env`. Admins can access every section. Viewers can use the operational dashboards but cannot access **Data sources** or **Alerts & rules**. The setup also generates a private session-signing secret and fixes the idle timeout at 10 minutes. Restart the app after changing credentials.
+The command asks for the initial admin username and a password of at least 12 characters. Password input is hidden; only a scrypt hash is stored in the workspace's gitignored `.secrets/dashboard-auth.env`. After signing in, the admin can create, reset, and remove viewer accounts from **User management**. Admins can access every section. Viewers can use the operational dashboards but cannot access **Data sources**, **Alerts & rules**, or **User management**. The setup also generates a private session-signing secret and fixes the idle timeout at 10 minutes. Restart the app after changing credentials.
 
 The sign-in page includes an accessible **Show/Hide password** control. It only changes how the entered value is displayed in the browser; it does not change how the server hashes or verifies the password.
 
@@ -39,7 +39,9 @@ To generate those deployment variables without printing passwords, hashes, or th
 npm run auth:configure:deployment
 ```
 
-The command securely prompts for both accounts and writes `.secrets/dashboard-auth-deployment.env`. Import that file using the deployment platform's protected secret/environment-variable interface, then restart or redeploy the application. Do not commit, display, paste into chat, or store the generated file outside an approved secret store.
+The command securely prompts only for the bootstrap administrator and writes `.secrets/dashboard-auth-deployment.env`. Import that file using the deployment platform's protected secret/environment-variable interface, then restart or redeploy the application. The administrator can create viewer accounts from the dashboard afterward. Do not commit, display, paste into chat, or store the generated file outside an approved secret store.
+
+Dashboard-managed viewer accounts are stored as scrypt hashes in `AUTH_MANAGED_USERS_FILE`. For a hosted container, set this variable to a writable path on persistent storage so accounts survive restarts and new releases. The default local path is the gitignored workspace `.secrets/dashboard-users.json`.
 
 ### Run in Development
 ```powershell

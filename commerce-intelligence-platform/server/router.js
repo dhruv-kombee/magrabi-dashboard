@@ -8,6 +8,7 @@ import { evaluateAlertRule, isAlertChannelConfigured } from './services/alerts.j
 import { answerCommerceQuestion } from './services/assistant.js'
 import { redactError } from './services/http.js'
 import { config, hasEnv } from './config.js'
+import { deleteManagedViewer, readManagedUsers, saveManagedViewer, validateManagedUsername } from './userStore.js'
 import {
   authConfigurationStatus,
   authenticateUser,
@@ -17,13 +18,14 @@ import {
   loginRateLimit,
   refreshSession,
   setSessionCookie,
+  hashPassword,
 } from './auth.js'
 
 const queryCache = new Map()
 const CACHE_TTL_MS = 60 * 1000
-const GET_ROUTES = new Set(['/api/commerce/auth/session', '/api/commerce/health', '/api/commerce/orders/summary', '/api/commerce/gateways/telemetry', '/api/commerce/traffic/edge', '/api/commerce/infra/apm', '/api/commerce/analytics/summary'])
-const POST_ROUTES = new Set(['/api/commerce/auth/login', '/api/commerce/auth/logout', '/api/commerce/auth/activity', '/api/commerce/assistant/query', '/api/commerce/alerts/evaluate'])
-const ADMIN_ONLY_ROUTES = new Set(['/api/commerce/health', '/api/commerce/alerts/evaluate'])
+const GET_ROUTES = new Set(['/api/commerce/auth/session', '/api/commerce/auth/users', '/api/commerce/health', '/api/commerce/orders/summary', '/api/commerce/gateways/telemetry', '/api/commerce/traffic/edge', '/api/commerce/infra/apm', '/api/commerce/analytics/summary'])
+const POST_ROUTES = new Set(['/api/commerce/auth/login', '/api/commerce/auth/logout', '/api/commerce/auth/activity', '/api/commerce/auth/users', '/api/commerce/assistant/query', '/api/commerce/alerts/evaluate'])
+const ADMIN_ONLY_ROUTES = new Set(['/api/commerce/auth/users', '/api/commerce/health', '/api/commerce/alerts/evaluate'])
 
 export function canAccessPath(role, pathname) {
   return role === 'admin' || !ADMIN_ONLY_ROUTES.has(pathname)
@@ -244,6 +246,46 @@ export async function handleApiRequest(req, res) {
 
   if (!canAccessPath(session.role, pathname)) {
     sendJson(res, { status: 'ERROR', error: 'Administrator access is required.' }, 403)
+    return true
+  }
+
+  if (pathname === '/api/commerce/auth/users') {
+    if (req.method === 'GET') {
+      let managed
+      try { managed = readManagedUsers({ strict: true }).map(({ username, role }) => ({ username, role, managed: true })) }
+      catch { sendJson(res, { status: 'ERROR', error: 'Managed user storage is unavailable.' }, 500); return true }
+      const environment = [
+        { username: config.auth.adminUsername, role: 'admin', managed: false },
+        config.auth.viewerUsername && config.auth.viewerPasswordHash ? { username: config.auth.viewerUsername, role: 'viewer', managed: false } : null,
+      ].filter(Boolean)
+      sendJson(res, { status: 'OK', users: [...environment, ...managed] })
+      return true
+    }
+    let body
+    try { body = await readJsonBody(req, 8 * 1024) } catch { sendJson(res, { status: 'ERROR', error: 'Invalid user-management request.' }, 400); return true }
+    if (body.action === 'delete') {
+      if (!validateManagedUsername(body.username)) { sendJson(res, { status: 'ERROR', error: 'Invalid username.' }, 400); return true }
+      try {
+        const deleted = await deleteManagedViewer(body.username)
+        sendJson(res, { status: 'OK', deleted })
+      } catch { sendJson(res, { status: 'ERROR', error: 'User could not be removed.' }, 500) }
+      return true
+    }
+    if (body.action !== 'save' || !validateManagedUsername(body.username) || typeof body.password !== 'string') {
+      sendJson(res, { status: 'ERROR', error: 'Provide a valid username and password.' }, 400)
+      return true
+    }
+    if (body.username === config.auth.adminUsername || body.username === config.auth.viewerUsername) {
+      sendJson(res, { status: 'ERROR', error: 'Environment-managed accounts cannot be changed here.' }, 409)
+      return true
+    }
+    try {
+      const user = await saveManagedViewer(body.username, await hashPassword(body.password))
+      sendJson(res, { status: 'OK', user })
+    } catch (error) {
+      const message = error instanceof TypeError ? error.message : 'User could not be saved.'
+      sendJson(res, { status: 'ERROR', error: message }, error instanceof TypeError ? 400 : 500)
+    }
     return true
   }
 
