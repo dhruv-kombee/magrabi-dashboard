@@ -13,8 +13,13 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=5174
 
+# Install only the dependencies required by the runtime server. The analytics
+# service imports google-auth-library at startup, so the final image must carry
+# production node_modules rather than only the frontend build output.
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+
 # Copy runtime server and built distribution
-COPY package.json ./
 COPY server/ ./server/
 COPY server.js ./
 COPY --from=build /app/dist ./dist
