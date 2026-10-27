@@ -246,3 +246,11 @@
   .panel, .launcher, .messageRow, .thinking span { animation: none; }
   .historyRail, .evidence summary::after { transition: none; }
 }
+
+@media (max-width: 900px) {
+  .chatArea, .messages, .bubble, .headerCopy, .composer textarea { min-width: 0; }
+  .bubble { overflow-wrap: anywhere; }
+  .exportBar, .answerMeta, .evidenceFact { flex-wrap: wrap; }
+  .composer button { width: 44px; height: 44px; }
+  .headerCopy strong { font-size: 14px; }
+}
