@@ -8,13 +8,23 @@ import { evaluateAlertRule, isAlertChannelConfigured } from './services/alerts.j
 import { answerCommerceQuestion } from './services/assistant.js'
 import { redactError } from './services/http.js'
 import { config, hasEnv } from './config.js'
-import { deleteManagedViewer, readManagedUsers, saveManagedViewer, validateManagedUsername } from './userStore.js'
+import {
+  deleteManagedViewer,
+  DEFAULT_VIEWER_PERMISSIONS,
+  readManagedUsers,
+  saveManagedViewer,
+  updateManagedViewerPermissions,
+  validateManagedUsername,
+  validateViewerPermissions,
+  VIEWER_PERMISSIONS,
+} from './userStore.js'
 import {
   authConfigurationStatus,
   authenticateUser,
   clearSessionCookie,
   createSessionToken,
   getRequestSession,
+  getSessionTimeoutSeconds,
   loginRateLimit,
   refreshSession,
   setSessionCookie,
@@ -25,10 +35,23 @@ const queryCache = new Map()
 const CACHE_TTL_MS = 60 * 1000
 const GET_ROUTES = new Set(['/api/commerce/auth/session', '/api/commerce/auth/users', '/api/commerce/health', '/api/commerce/orders/summary', '/api/commerce/gateways/telemetry', '/api/commerce/traffic/edge', '/api/commerce/infra/apm', '/api/commerce/analytics/summary'])
 const POST_ROUTES = new Set(['/api/commerce/auth/login', '/api/commerce/auth/logout', '/api/commerce/auth/activity', '/api/commerce/auth/users', '/api/commerce/assistant/query', '/api/commerce/alerts/evaluate'])
-const ADMIN_ONLY_ROUTES = new Set(['/api/commerce/auth/users', '/api/commerce/health', '/api/commerce/alerts/evaluate'])
+const ADMIN_ONLY_ROUTES = new Set(['/api/commerce/auth/users'])
+const ROUTE_PERMISSIONS = new Map([
+  ['/api/commerce/orders/summary', ['overview', 'orders']],
+  ['/api/commerce/gateways/telemetry', ['orders']],
+  ['/api/commerce/traffic/edge', ['traffic']],
+  ['/api/commerce/infra/apm', ['infra']],
+  ['/api/commerce/analytics/summary', ['journey']],
+  ['/api/commerce/health', ['sources']],
+  ['/api/commerce/alerts/evaluate', ['alerts']],
+])
 
-export function canAccessPath(role, pathname) {
-  return role === 'admin' || !ADMIN_ONLY_ROUTES.has(pathname)
+export function canAccessPath(role, pathname, permissions = DEFAULT_VIEWER_PERMISSIONS) {
+  if (role === 'admin') return true
+  if (ADMIN_ONLY_ROUTES.has(pathname)) return false
+  if (pathname === '/api/commerce/assistant/query') return VIEWER_PERMISSIONS.every((permission) => permissions.includes(permission))
+  const requiredPermissions = ROUTE_PERMISSIONS.get(pathname)
+  return !requiredPermissions || requiredPermissions.some((permission) => permissions.includes(permission))
 }
 
 function readJsonBody(req, maxBytes = 128 * 1024) {
@@ -217,9 +240,11 @@ export async function handleApiRequest(req, res) {
       return true
     }
     limit.clear()
+    const rememberMe = Boolean(body.rememberMe)
+    const timeoutSeconds = getSessionTimeoutSeconds(rememberMe)
     const now = Date.now()
-    setSessionCookie(req, res, createSessionToken(user.username, user.role, now))
-    sendJson(res, { status: 'OK', authenticated: true, username: user.username, role: user.role, expiresAt: now + config.auth.sessionTimeoutSeconds * 1000, timeoutSeconds: config.auth.sessionTimeoutSeconds })
+    setSessionCookie(req, res, createSessionToken(user.username, user.role, now, { rememberMe }), timeoutSeconds)
+    sendJson(res, { status: 'OK', authenticated: true, username: user.username, role: user.role, permissions: user.permissions, expiresAt: now + timeoutSeconds * 1000, timeoutSeconds })
     return true
   }
 
@@ -235,44 +260,64 @@ export async function handleApiRequest(req, res) {
     return true
   }
   if (pathname === '/api/commerce/auth/session') {
-    sendJson(res, { status: 'OK', authenticated: true, username: session.username, role: session.role, expiresAt: session.expiresAt, timeoutSeconds: config.auth.sessionTimeoutSeconds })
+    sendJson(res, { status: 'OK', authenticated: true, username: session.username, role: session.role, permissions: session.permissions, expiresAt: session.expiresAt, timeoutSeconds: session.timeoutSeconds ?? config.auth.sessionTimeoutSeconds })
     return true
   }
   if (pathname === '/api/commerce/auth/activity') {
     const refreshed = refreshSession(req, res, session)
-    sendJson(res, { status: 'OK', authenticated: true, username: refreshed.username, role: refreshed.role, expiresAt: refreshed.expiresAt, timeoutSeconds: config.auth.sessionTimeoutSeconds })
+    sendJson(res, { status: 'OK', authenticated: true, username: refreshed.username, role: refreshed.role, permissions: session.permissions, expiresAt: refreshed.expiresAt, timeoutSeconds: refreshed.timeoutSeconds ?? config.auth.sessionTimeoutSeconds })
     return true
   }
 
-  if (!canAccessPath(session.role, pathname)) {
-    sendJson(res, { status: 'ERROR', error: 'Administrator access is required.' }, 403)
+  if (!canAccessPath(session.role, pathname, session.permissions)) {
+    sendJson(res, { status: 'ERROR', error: session.role === 'admin' ? 'Administrator access is required.' : 'Your account does not have permission to access this module.' }, 403)
     return true
   }
 
   if (pathname === '/api/commerce/auth/users') {
     if (req.method === 'GET') {
       let managed
-      try { managed = readManagedUsers({ strict: true }).map(({ username, role }) => ({ username, role, managed: true })) }
+      try { managed = readManagedUsers({ strict: true }).map(({ username, role, permissions }) => ({ username, role, permissions, managed: true })) }
       catch { sendJson(res, { status: 'ERROR', error: 'Managed user storage is unavailable.' }, 500); return true }
       const environment = [
         { username: config.auth.adminUsername, role: 'admin', managed: false },
-        config.auth.viewerUsername && config.auth.viewerPasswordHash ? { username: config.auth.viewerUsername, role: 'viewer', managed: false } : null,
+        config.auth.viewerUsername && config.auth.viewerPasswordHash ? { username: config.auth.viewerUsername, role: 'viewer', permissions: DEFAULT_VIEWER_PERMISSIONS, managed: false } : null,
       ].filter(Boolean)
       sendJson(res, { status: 'OK', users: [...environment, ...managed] })
       return true
     }
     let body
     try { body = await readJsonBody(req, 8 * 1024) } catch { sendJson(res, { status: 'ERROR', error: 'Invalid user-management request.' }, 400); return true }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      sendJson(res, { status: 'ERROR', error: 'Invalid user-management request.' }, 400)
+      return true
+    }
+    if (body.action === 'permissions') {
+      if (!validateManagedUsername(body.username) || !validateViewerPermissions(body.permissions)) {
+        sendJson(res, { status: 'ERROR', error: 'Provide a valid username and module permissions.' }, 400)
+        return true
+      }
+      try {
+        const updated = await updateManagedViewerPermissions(body.username, body.permissions)
+        if (!updated) { sendJson(res, { status: 'ERROR', error: 'Viewer account was not found.' }, 404); return true }
+        sendJson(res, { status: 'OK', updated: true })
+      } catch (error) {
+        const message = error instanceof TypeError ? error.message : 'Viewer permissions could not be saved.'
+        sendJson(res, { status: 'ERROR', error: message }, error instanceof TypeError ? 400 : 500)
+      }
+      return true
+    }
     if (body.action === 'delete') {
       if (!validateManagedUsername(body.username)) { sendJson(res, { status: 'ERROR', error: 'Invalid username.' }, 400); return true }
       try {
         const deleted = await deleteManagedViewer(body.username)
-        sendJson(res, { status: 'OK', deleted })
+        if (!deleted) { sendJson(res, { status: 'ERROR', error: 'Viewer account was not found.' }, 404); return true }
+        sendJson(res, { status: 'OK', deleted: true })
       } catch { sendJson(res, { status: 'ERROR', error: 'User could not be removed.' }, 500) }
       return true
     }
-    if (body.action !== 'save' || !validateManagedUsername(body.username) || typeof body.password !== 'string') {
-      sendJson(res, { status: 'ERROR', error: 'Provide a valid username and password.' }, 400)
+    if (body.action !== 'save' || !validateManagedUsername(body.username) || typeof body.password !== 'string' || body.password.length < 12) {
+      sendJson(res, { status: 'ERROR', error: 'Provide a valid username and a password of at least 12 characters.' }, 400)
       return true
     }
     if (body.username === config.auth.adminUsername || body.username === config.auth.viewerUsername) {
@@ -280,7 +325,11 @@ export async function handleApiRequest(req, res) {
       return true
     }
     try {
-      const user = await saveManagedViewer(body.username, await hashPassword(body.password))
+      if (body.permissions !== undefined && !validateViewerPermissions(body.permissions)) {
+        sendJson(res, { status: 'ERROR', error: 'Select valid viewer permissions.' }, 400)
+        return true
+      }
+      const user = await saveManagedViewer(body.username, await hashPassword(body.password), body.permissions)
       sendJson(res, { status: 'OK', user })
     } catch (error) {
       const message = error instanceof TypeError ? error.message : 'User could not be saved.'

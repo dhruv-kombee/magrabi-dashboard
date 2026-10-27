@@ -121,6 +121,10 @@ export const config = {
       const minutes = parseInt(getEnv('AUTH_SESSION_TIMEOUT_MINUTES', '10'), 10)
       return Math.min(60, Math.max(1, Number.isFinite(minutes) ? minutes : 10)) * 60
     },
+    get rememberMeSessionTimeoutSeconds() {
+      const days = parseInt(getEnv('AUTH_REMEMBER_ME_DAYS', '30'), 10)
+      return Math.min(365, Math.max(1, Number.isFinite(days) ? days : 30)) * 24 * 60 * 60
+    },
   },
   
   // Saleor

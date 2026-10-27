@@ -19,6 +19,8 @@ cp .env.example .env
 
 Connector credentials are parameterized and optional. Missing connector credentials produce `NOT_CONFIGURED`; non-empty credentials produce only `CONFIGURED_BUT_NOT_VERIFIED` until a read-only source request succeeds and required fields are validated. Dashboard authentication is required: without the username, password hash, and session-signing secret, every commerce API responds with `503` and no dashboard data is exposed. Synthetic fixtures remain in explicitly labelled demo panels and are never substituted into live connector responses.
 
+The dashboard opens with all brands and business countries for the current Dubai reporting day. The filter/date controls and dashboard Excel/CSV export buttons are hidden only on the User management page; they remain available on other dashboard pages. Assistant question scope and assistant report downloads remain available.
+
 ### Configure Dashboard Login
 
 Run the interactive setup once from a real terminal:
@@ -27,7 +29,7 @@ Run the interactive setup once from a real terminal:
 npm run auth:configure
 ```
 
-The command asks for the initial admin username and a password of at least 12 characters. Password input is hidden; only a scrypt hash is stored in the workspace's gitignored `.secrets/dashboard-auth.env`. After signing in, the admin can create, reset, and remove viewer accounts from **User management**. Admins can access every section. Viewers can use the operational dashboards but cannot access **Data sources**, **Alerts & rules**, or **User management**. The setup also generates a private session-signing secret and fixes the idle timeout at 10 minutes. Restart the app after changing credentials.
+The command asks for the initial admin username and a password of at least 12 characters. Password input is hidden; only a scrypt hash is stored in the workspace's gitignored `.secrets/dashboard-auth.env`. After signing in, the admin can create, reset, and remove dashboard-managed viewer accounts from **User management**, and assign each managed viewer access to any combination of dashboard sections. New viewers start with every section selected; existing accounts without saved permissions retain their previous section access. Deployment-environment accounts remain protected and cannot be changed here. Permissions are enforced by the API as well as the navigation. **User management** remains admin-only, and Commerce Assistant is available to viewers only when every dashboard section is assigned. The default inactive-session timeout is 10 minutes; selecting **Remember me** keeps the signed session active for 30 days by default. Set `AUTH_REMEMBER_ME_DAYS` to configure the remembered-session timeout (1–365 days). Restart the app after changing credentials.
 
 The sign-in page includes an accessible **Show/Hide password** control. It only changes how the entered value is displayed in the browser; it does not change how the server hashes or verifies the password.
 

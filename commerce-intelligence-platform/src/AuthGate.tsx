@@ -1,13 +1,17 @@
 import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import type { SectionKey } from './types'
 import styles from './AuthGate.module.css'
 
 type Session = {
   authenticated: true
   username: string
   role: 'admin' | 'viewer'
+  permissions: SectionKey[]
   expiresAt: number
   timeoutSeconds: number
 }
+
+const REMEMBERED_USERNAME_KEY = 'magrabi_ci_last_username'
 
 type AuthResponse = Partial<Session> & { authenticated?: boolean; error?: string; missing?: string[] }
 
@@ -23,20 +27,45 @@ async function authRequest(path: string, options?: RequestInit): Promise<AuthRes
 }
 
 function LoginScreen({ onAuthenticated }: { onAuthenticated: (session: Session) => void }) {
-  const [username, setUsername] = useState('')
+  const [username, setUsername] = useState(() => {
+    if (typeof window === 'undefined') return ''
+    return window.localStorage.getItem(REMEMBERED_USERNAME_KEY) || ''
+  })
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return Boolean(window.localStorage.getItem(REMEMBERED_USERNAME_KEY))
+  })
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const storedUsername = window.localStorage.getItem(REMEMBERED_USERNAME_KEY)
+    if (storedUsername) {
+      setUsername(storedUsername)
+      setRememberMe(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (rememberMe && username.trim()) window.localStorage.setItem(REMEMBERED_USERNAME_KEY, username.trim())
+    else window.localStorage.removeItem(REMEMBERED_USERNAME_KEY)
+  }, [rememberMe, username])
 
   async function submit(event: FormEvent) {
     event.preventDefault()
     setSubmitting(true)
     setError('')
     try {
-      const result = await authRequest('login', { method: 'POST', body: JSON.stringify({ username, password }) })
-      if (result.authenticated && result.username && result.role && result.expiresAt && result.timeoutSeconds) onAuthenticated(result as Session)
-      else setError('Sign-in could not be completed.')
+      const result = await authRequest('login', { method: 'POST', body: JSON.stringify({ username, password, rememberMe }) })
+      if (result.authenticated && result.username && result.role && Array.isArray(result.permissions) && result.expiresAt && result.timeoutSeconds) {
+        if (rememberMe) window.localStorage.setItem(REMEMBERED_USERNAME_KEY, result.username)
+        else window.localStorage.removeItem(REMEMBERED_USERNAME_KEY)
+        onAuthenticated(result as Session)
+      } else setError('Sign-in could not be completed.')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Sign-in could not be completed.')
     } finally {
@@ -97,16 +126,25 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: (session: Session) 
               <span>{showPassword ? 'Hide' : 'Show'}</span>
             </button>
           </div>
+          <label className={styles.rememberRow} htmlFor="auth-remember-me">
+            <input
+              id="auth-remember-me"
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(event) => setRememberMe(event.target.checked)}
+            />
+            <span>Remember me</span>
+          </label>
           {error && <p className={styles.error} role="alert">{error}</p>}
           <button className={styles.submitButton} type="submit" disabled={submitting}>{submitting ? 'Signing in…' : 'Sign in'}</button>
         </form>
-        <p className={styles.sessionNote}>For your security, inactive sessions close after 10 minutes.</p>
+        <p className={styles.sessionNote}>{rememberMe ? 'This device stays signed in for 30 days.' : 'For your security, inactive sessions close after 10 minutes.'}</p>
       </section>
     </main>
   )
 }
 
-export function AuthGate({ children }: { children: (session: Session) => ReactNode }) {
+export function AuthGate({ children }: { children: (session: Session, onLogout: () => Promise<void>) => ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [checking, setChecking] = useState(true)
   const [configurationError, setConfigurationError] = useState('')
@@ -124,7 +162,7 @@ export function AuthGate({ children }: { children: (session: Session) => ReactNo
   useEffect(() => {
     authRequest('session')
       .then((result) => {
-        if (result.authenticated && result.username && result.role && result.expiresAt && result.timeoutSeconds) updateSession(result as Session)
+        if (result.authenticated && result.username && result.role && Array.isArray(result.permissions) && result.expiresAt && result.timeoutSeconds) updateSession(result as Session)
       })
       .catch((cause: Error & { status?: number; payload?: AuthResponse }) => {
         if (cause.status === 503) setConfigurationError(cause.message)
@@ -152,7 +190,7 @@ export function AuthGate({ children }: { children: (session: Session) => ReactNo
       activityRequest.current = (async () => {
         try {
           const result = await authRequest('activity', { method: 'POST', body: '{}' })
-          if (!loggingOut.current && result.authenticated && result.username && result.role && result.expiresAt && result.timeoutSeconds) updateSession(result as Session)
+          if (!loggingOut.current && result.authenticated && result.username && result.role && Array.isArray(result.permissions) && result.expiresAt && result.timeoutSeconds) updateSession(result as Session)
         } catch (cause) {
           if (!loggingOut.current && (cause as { status?: number }).status === 401) updateSession(null)
         } finally {
@@ -185,12 +223,7 @@ export function AuthGate({ children }: { children: (session: Session) => ReactNo
 
   return (
     <div className={styles.authenticatedShell}>
-      <button data-auth-logout className={styles.logoutButton} type="button" onClick={logout} aria-label={`Sign out ${session.username}`}>
-        <span className={styles.userDot} aria-hidden="true" />
-        <span className={styles.logoutLabel}>{session.username}</span>
-        <span>Sign out</span>
-      </button>
-      {children(session)}
+      {children(session, logout)}
     </div>
   )
 }
