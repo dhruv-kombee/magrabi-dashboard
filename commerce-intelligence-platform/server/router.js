@@ -33,6 +33,7 @@ import {
 
 const queryCache = new Map()
 const CACHE_TTL_MS = 60 * 1000
+const MANAGED_USER_STORAGE_ERROR = 'Viewer account storage is unavailable. On Render, attach a persistent disk mounted at /var/data; set AUTH_MANAGED_USERS_FILE to /var/data/dashboard-users.json if using a different path.'
 const GET_ROUTES = new Set(['/api/commerce/auth/session', '/api/commerce/auth/users', '/api/commerce/health', '/api/commerce/orders/summary', '/api/commerce/gateways/telemetry', '/api/commerce/traffic/edge', '/api/commerce/infra/apm', '/api/commerce/analytics/summary'])
 const POST_ROUTES = new Set(['/api/commerce/auth/login', '/api/commerce/auth/logout', '/api/commerce/auth/activity', '/api/commerce/auth/users', '/api/commerce/assistant/query', '/api/commerce/alerts/evaluate'])
 const ADMIN_ONLY_ROUTES = new Set(['/api/commerce/auth/users'])
@@ -278,7 +279,7 @@ export async function handleApiRequest(req, res) {
     if (req.method === 'GET') {
       let managed
       try { managed = readManagedUsers({ strict: true }).map(({ username, role, permissions }) => ({ username, role, permissions, managed: true })) }
-      catch { sendJson(res, { status: 'ERROR', error: 'Managed user storage is unavailable.' }, 500); return true }
+      catch { sendJson(res, { status: 'ERROR', error: MANAGED_USER_STORAGE_ERROR }, 500); return true }
       const environment = [
         { username: config.auth.adminUsername, role: 'admin', managed: false },
         config.auth.viewerUsername && config.auth.viewerPasswordHash ? { username: config.auth.viewerUsername, role: 'viewer', permissions: DEFAULT_VIEWER_PERMISSIONS, managed: false } : null,
@@ -302,7 +303,7 @@ export async function handleApiRequest(req, res) {
         if (!updated) { sendJson(res, { status: 'ERROR', error: 'Viewer account was not found.' }, 404); return true }
         sendJson(res, { status: 'OK', updated: true })
       } catch (error) {
-        const message = error instanceof TypeError ? error.message : 'Viewer permissions could not be saved.'
+        const message = error instanceof TypeError ? error.message : MANAGED_USER_STORAGE_ERROR
         sendJson(res, { status: 'ERROR', error: message }, error instanceof TypeError ? 400 : 500)
       }
       return true
@@ -313,7 +314,7 @@ export async function handleApiRequest(req, res) {
         const deleted = await deleteManagedViewer(body.username)
         if (!deleted) { sendJson(res, { status: 'ERROR', error: 'Viewer account was not found.' }, 404); return true }
         sendJson(res, { status: 'OK', deleted: true })
-      } catch { sendJson(res, { status: 'ERROR', error: 'User could not be removed.' }, 500) }
+      } catch { sendJson(res, { status: 'ERROR', error: MANAGED_USER_STORAGE_ERROR }, 500) }
       return true
     }
     if (body.action !== 'save' || !validateManagedUsername(body.username) || typeof body.password !== 'string' || body.password.length < 12) {
@@ -332,7 +333,7 @@ export async function handleApiRequest(req, res) {
       const user = await saveManagedViewer(body.username, await hashPassword(body.password), body.permissions)
       sendJson(res, { status: 'OK', user })
     } catch (error) {
-      const message = error instanceof TypeError ? error.message : 'User could not be saved.'
+      const message = error instanceof TypeError ? error.message : MANAGED_USER_STORAGE_ERROR
       sendJson(res, { status: 'ERROR', error: message }, error instanceof TypeError ? 400 : 500)
     }
     return true
