@@ -269,6 +269,16 @@ function formatChartDate(dateStr: string): string {
 export function CommerceDashboard() {
   const [section, setSection] = useState<SectionKey>('overview')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+  useEffect(() => {
+    const resize = () => setViewportWidth(window.innerWidth)
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [])
+  const compactCharts = viewportWidth <= 900
+  const chartWidth = (desktop: number) => compactCharts ? Math.min(desktop, Math.max(220, viewportWidth - 100)) : desktop
+  const showChartTick = (index: number, count: number) => !compactCharts || index === 0 || index === count - 1 || (index % Math.max(1, Math.ceil(count / 4)) === 0 && index < count - Math.ceil(count / 8))
   const mobileNavCloseRef = useRef<HTMLButtonElement>(null)
   const mobileNavButtonRef = useRef<HTMLButtonElement>(null)
   const mobileNavRef = useRef<HTMLElement>(null)
@@ -1344,7 +1354,7 @@ export function CommerceDashboard() {
 
   // Chart SVG Calculations
   const maxOrderVal = Math.max(...dailyPoints.map((x) => x[1]), 1)
-  const chartW = 700
+  const chartW = chartWidth(700)
   const chartH = 230
   const chartLeft = 40
   const chartRight = 18
@@ -1409,7 +1419,7 @@ export function CommerceDashboard() {
     return m
   }, [countryDailyData])
 
-  const countryChartW = 650
+  const countryChartW = chartWidth(650)
   const countryChartH = 260
   const countryChartLeft = 40
   const countryChartRight = 20
@@ -1433,7 +1443,7 @@ export function CommerceDashboard() {
   }, [])
 
   const maxPaymentDailyOrders = Math.max(1, ...paymentDailyPoints.map((p) => p.totalOrders))
-  const paymentChartW = 480
+  const paymentChartW = chartWidth(480)
   const paymentChartH = 180
   const paymentChartLeft = 36
   const paymentChartRight = 16
@@ -1589,7 +1599,7 @@ export function CommerceDashboard() {
   const renderIntradayChart = () => {
     const hourlyData = liveSaleor?.hourlyPoints || []
     if (hourlyData.length === 0) return null
-    const w = 840
+    const w = chartWidth(840)
     const h = 200
     const padL = 40
     const padR = 20
@@ -1666,7 +1676,7 @@ export function CommerceDashboard() {
                   </g>
                 )
               })}
-              {[0, 4, 8, 12, 16, 20, 23].map((hr) => (
+              {(compactCharts ? [0, 8, 16, 23] : [0, 4, 8, 12, 16, 20, 23]).map((hr) => (
                 <text key={hr} x={getX(hr)} y={h - 8} textAnchor="middle" className={styles.charttext}>
                   {String(hr).padStart(2, '0')}:00
                 </text>
@@ -1704,7 +1714,7 @@ export function CommerceDashboard() {
   const renderSyncDeltaChart = () => {
     const deltaPoints = liveSaleor?.syncDeltaTrend || []
     if (deltaPoints.length === 0) return null
-    const w = 840
+    const w = chartWidth(840)
     const h = 170
     const padL = 40
     const padR = 20
@@ -1765,7 +1775,7 @@ export function CommerceDashboard() {
                 return (
                   <g key={d.date}>
                     <circle cx={cx} cy={cy} r={isHovered ? 6 : 4} fill={d.delta === 0 ? '#1a7f5a' : '#b91c1c'} stroke="#ffffff" strokeWidth="2" />
-                    <text x={cx} y={h - 8} textAnchor="middle" className={styles.charttext} style={{ fontSize: '9px' }}>
+                    <text x={cx} y={h - 8} textAnchor="middle" className={styles.charttext} style={{ fontSize: '9px', display: showChartTick(i, deltaPoints.length) ? undefined : 'none' }}>
                       {d.date.split('-').slice(1).join('/')}
                     </text>
                     <circle
@@ -1791,7 +1801,7 @@ export function CommerceDashboard() {
   const renderGatewayTrendChart = () => {
     const trends = gatewaysTelemetry?.gatewayTrends || []
     if (trends.length === 0) return null
-    const w = 840
+    const w = chartWidth(840)
     const h = 180
     const padL = 44
     const padR = 20
@@ -1854,7 +1864,7 @@ export function CommerceDashboard() {
                   </g>
                 )
               })}
-              {trends.map((d: any, i: number) => (
+              {trends.map((d: any, i: number) => showChartTick(i, trends.length) && (
                 <text key={d.date} x={getX(i)} y={h - 8} textAnchor="middle" className={styles.charttext} style={{ fontSize: '9px' }}>
                   {d.date.split('-').slice(1).join('/')}
                 </text>
@@ -1904,7 +1914,7 @@ export function CommerceDashboard() {
     const pts = currencyTrends[activeCur] || []
     if (pts.length === 0) return null
 
-    const w = 840
+    const w = chartWidth(840)
     const h = 180
     const padL = 48
     const padR = 20
@@ -1968,7 +1978,7 @@ export function CommerceDashboard() {
                 </g>
               )
             })}
-            {pts.map((p, i) => (
+            {pts.map((p, i) => showChartTick(i, pts.length) && (
               <text key={p.date} x={getX(i)} y={h - 8} textAnchor="middle" className={styles.charttext} style={{ fontSize: '9px' }}>
                 {p.date.split('-').slice(1).join('/')}
               </text>
@@ -2005,7 +2015,7 @@ export function CommerceDashboard() {
     const pts = journeyTrendPoints
     if (pts.length === 0) return null
 
-    const w = 840
+    const w = chartWidth(840)
     const h = 170
     const padL = 40
     const padR = 20
@@ -2087,7 +2097,7 @@ export function CommerceDashboard() {
                   </g>
                 )
               })}
-              {pts.map((p, i) => (
+              {pts.map((p, i) => showChartTick(i, pts.length) && (
                 <text key={p.date} x={getX(i)} y={h - 8} textAnchor="middle" className={styles.charttext} style={{ fontSize: '9px' }}>
                   {p.date.split('-').slice(1).join('/')}
                 </text>
@@ -2137,7 +2147,7 @@ export function CommerceDashboard() {
     )
     const isLiveTrend = liveTrends.length > 0
     if (trends.length === 0) return null
-    const w = 840
+    const w = chartWidth(840)
     const h = 180
     const padL = 48
     const padR = 20
@@ -2235,6 +2245,7 @@ export function CommerceDashboard() {
                 )
               })}
               {trends.map((t: any, i: number) => {
+                if (!showChartTick(i, trends.length)) return null
                 const pointDate = String(t.date || t.timestamp)
                 return (
                   <text key={pointDate} x={getX(i)} y={h - 8} textAnchor="middle" className={styles.charttext} style={{ fontSize: '9px' }}>
@@ -2281,7 +2292,7 @@ export function CommerceDashboard() {
   const renderLatencyTrendChart = () => {
     const trends = (infraTelemetry?.metricsAvailable ? infraTelemetry?.latencyTrends : []) || []
     if (trends.length === 0) return null
-    const w = 840
+    const w = chartWidth(840)
     const h = 180
     const padL = 48
     const padR = 20
@@ -2343,7 +2354,7 @@ export function CommerceDashboard() {
                   </g>
                 )
               })}
-              {trends.map((t: any, i: number) => (
+              {trends.map((t: any, i: number) => showChartTick(i, trends.length) && (
                 <text key={t.date} x={getX(i)} y={h - 8} textAnchor="middle" className={styles.charttext} style={{ fontSize: '9px' }}>
                   {t.date.split('-').slice(1).join('/')}
                 </text>
@@ -2603,7 +2614,10 @@ export function CommerceDashboard() {
             </div>
 
             {/* Filter Bar */}
-            <form className={styles.filterbar} onSubmit={handleFilterSubmit}>
+            <button type="button" className={styles.mobileFilterToggle} aria-expanded={mobileFiltersOpen} aria-controls="dashboard-filters" onClick={() => setMobileFiltersOpen((value) => !value)}>
+              <span>Filters & date range</span><span>{mobileFiltersOpen ? 'Close −' : 'Edit +'}</span>
+            </button>
+            <form id="dashboard-filters" className={`${styles.filterbar} ${mobileFiltersOpen ? '' : styles.mobileFiltersCollapsed}`} onSubmit={(event) => { handleFilterSubmit(event); setMobileFiltersOpen(false) }}>
               <div>
                 <label htmlFor="brand">Brand</label>
                 <select
@@ -2967,6 +2981,7 @@ export function CommerceDashboard() {
                           })}
                           {/* X-axis date labels */}
                           {dailyPoints.map((p, i) => {
+                            if (!showChartTick(i, dailyPoints.length)) return null
                             const step = dailyPoints.length > 60 ? 8 : dailyPoints.length > 30 ? 4 : dailyPoints.length > 14 ? 3 : dailyPoints.length > 7 ? 2 : 1
                             if (i % step !== 0 && i !== dailyPoints.length - 1) return null
                             const dayPart = p[0].split('-').slice(1).join('/')
@@ -3169,6 +3184,7 @@ export function CommerceDashboard() {
 
                             {/* X axis dates */}
                             {paymentDailyPoints.map((p, i) => {
+                              if (!showChartTick(i, paymentDailyPoints.length)) return null
                               const step = paymentDailyPoints.length > 60 ? 8 : paymentDailyPoints.length > 30 ? 4 : paymentDailyPoints.length > 14 ? 3 : paymentDailyPoints.length > 7 ? 2 : 1
                               if (i % step !== 0 && i !== paymentDailyPoints.length - 1) return null
                               const dayPart = p.date.split('-').slice(1).join('/')
@@ -3586,6 +3602,7 @@ export function CommerceDashboard() {
 
                             {/* X-axis date labels */}
                             {countryDates.map((dStr, i) => {
+                              if (!showChartTick(i, countryDates.length)) return null
                               const step = countryDates.length > 60 ? 8 : countryDates.length > 30 ? 4 : countryDates.length > 14 ? 3 : countryDates.length > 7 ? 2 : 1
                               if (i % step !== 0 && i !== countryDates.length - 1) return null
                               const dayPart = dStr.split('-').slice(1).join('/')

@@ -209,7 +209,9 @@
 .logoutLabel { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.72; }
 
 @media (max-width: 900px) {
-  .logoutButton { min-height: 44px; }
+  .logoutButton { min-height: 44px; z-index: 60; }
+  .logoutLabel { display: none; }
+  .passwordToggle { min-height: 44px; }
 }
 
 @media (max-width: 600px) {

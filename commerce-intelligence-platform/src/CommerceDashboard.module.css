@@ -58,7 +58,8 @@
 
 .mobileNavButton,
 .sidebarClose,
-.mobileNavBackdrop {
+.mobileNavBackdrop,
+.mobileFilterToggle {
   display: none;
 }
 
@@ -3077,4 +3078,87 @@
   .mobileNavBackdrop {
     transition: none;
   }
+}
+
+/* Compact analytics layouts keep plots readable without a desktop-width canvas. */
+@media (max-width: 900px) {
+  .mobileFilterToggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    min-height: 48px;
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    border: 1px solid #cbd8d0;
+    border-radius: 10px;
+    color: #244b38;
+    background: #fff;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .mobileFiltersCollapsed { display: none; }
+  .chartWrapper { overflow: visible; min-width: 0; }
+  .chartWrapper .chart { min-width: 0; width: 100%; }
+  .chartWrapper .charttext { font-size: 11px !important; fill: #475569 !important; }
+  .countryStyleChart { padding: 12px 0 6px; }
+
+  .chartTooltip {
+    /* A stable in-card readout stays visible when a point is tapped. */
+    position: absolute;
+    inset: auto !important;
+    top: 0 !important;
+    left: 0 !important;
+    transform: none;
+    margin: 0 0 12px;
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+    font-size: 13px;
+    padding: 12px;
+  }
+  .chartTooltip::after { display: none; }
+  .chartTooltipHeader { font-size: 12px; flex-wrap: wrap; }
+  .chartTooltipSubtext { font-size: 13px; }
+  .chartHeaderActions { justify-content: flex-start; gap: 10px; }
+  .chartHeaderActions .viewToggleGroup { flex-wrap: wrap; }
+  .countryLegendBar { flex-wrap: wrap; gap: 6px; padding: 10px; overflow: visible; }
+  .countryLegendItem { white-space: normal; text-align: left; font-size: 12px; }
+  .trendInsights { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .trendInsights span { font-size: 11px; }
+  .trendInsights strong { font-size: 14px; overflow-wrap: anywhere; }
+  .trendChartFooter { font-size: 12px; line-height: 1.5; padding: 10px 0; }
+  .trendMain, .trendInlineWrap { flex-wrap: wrap; }
+  .trendContext, .trendInlineContext { white-space: normal; }
+  .trendContext, .trendSubtext, .trendInlineContext { font-size: 12px; line-height: 1.5; }
+  .minirow > *, .sourceTitle > *, .cardhead > * { min-width: 0; overflow-wrap: anywhere; }
+  .funnelmini { min-width: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 8px; height: auto; }
+  .funnelcol { min-width: 0; }
+  .funnelcol > span { font-size: 11px; white-space: normal; }
+  .funnelstep { grid-template-columns: 24px minmax(0, 1fr) auto; gap: 8px; }
+  .steprate { display: block; grid-column: 2 / -1; text-align: left; font-size: 12px; }
+  .stepname { font-size: 13px; }
+  .stepvalue { font-size: 14px; }
+  .analyticsSourceTitle { flex-wrap: wrap; }
+  .sourceStrip strong { font-size: 14px; }
+  .tiny, .sourcetag, .codecard p { font-size: 12px; line-height: 1.5; }
+  .tablewrap { overscroll-behavior: contain; }
+  .drawer { max-height: 100dvh; }
+}
+
+@media (min-width: 360px) and (max-width: 640px) {
+  .metrics, .codegrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .metric, .codecard { padding: 12px; }
+  .metriclabel { font-size: 12px; flex-wrap: wrap; }
+  .metricvalue, .codecard b { font-size: clamp(22px, 6vw, 28px); overflow-wrap: anywhere; }
+  .metricfoot { font-size: 12px; }
+}
+
+@media (max-width: 359px) {
+  .trendInsights { grid-template-columns: minmax(0, 1fr); }
+  .funnelmini { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
