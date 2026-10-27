@@ -369,6 +369,8 @@ export function CommerceDashboard() {
     code4xx: number | null
     code5xx: number | null
     errorRate: number | null
+    selectedSeries: string
+    selectedValue: string
     x: number
     y: number
   } | null>(null)
@@ -389,9 +391,13 @@ export function CommerceDashboard() {
     cart: number
     orders: number
     dropOff: number
+    selectedSeries: string
+    selectedRate: number
     x: number
     y: number
   } | null>(null)
+  const [journeyPinnedPoint, setJourneyPinnedPoint] = useState<string | null>(null)
+  const [trafficPinnedPoint, setTrafficPinnedPoint] = useState<string | null>(null)
 
   // Drawer / Overlay
   const [activeError, setActiveError] = useState<ErrorKind | null>(null)
@@ -2058,10 +2064,10 @@ export function CommerceDashboard() {
               >
                 <div className={styles.chartTooltipHeader}>
                   <span>📅 {journeyTrendHover.date}</span>
-                  <span>Conversion Rate</span>
+                  <span>{journeyTrendHover.selectedSeries}</span>
                 </div>
                 <div className={styles.chartTooltipValue}>
-                  <span>{journeyTrendHover.conversionRate}%</span>
+                  <span>{journeyTrendHover.selectedRate.toFixed(2)}%</span>
                 </div>
                 <div className={styles.chartTooltipSubtext}>
                   {fmt(journeyTrendHover.orders)} orders / {fmt(journeyTrendHover.cart)} add-to-carts
@@ -2070,13 +2076,13 @@ export function CommerceDashboard() {
                 </div>
               </div>
             )}
-            <svg className={styles.chart} viewBox={`0 0 ${w} ${h}`} style={{ height: '170px' }}>
+            <svg className={styles.chart} viewBox={`0 0 ${w} ${h}`} style={{ height: '170px' }} onClick={() => { setJourneyPinnedPoint(null); setJourneyTrendHover(null) }}>
               {[0, 1, 2, 3].map((idx) => {
                 const rate = (maxRate * idx) / 3
                 const yPos = getY(rate)
                 return (
                   <g key={rate}>
-                    <line x1={padL} y1={yPos} x2={w - padR} y2={yPos} stroke="#edf1ec" strokeDasharray="3 4" />
+                    <line x1={padL} y1={yPos} x2={w - padR} y2={yPos} stroke="#d6dee2" strokeDasharray="3 4" />
                     <text x={padL - 6} y={yPos + 3} textAnchor="end" className={styles.charttext}>{rate.toFixed(1)}%</text>
                   </g>
                 )
@@ -2090,21 +2096,19 @@ export function CommerceDashboard() {
               {priorPath && <path d={priorPath} fill="none" stroke="#64748b" strokeWidth="2" strokeDasharray="5 4" opacity={focusedJourneySeries && focusedJourneySeries !== 'prior' ? 0.15 : 1} />}
               {pts.map((point, i) => <circle key={`current-${point.date}`} cx={getX(i)} cy={getY(point.conversionRate)} r="3.5" fill="#fff" stroke="#198754" strokeWidth="2" opacity={focusedJourneySeries && focusedJourneySeries !== 'current' ? 0.15 : 1} />)}
               {priorPath && priorJourneyTrendPoints.map((rate, i) => <circle key={`prior-${i}`} cx={getX(i)} cy={getY(rate)} r="3" fill="#fff" stroke="#64748b" strokeWidth="1.8" opacity={focusedJourneySeries && focusedJourneySeries !== 'prior' ? 0.15 : 1} />)}
-              {pts.map((p, i) => {
-                const cx = getX(i)
-                const cy = getY(p.conversionRate)
-                return (
-                  <circle
-                    key={p.date}
-                    cx={cx}
-                    cy={cy}
-                    r="14"
-                    fill="transparent"
-                    className={styles.chartHitArea}
-                    onMouseEnter={() => setJourneyTrendHover({ date: p.date, conversionRate: p.conversionRate, priorConversionRate: priorPath ? priorJourneyTrendPoints[i] : null, cart: p.cart, orders: p.orders, dropOff: Math.max(0, p.cart - p.orders), x: cx, y: cy })}
-                    onMouseLeave={() => setJourneyTrendHover(null)}
-                  />
-                )
+              {pts.flatMap((p, i) => {
+                const series = [{ key: 'current', label: 'Selected window', rate: p.conversionRate }]
+                if (priorPath) series.push({ key: 'prior', label: 'Prior window', rate: priorJourneyTrendPoints[i] })
+                return series.map((item) => {
+                  const cx = getX(i)
+                  const cy = getY(item.rate)
+                  const pointKey = `${item.key}-${p.date}`
+                  const showPoint = () => setJourneyTrendHover({ date: p.date, conversionRate: p.conversionRate, priorConversionRate: priorPath ? priorJourneyTrendPoints[i] : null, cart: p.cart, orders: p.orders, dropOff: Math.max(0, p.cart - p.orders), selectedSeries: item.label, selectedRate: item.rate, x: cx, y: cy })
+                  return <circle key={pointKey} cx={cx} cy={cy} r="12" fill="transparent" className={styles.chartHitArea}
+                    onMouseEnter={showPoint}
+                    onMouseLeave={() => { if (!journeyPinnedPoint) setJourneyTrendHover(null) }}
+                    onClick={(event) => { event.stopPropagation(); if (journeyPinnedPoint === pointKey) { setJourneyPinnedPoint(null); setJourneyTrendHover(null) } else { showPoint(); setJourneyPinnedPoint(pointKey) } }} />
+                })
               })}
             </svg>
             </div>
@@ -2204,10 +2208,10 @@ export function CommerceDashboard() {
               >
                 <div className={styles.chartTooltipHeader}>
                   <span>📅 {trafficTrendHover.date}</span>
-                  <span>Edge Traffic</span>
+                  <span>{trafficTrendHover.selectedSeries}</span>
                 </div>
                 <div className={styles.chartTooltipValue}>
-                  <span>{trafficTrendHover.rps} RPS</span>
+                  <span>{trafficTrendHover.selectedValue}</span>
                 </div>
                 <div className={styles.chartTooltipSubtext}>
                   Total: {fmt(trafficTrendHover.total)} requests
@@ -2219,13 +2223,13 @@ export function CommerceDashboard() {
                 </div>
               </div>
             )}
-            <svg className={styles.chart} viewBox={`0 0 ${w} ${h}`} style={{ height: '180px' }}>
+            <svg className={styles.chart} viewBox={`0 0 ${w} ${h}`} style={{ height: '180px' }} onClick={() => { setTrafficPinnedPoint(null); setTrafficTrendHover(null) }}>
               {[0, 1, 2, 3].map((idx) => {
                 const val = (maxRps * idx) / 3
                 const yPos = getY(val)
                 return (
                   <g key={idx}>
-                    <line x1={padL} y1={yPos} x2={w - padR} y2={yPos} stroke="#edf1ec" strokeDasharray="3 4" />
+                    <line x1={padL} y1={yPos} x2={w - padR} y2={yPos} stroke="#d6dee2" strokeDasharray="3 4" />
                     <text x={padL - 6} y={yPos + 3} textAnchor="end" className={styles.charttext}>{val.toFixed(1)}</text>
                   </g>
                 )
@@ -2244,22 +2248,20 @@ export function CommerceDashboard() {
               {trends.map((point: any, i: number) => <circle key={`rps-${i}`} cx={getX(i)} cy={getY(point.rps)} r="3.5" fill="#fff" stroke="#0284c7" strokeWidth="2" opacity={focusedTrafficSeries && focusedTrafficSeries !== 'rps' ? 0.15 : 1} />)}
               {code4xxPath && trends.map((point: any, i: number) => <circle key={`4xx-${i}`} cx={getX(i)} cy={getErrorY((point.code4xx / point.totalRequests) * 100)} r="3" fill="#fff" stroke="#f59e0b" strokeWidth="1.8" opacity={focusedTrafficSeries && focusedTrafficSeries !== '4xx' ? 0.15 : 1} />)}
               {code5xxPath && trends.map((point: any, i: number) => <circle key={`5xx-${i}`} cx={getX(i)} cy={getErrorY((point.code5xx / point.totalRequests) * 100)} r="3" fill="#fff" stroke="#ef4444" strokeWidth="1.8" opacity={focusedTrafficSeries && focusedTrafficSeries !== '5xx' ? 0.15 : 1} />)}
-              {trends.map((t: any, i: number) => {
+              {trends.flatMap((t: any, i: number) => {
                 const cx = getX(i)
-                const cy = getY(t.rps)
                 const pointDate = String(t.date || t.timestamp)
-                return (
-                  <circle
-                    key={pointDate}
-                    cx={cx}
-                    cy={cy}
-                    r="14"
-                    fill="transparent"
-                    className={styles.chartHitArea}
-                    onMouseEnter={() => setTrafficTrendHover({ date: pointDate, total: t.totalRequests, rps: t.rps, code4xx: Number.isFinite(t.code4xx) ? t.code4xx : null, code5xx: Number.isFinite(t.code5xx) ? t.code5xx : null, errorRate: Number.isFinite(t.errorRatePct) ? t.errorRatePct : null, x: cx, y: cy })}
-                    onMouseLeave={() => setTrafficTrendHover(null)}
-                  />
-                )
+                const series = [{ key: 'rps', label: 'Traffic throughput', value: `${t.rps.toFixed(2)} RPS`, y: getY(t.rps) }]
+                if (Number.isFinite(t.code4xx)) series.push({ key: '4xx', label: 'HTTP 4xx rate', value: `${((t.code4xx / t.totalRequests) * 100).toFixed(2)}%`, y: getErrorY((t.code4xx / t.totalRequests) * 100) })
+                if (Number.isFinite(t.code5xx)) series.push({ key: '5xx', label: 'HTTP 5xx rate', value: `${((t.code5xx / t.totalRequests) * 100).toFixed(2)}%`, y: getErrorY((t.code5xx / t.totalRequests) * 100) })
+                return series.map((item) => {
+                  const pointKey = `${item.key}-${pointDate}`
+                  const showPoint = () => setTrafficTrendHover({ date: pointDate, total: t.totalRequests, rps: t.rps, code4xx: Number.isFinite(t.code4xx) ? t.code4xx : null, code5xx: Number.isFinite(t.code5xx) ? t.code5xx : null, errorRate: Number.isFinite(t.errorRatePct) ? t.errorRatePct : null, selectedSeries: item.label, selectedValue: item.value, x: cx, y: item.y })
+                  return <circle key={pointKey} cx={cx} cy={item.y} r="12" fill="transparent" className={styles.chartHitArea}
+                    onMouseEnter={showPoint}
+                    onMouseLeave={() => { if (!trafficPinnedPoint) setTrafficTrendHover(null) }}
+                    onClick={(event) => { event.stopPropagation(); if (trafficPinnedPoint === pointKey) { setTrafficPinnedPoint(null); setTrafficTrendHover(null) } else { showPoint(); setTrafficPinnedPoint(pointKey) } }} />
+                })
               })}
             </svg>
           </div><div className={styles.trendChartFooter}>Daily traffic and HTTP error trends · hover any date point for details · click a series in the legend to isolate it.</div></> : (
