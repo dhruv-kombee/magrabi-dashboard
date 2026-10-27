@@ -266,7 +266,7 @@ function formatChartDate(dateStr: string): string {
   }
 }
 
-export function CommerceDashboard() {
+export function CommerceDashboard({ role }: { role: 'admin' | 'viewer' }) {
   const [section, setSection] = useState<SectionKey>('overview')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
@@ -290,6 +290,14 @@ export function CommerceDashboard() {
   const [end, setEnd] = useState<number>(() => getCurrentDayRange('Dubai').end)
   const [source, setSource] = useState<TrafficSourceKey>('frontdoor')
   const [filtered, setFiltered] = useState(false)
+  const visibleSections = useMemo(
+    () => role === 'admin' ? sectionConfig : sectionConfig.filter(({ key }) => key !== 'sources' && key !== 'alerts'),
+    [role],
+  )
+
+  useEffect(() => {
+    if (role === 'viewer' && (section === 'sources' || section === 'alerts')) setSection('overview')
+  }, [role, section])
 
   // Filter form draft states (defaults to Today / Current Day)
   const [formStart, setFormStart] = useState<string>(() => getCurrentDayRange('Dubai').formStart)
@@ -655,15 +663,16 @@ export function CommerceDashboard() {
         if (isMounted) setTelemetryErrors((current) => [...new Set([...current, `${label}: ${error instanceof Error ? error.message : 'request failed'}`])])
       }
     }
-    void Promise.all([
-      load('Connector inventory', '/api/commerce/health', setHealthData),
+    const requests = [
       load('Payment gateways', '/api/commerce/gateways/telemetry', setGatewaysTelemetry),
       load('Azure Monitor', '/api/commerce/traffic/edge', setTrafficTelemetry),
       load('Grafana/APM', '/api/commerce/infra/apm', setInfraTelemetry),
-    ])
+    ]
+    if (role === 'admin') requests.push(load('Connector inventory', '/api/commerce/health', setHealthData))
+    void Promise.all(requests)
 
     return () => { isMounted = false }
-  }, [])
+  }, [role])
 
   useEffect(() => {
     let isMounted = true
@@ -2467,7 +2476,7 @@ export function CommerceDashboard() {
           </div>
           <div className={styles.navlabel}>WORKSPACE</div>
           <nav className={styles.nav}>
-            {sectionConfig.map((s) => (
+            {visibleSections.map((s) => (
               <button
                 key={s.key}
                 type="button"

@@ -4,6 +4,7 @@ import styles from './AuthGate.module.css'
 type Session = {
   authenticated: true
   username: string
+  role: 'admin' | 'viewer'
   expiresAt: number
   timeoutSeconds: number
 }
@@ -34,7 +35,7 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: (session: Session) 
     setError('')
     try {
       const result = await authRequest('login', { method: 'POST', body: JSON.stringify({ username, password }) })
-      if (result.authenticated && result.username && result.expiresAt && result.timeoutSeconds) onAuthenticated(result as Session)
+      if (result.authenticated && result.username && result.role && result.expiresAt && result.timeoutSeconds) onAuthenticated(result as Session)
       else setError('Sign-in could not be completed.')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Sign-in could not be completed.')
@@ -105,7 +106,7 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: (session: Session) 
   )
 }
 
-export function AuthGate({ children }: { children: ReactNode }) {
+export function AuthGate({ children }: { children: (session: Session) => ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [checking, setChecking] = useState(true)
   const [configurationError, setConfigurationError] = useState('')
@@ -123,7 +124,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     authRequest('session')
       .then((result) => {
-        if (result.authenticated && result.username && result.expiresAt && result.timeoutSeconds) updateSession(result as Session)
+        if (result.authenticated && result.username && result.role && result.expiresAt && result.timeoutSeconds) updateSession(result as Session)
       })
       .catch((cause: Error & { status?: number; payload?: AuthResponse }) => {
         if (cause.status === 503) setConfigurationError(cause.message)
@@ -151,7 +152,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       activityRequest.current = (async () => {
         try {
           const result = await authRequest('activity', { method: 'POST', body: '{}' })
-          if (!loggingOut.current && result.authenticated && result.username && result.expiresAt && result.timeoutSeconds) updateSession(result as Session)
+          if (!loggingOut.current && result.authenticated && result.username && result.role && result.expiresAt && result.timeoutSeconds) updateSession(result as Session)
         } catch (cause) {
           if (!loggingOut.current && (cause as { status?: number }).status === 401) updateSession(null)
         } finally {
@@ -189,7 +190,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         <span className={styles.logoutLabel}>{session.username}</span>
         <span>Sign out</span>
       </button>
-      {children}
+      {children(session)}
     </div>
   )
 }

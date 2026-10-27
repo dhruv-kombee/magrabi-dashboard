@@ -10,19 +10,24 @@ import { redactError } from './services/http.js'
 import { config, hasEnv } from './config.js'
 import {
   authConfigurationStatus,
+  authenticateUser,
   clearSessionCookie,
   createSessionToken,
   getRequestSession,
   loginRateLimit,
   refreshSession,
   setSessionCookie,
-  verifyPassword,
 } from './auth.js'
 
 const queryCache = new Map()
 const CACHE_TTL_MS = 60 * 1000
 const GET_ROUTES = new Set(['/api/commerce/auth/session', '/api/commerce/health', '/api/commerce/orders/summary', '/api/commerce/gateways/telemetry', '/api/commerce/traffic/edge', '/api/commerce/infra/apm', '/api/commerce/analytics/summary'])
 const POST_ROUTES = new Set(['/api/commerce/auth/login', '/api/commerce/auth/logout', '/api/commerce/auth/activity', '/api/commerce/assistant/query', '/api/commerce/alerts/evaluate'])
+const ADMIN_ONLY_ROUTES = new Set(['/api/commerce/health', '/api/commerce/alerts/evaluate'])
+
+export function canAccessPath(role, pathname) {
+  return role === 'admin' || !ADMIN_ONLY_ROUTES.has(pathname)
+}
 
 function readJsonBody(req, maxBytes = 128 * 1024) {
   return new Promise((resolve, reject) => {
@@ -203,17 +208,16 @@ export async function handleApiRequest(req, res) {
     }
     let body
     try { body = await readJsonBody(req, 8 * 1024) } catch { sendJson(res, { status: 'ERROR', authenticated: false, error: 'Invalid login request.' }, 400); return true }
-    const validUsername = typeof body.username === 'string' && body.username === config.auth.username
-    const validPassword = await verifyPassword(body.password)
-    if (!validUsername || !validPassword) {
+    const user = typeof body.username === 'string' ? await authenticateUser(body.username, body.password) : null
+    if (!user) {
       limit.recordFailure()
       sendJson(res, { status: 'ERROR', authenticated: false, error: 'Invalid username or password.' }, 401)
       return true
     }
     limit.clear()
     const now = Date.now()
-    setSessionCookie(req, res, createSessionToken(config.auth.username, now))
-    sendJson(res, { status: 'OK', authenticated: true, username: config.auth.username, expiresAt: now + config.auth.sessionTimeoutSeconds * 1000, timeoutSeconds: config.auth.sessionTimeoutSeconds })
+    setSessionCookie(req, res, createSessionToken(user.username, user.role, now))
+    sendJson(res, { status: 'OK', authenticated: true, username: user.username, role: user.role, expiresAt: now + config.auth.sessionTimeoutSeconds * 1000, timeoutSeconds: config.auth.sessionTimeoutSeconds })
     return true
   }
 
@@ -229,12 +233,17 @@ export async function handleApiRequest(req, res) {
     return true
   }
   if (pathname === '/api/commerce/auth/session') {
-    sendJson(res, { status: 'OK', authenticated: true, username: session.username, expiresAt: session.expiresAt, timeoutSeconds: config.auth.sessionTimeoutSeconds })
+    sendJson(res, { status: 'OK', authenticated: true, username: session.username, role: session.role, expiresAt: session.expiresAt, timeoutSeconds: config.auth.sessionTimeoutSeconds })
     return true
   }
   if (pathname === '/api/commerce/auth/activity') {
     const refreshed = refreshSession(req, res, session)
-    sendJson(res, { status: 'OK', authenticated: true, username: refreshed.username, expiresAt: refreshed.expiresAt, timeoutSeconds: config.auth.sessionTimeoutSeconds })
+    sendJson(res, { status: 'OK', authenticated: true, username: refreshed.username, role: refreshed.role, expiresAt: refreshed.expiresAt, timeoutSeconds: config.auth.sessionTimeoutSeconds })
+    return true
+  }
+
+  if (!canAccessPath(session.role, pathname)) {
+    sendJson(res, { status: 'ERROR', error: 'Administrator access is required.' }, 403)
     return true
   }
 

@@ -111,8 +111,10 @@ export const config = {
 
   // Dashboard authentication (server-side only)
   auth: {
-    get username() { return getEnv('AUTH_USERNAME') },
-    get passwordHash() { return getEnv('AUTH_PASSWORD_HASH') },
+    get adminUsername() { return getEnv('AUTH_ADMIN_USERNAME', getEnv('AUTH_USERNAME')) },
+    get adminPasswordHash() { return getEnv('AUTH_ADMIN_PASSWORD_HASH', getEnv('AUTH_PASSWORD_HASH')) },
+    get viewerUsername() { return getEnv('AUTH_VIEWER_USERNAME') },
+    get viewerPasswordHash() { return getEnv('AUTH_VIEWER_PASSWORD_HASH') },
     get sessionSecret() { return getEnv('AUTH_SESSION_SECRET') },
     get sessionTimeoutSeconds() {
       const minutes = parseInt(getEnv('AUTH_SESSION_TIMEOUT_MINUTES', '10'), 10)

@@ -27,11 +27,11 @@ Run the interactive setup once from a real terminal:
 npm run auth:configure
 ```
 
-The command asks for a username and a password of at least 12 characters. Password input is hidden; only a scrypt hash is stored in the workspace's gitignored `.secrets/dashboard-auth.env`. It also generates a private session-signing secret and fixes the idle timeout at 10 minutes. Restart the app after changing credentials.
+The command asks for separate admin and viewer usernames and passwords of at least 12 characters. Password input is hidden; only scrypt hashes are stored in the workspace's gitignored `.secrets/dashboard-auth.env`. Admins can access every section. Viewers can use the operational dashboards but cannot access **Data sources** or **Alerts & rules**. The setup also generates a private session-signing secret and fixes the idle timeout at 10 minutes. Restart the app after changing credentials.
 
 The sign-in page includes an accessible **Show/Hide password** control. It only changes how the entered value is displayed in the browser; it does not change how the server hashes or verifies the password.
 
-For containers or hosted environments, provide `AUTH_USERNAME`, `AUTH_PASSWORD_HASH`, `AUTH_SESSION_SECRET` (at least 32 characters), and `AUTH_SESSION_TIMEOUT_MINUTES=10` through the platform's secret-management mechanism. Never bake these values into the image or repository.
+For containers or hosted environments, provide `AUTH_ADMIN_USERNAME`, `AUTH_ADMIN_PASSWORD_HASH`, `AUTH_VIEWER_USERNAME`, `AUTH_VIEWER_PASSWORD_HASH`, `AUTH_SESSION_SECRET` (at least 32 characters), and `AUTH_SESSION_TIMEOUT_MINUTES=10` through the platform's secret-management mechanism. Legacy `AUTH_USERNAME` and `AUTH_PASSWORD_HASH` remain accepted as the admin account during migration. Never bake these values into the image or repository.
 
 ### Run in Development
 ```powershell
@@ -59,7 +59,7 @@ docker run -p 5174:5174 --env-file .env magrabi-commerce-platform
 
 | Category | Environment Variables | Read-Only Live Capability |
 |---|---|---|
-| **Dashboard Login** | `AUTH_USERNAME`, `AUTH_PASSWORD_HASH`, `AUTH_SESSION_SECRET`, `AUTH_SESSION_TIMEOUT_MINUTES` | Server-enforced login, signed HTTP-only session cookie, failed-login throttling, and 10-minute inactivity expiry |
+| **Dashboard Login** | `AUTH_ADMIN_USERNAME`, `AUTH_ADMIN_PASSWORD_HASH`, `AUTH_VIEWER_USERNAME`, `AUTH_VIEWER_PASSWORD_HASH`, `AUTH_SESSION_SECRET`, `AUTH_SESSION_TIMEOUT_MINUTES` | Server-enforced admin/viewer roles, signed HTTP-only session cookie, failed-login throttling, and 10-minute inactivity expiry |
 | **Saleor Core** | `SALEOR_GRAPHQL_URL`, `SALEOR_USERNAME`, `SALEOR_PASSWORD` | Diagnostic-only placed-order data for explicit reconciliation checks |
 | **Macula OMS** | `MACULA_API_URL`, `MACULA_TOKEN` or `MACULA_USERNAME` and `MACULA_PASSWORD` | Verified OMS receipt count; payment attribution from a sample of at most 100 orders |
 | **Payment Gateways** | Provider credential plus an approved read-only `*_REPORT_PATH` where no stable default exists | Authentication and response-shape verification; success metrics remain unavailable until provider fields are mapped |
