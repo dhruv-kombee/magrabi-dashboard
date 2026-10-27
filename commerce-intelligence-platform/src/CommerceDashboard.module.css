@@ -612,8 +612,9 @@
 
 .charttext {
   font-size: 10px;
-  fill: #8b958f;
+  fill: #475569;
   font-family: inherit;
+  font-weight: 600;
 }
 
 .chartfooter {
