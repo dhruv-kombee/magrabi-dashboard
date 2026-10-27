@@ -142,6 +142,47 @@
   padding: 24px 14px 0;
 }
 
+.sidebarLogout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 42px;
+  margin-top: 16px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: #102f2b;
+  color: #fff;
+  font: 600 12px/1.2 Inter, "Segoe UI", Arial, sans-serif;
+  cursor: pointer;
+}
+
+.sidebarLogout:hover {
+  background: #17433d;
+}
+
+.sidebarLogout:focus-visible {
+  outline: 3px solid #d8b176;
+  outline-offset: 2px;
+}
+
+.sidebarUserDot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #d8b176;
+}
+
+.sidebarUsername {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.78;
+}
+
 .workspace {
   border-top: 1px solid #404842;
   padding-top: 20px;
@@ -601,6 +642,13 @@
 .gridHalf {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.userManagement {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
   margin-bottom: 20px;
 }
@@ -1616,6 +1664,68 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 15px;
+}
+
+.permissionFieldset,
+.permissionEditor {
+  min-width: 0;
+  margin: 18px 0;
+  padding: 14px;
+  border: 1px solid #e3e9e3;
+  border-radius: 8px;
+}
+
+.permissionFieldset legend,
+.permissionEditor legend {
+  padding: 0 6px;
+  color: #344b3d;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.permissionFieldset p,
+.permissionFieldset small,
+.permissionEditor small {
+  display: block;
+  margin: 0 0 10px;
+  color: #71817e;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.permissionFieldset small,
+.permissionEditor small {
+  margin: 10px 0 0;
+}
+
+.permissionOptions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px 14px;
+}
+
+.permissionOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: #344b3d;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.permissionOption input {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: #174e47;
+}
+
+.viewerActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .field label {

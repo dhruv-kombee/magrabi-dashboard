@@ -8,7 +8,8 @@ import { hashPassword } from '../server/auth.js'
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const projectDir = path.resolve(scriptDir, '..')
 const secretDir = path.resolve(projectDir, '..', '.secrets')
-const targetPath = path.join(secretDir, 'dashboard-auth.env')
+const deploymentMode = process.argv.includes('--deployment-env')
+const targetPath = path.join(secretDir, deploymentMode ? 'dashboard-auth-deployment.env' : 'dashboard-auth.env')
 
 async function visiblePrompt(message) {
   const interfaceHandle = createInterface({ input: process.stdin, output: process.stdout })
@@ -53,26 +54,29 @@ function hiddenPrompt(message) {
 }
 
 try {
-  console.log('Configure the Commerce Intelligence dashboard login. Password input is hidden.')
-  const username = await visiblePrompt('Username: ')
-  if (username.length < 3 || username.length > 100 || /[\r\n=]/.test(username)) throw new Error('Username must contain 3-100 valid characters.')
-  const password = await hiddenPrompt('Password (minimum 12 characters): ')
-  const confirmation = await hiddenPrompt('Confirm password: ')
-  if (password !== confirmation) throw new Error('Passwords do not match.')
-  const passwordHash = await hashPassword(password)
+  console.log(`Configure the Commerce Intelligence administrator ${deploymentMode ? 'deployment environment' : 'local login'}. Password input is hidden.`)
+  const adminUsername = await visiblePrompt('Admin username: ')
+  if (adminUsername.length < 3 || adminUsername.length > 100 || /[\r\n=]/.test(adminUsername)) throw new Error('Username must contain 3-100 valid characters.')
+  const adminPassword = await hiddenPrompt('Admin password (minimum 12 characters): ')
+  const adminConfirmation = await hiddenPrompt('Confirm admin password: ')
+  if (adminPassword !== adminConfirmation) throw new Error('Passwords do not match.')
+
+  const adminPasswordHash = await hashPassword(adminPassword)
   const sessionSecret = randomBytes(48).toString('base64url')
   const content = [
     '# Generated dashboard authentication configuration. Never commit this file.',
-    `AUTH_USERNAME=${username}`,
-    `AUTH_PASSWORD_HASH=${passwordHash}`,
+    `AUTH_ADMIN_USERNAME=${adminUsername}`,
+    `AUTH_ADMIN_PASSWORD_HASH=${adminPasswordHash}`,
     `AUTH_SESSION_SECRET=${sessionSecret}`,
     'AUTH_SESSION_TIMEOUT_MINUTES=10',
     '',
   ].join('\n')
   await fs.mkdir(secretDir, { recursive: true })
   await fs.writeFile(targetPath, content, { encoding: 'utf8', mode: 0o600 })
-  console.log(`OK: Dashboard authentication saved to ${targetPath}`)
-  console.log('Restart the application to load the new login configuration.')
+  console.log(`OK: Authentication variables saved securely to ${targetPath}`)
+  console.log(deploymentMode
+    ? 'Import this file through the deployment platform secret/environment-variable interface. Do not commit or print its contents.'
+    : 'Restart the application to load the new login configuration.')
 } catch (error) {
   const safeMessages = new Set(['Interactive terminal required.', 'Cancelled.', 'Username must contain 3-100 valid characters.', 'Passwords do not match.', 'Password must contain at least 12 characters.'])
   const message = error instanceof Error && safeMessages.has(error.message) ? error.message : 'Authentication configuration could not be saved.'
