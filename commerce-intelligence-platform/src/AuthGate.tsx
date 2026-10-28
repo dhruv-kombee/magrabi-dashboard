@@ -173,7 +173,15 @@ export function AuthGate({ children }: { children: (session: Session, onLogout: 
   useEffect(() => {
     if (!session) return
     const remaining = Math.max(0, session.expiresAt - Date.now())
-    const timer = window.setTimeout(() => updateSession(null), remaining + 100)
+    // Browsers clamp setTimeout to a 32-bit signed integer (max ~24.8 days).
+    // Values exceeding 2,147,483,647 ms overflow to 1 ms and fire immediately!
+    const MAX_TIMEOUT_MS = 2_147_483_647
+    const delay = Math.min(remaining + 100, MAX_TIMEOUT_MS)
+    const timer = window.setTimeout(() => {
+      if (Date.now() >= session.expiresAt) {
+        updateSession(null)
+      }
+    }, delay)
     return () => window.clearTimeout(timer)
   }, [session, updateSession])
 

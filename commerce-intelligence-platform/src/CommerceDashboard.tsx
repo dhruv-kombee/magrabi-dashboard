@@ -111,6 +111,27 @@ const viewerPermissionSections = sectionConfig.filter(
   (section): section is DashboardSection & { key: ViewerPermission } => section.key !== 'users',
 )
 
+function ViewerPasswordToggle({ visible, onToggle, fieldLabel }: { visible: boolean; onToggle: () => void; fieldLabel: string }) {
+  const action = visible ? 'Hide' : 'Show'
+  return (
+    <button
+      className={styles.viewerPasswordToggle}
+      type="button"
+      onClick={onToggle}
+      aria-label={`${action} ${fieldLabel}`}
+      aria-pressed={visible}
+      title={`${action} ${fieldLabel}`}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        {visible
+          ? <path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 4.3A10.8 10.8 0 0112 4c5 0 8.5 4.2 9.5 6.5a3.7 3.7 0 010 3M6.6 6.6C4.5 8 3.1 10 2.5 11.5a1.3 1.3 0 000 1C3.5 14.8 7 19 12 19c1.5 0 2.9-.4 4.1-1" />
+          : <><path d="M2.5 11.5C3.5 9.2 7 5 12 5s8.5 4.2 9.5 6.5a1.3 1.3 0 010 1C20.5 14.8 17 19 12 19s-8.5-4.2-9.5-6.5a1.3 1.3 0 010-1z" /><circle cx="12" cy="12" r="3" /></>}
+      </svg>
+      <span>{action}</span>
+    </button>
+  )
+}
+
 const sourceCatalog = [
   {
     name: 'OMS / downstream receipt',
@@ -452,11 +473,14 @@ export function CommerceDashboard({ role, username, permissions, onLogout }: { r
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([])
   const viewerUsers = managedUsers.filter((user) => user.role === 'viewer')
   const [userName, setUserName] = useState('')
+  const [userRole, setUserRole] = useState<'viewer' | 'analyst' | 'operations' | 'admin'>('viewer')
   const [userPermissions, setUserPermissions] = useState<ViewerPermission[]>(viewerPermissionSections.map(({ key }) => key))
   const [editingViewer, setEditingViewer] = useState<string | null>(null)
   const [editingPermissions, setEditingPermissions] = useState<ViewerPermission[]>([])
   const [userPassword, setUserPassword] = useState('')
   const [userPasswordConfirmation, setUserPasswordConfirmation] = useState('')
+  const [showUserPassword, setShowUserPassword] = useState(false)
+  const [showUserPasswordConfirmation, setShowUserPasswordConfirmation] = useState(false)
   const [userManagementError, setUserManagementError] = useState('')
   const [userManagementBusy, setUserManagementBusy] = useState(false)
 
@@ -482,16 +506,19 @@ export function CommerceDashboard({ role, username, permissions, onLogout }: { r
     try {
       const response = await fetch('/api/commerce/auth/users', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save', username: userName, password: userPassword, permissions: userPermissions }),
+        body: JSON.stringify({ action: 'save', username: userName, password: userPassword, permissions: userPermissions, role: userRole }),
       })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'User could not be saved.')
       setUserName('')
       setUserPassword('')
       setUserPasswordConfirmation('')
+      setShowUserPassword(false)
+      setShowUserPasswordConfirmation(false)
+      setUserRole('viewer')
       setUserPermissions(viewerPermissionSections.map(({ key }) => key))
       await loadManagedUsers()
-      showToast('Viewer account saved.')
+      showToast('User account saved.')
     } catch (error) {
       setUserManagementError(error instanceof Error ? error.message : 'User could not be saved.')
     } finally { setUserManagementBusy(false) }
@@ -4991,18 +5018,19 @@ export function CommerceDashboard({ role, username, permissions, onLogout }: { r
                   <article className={styles.card}>
                     <div className={styles.cardhead}>
                       <div>
-                        <h2>Create or reset a viewer</h2>
-                        <p>Use 3–100 letters, numbers, dots, underscores, or hyphens for the username. Passwords must be at least 12 characters. Saving an existing managed username resets its password.</p>
+                        <h2>Create or manage a user</h2>
+                        <p>Use 3–100 letters, numbers, dots, underscores, or hyphens for the username. Passwords must be at least 12 characters. Saving an existing username updates its role, password, and permissions.</p>
                       </div>
                       <span className={`${styles.badge} ${styles.badgeLive}`}>ADMIN ONLY</span>
                     </div>
                     <div className={styles.cardbody}>
                       <form onSubmit={saveViewer}>
-                        <div className={styles.alertform}>
+                        <div className={styles.userCreationGrid}>
                           <div className={styles.field}>
-                            <label htmlFor="managed-username">Viewer username</label>
+                            <label htmlFor="managed-username">Username</label>
                             <input
                               id="managed-username"
+                              placeholder="e.g. jameel.analyst"
                               value={userName}
                               onChange={(event) => {
                                 const nextUsername = event.target.value
@@ -5016,12 +5044,67 @@ export function CommerceDashboard({ role, username, permissions, onLogout }: { r
                             />
                           </div>
                           <div className={styles.field}>
+                            <label htmlFor="managed-role">Role</label>
+                            <select
+                              id="managed-role"
+                              value={userRole}
+                              onChange={(event) => {
+                                const nextRole = event.target.value as 'viewer' | 'analyst' | 'operations' | 'admin'
+                                setUserRole(nextRole)
+                                if (nextRole === 'admin') setUserPermissions(viewerPermissionSections.map(({ key }) => key))
+                                else if (nextRole === 'operations') setUserPermissions(['overview', 'orders', 'traffic', 'infra', 'sources', 'alerts'])
+                                else if (nextRole === 'analyst') setUserPermissions(['overview', 'orders', 'journey'])
+                                else if (nextRole === 'viewer') setUserPermissions(['overview', 'orders', 'journey', 'traffic', 'infra'])
+                              }}
+                            >
+                              <option value="viewer">Viewer (Standard read access)</option>
+                              <option value="analyst">Commerce Analyst (Orders & Funnels)</option>
+                              <option value="operations">Operations Lead (APM, Traffic, Alerts)</option>
+                              <option value="admin">Administrator (Full System & User Management)</option>
+                            </select>
+                          </div>
+                          <div className={styles.field}>
                             <label htmlFor="managed-password">Password</label>
-                            <input id="managed-password" type="password" value={userPassword} onChange={(event) => setUserPassword(event.target.value)} autoComplete="new-password" minLength={12} required />
+                            <div className={styles.viewerPasswordField}>
+                              <input
+                                id="managed-password"
+                                className={styles.viewerPasswordInput}
+                                type={showUserPassword ? 'text' : 'password'}
+                                value={userPassword}
+                                onChange={(event) => setUserPassword(event.target.value)}
+                                autoComplete="new-password"
+                                minLength={12}
+                                placeholder="Minimum 12 characters"
+                                required
+                              />
+                              <ViewerPasswordToggle
+                                visible={showUserPassword}
+                                onToggle={() => setShowUserPassword((visible) => !visible)}
+                                fieldLabel="password"
+                              />
+                            </div>
+                            <small className={styles.viewerFieldHint}>Use at least 12 characters.</small>
                           </div>
                           <div className={styles.field}>
                             <label htmlFor="managed-password-confirmation">Confirm password</label>
-                            <input id="managed-password-confirmation" type="password" value={userPasswordConfirmation} onChange={(event) => setUserPasswordConfirmation(event.target.value)} autoComplete="new-password" minLength={12} required />
+                            <div className={styles.viewerPasswordField}>
+                              <input
+                                id="managed-password-confirmation"
+                                className={styles.viewerPasswordInput}
+                                type={showUserPasswordConfirmation ? 'text' : 'password'}
+                                value={userPasswordConfirmation}
+                                onChange={(event) => setUserPasswordConfirmation(event.target.value)}
+                                autoComplete="new-password"
+                                minLength={12}
+                                placeholder="Repeat password"
+                                required
+                              />
+                              <ViewerPasswordToggle
+                                visible={showUserPasswordConfirmation}
+                                onToggle={() => setShowUserPasswordConfirmation((visible) => !visible)}
+                                fieldLabel="confirmation password"
+                              />
+                            </div>
                           </div>
                         </div>
                         <fieldset className={styles.permissionFieldset}>
