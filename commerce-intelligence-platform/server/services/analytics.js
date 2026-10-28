@@ -18,6 +18,15 @@ const CLARITY_METRICS = new Set([
   'distantUserCount',
   'distinctUserCount',
   'PagesPerSessionPercentage',
+  'pagesPerSessionPercentage',
+  'totalTime',
+  'activeTime',
+  'averageScrollDepth',
+  'subTotal',
+  'sessionsWithMetricPercentage',
+  'sessionsWithoutMetricPercentage',
+  'pagesViews',
+  'sessionsCount',
   'EngagementTime',
   'ScrollDepth',
   'DeadClickCount',
@@ -198,24 +207,77 @@ export function normalizeGa4Report(payload) {
 export function normalizeClarityReport(payload) {
   if (!Array.isArray(payload)) return { metricsAvailable: false, metrics: null, responseShape: 'expected an array of Clarity metrics' }
   const metrics = {}
+  const breakdowns = {
+    devices: [],
+    operatingSystems: [],
+    browsers: [],
+    countries: [],
+    referrers: [],
+    popularPages: [],
+  }
+
   for (const item of payload) {
     if (typeof item?.metricName !== 'string' || !Array.isArray(item.information)) continue
-    if (item.information.length !== 1) continue
-    const aggregate = {}
-    const row = item.information[0]
-    if (!row || typeof row !== 'object' || Array.isArray(row)) continue
-    for (const [key, rawValue] of Object.entries(row)) {
-      if (!CLARITY_METRICS.has(key)) continue
-      const value = Number(rawValue)
-      const numericString = typeof rawValue === 'string' && /^-?(?:\d+\.?\d*|\.\d+)$/.test(rawValue)
-      if ((typeof rawValue === 'number' || numericString) && Number.isFinite(value)) aggregate[key] = value
+
+    if (item.information.length === 1) {
+      const aggregate = {}
+      const row = item.information[0]
+      if (!row || typeof row !== 'object' || Array.isArray(row)) continue
+      for (const [key, rawValue] of Object.entries(row)) {
+        if (!CLARITY_METRICS.has(key)) continue
+        const value = Number(rawValue)
+        const numericString = typeof rawValue === 'string' && /^-?(?:\d+\.?\d*|\.\d+)$/.test(rawValue)
+        if ((typeof rawValue === 'number' || numericString) && Number.isFinite(value)) aggregate[key] = value
+      }
+      if (Object.keys(aggregate).length) metrics[item.metricName] = aggregate
+      continue
     }
-    if (Object.keys(aggregate).length) metrics[item.metricName] = aggregate
+
+    if (item.metricName === 'Device') {
+      breakdowns.devices = item.information
+        .filter((r) => typeof r?.name === 'string' && Number.isFinite(Number(r.sessionsCount)))
+        .map((r) => ({ name: String(r.name).trim(), sessions: Number(r.sessionsCount) }))
+    } else if (item.metricName === 'OS') {
+      breakdowns.operatingSystems = item.information
+        .filter((r) => typeof r?.name === 'string' && Number.isFinite(Number(r.sessionsCount)))
+        .map((r) => ({ name: String(r.name).trim(), sessions: Number(r.sessionsCount) }))
+    } else if (item.metricName === 'Browser') {
+      breakdowns.browsers = item.information
+        .filter((r) => typeof r?.name === 'string' && Number.isFinite(Number(r.sessionsCount)))
+        .map((r) => ({ name: String(r.name).trim(), sessions: Number(r.sessionsCount) }))
+    } else if (item.metricName === 'Country') {
+      breakdowns.countries = item.information
+        .filter((r) => typeof r?.name === 'string' && Number.isFinite(Number(r.sessionsCount)))
+        .map((r) => ({ name: String(r.name).trim(), sessions: Number(r.sessionsCount) }))
+    } else if (item.metricName === 'ReferrerUrl') {
+      breakdowns.referrers = item.information
+        .filter((r) => typeof r?.name === 'string' && Number.isFinite(Number(r.sessionsCount)))
+        .map((r) => ({ name: String(r.name).split('?')[0].trim(), sessions: Number(r.sessionsCount) }))
+    } else if (item.metricName === 'PopularPages') {
+      breakdowns.popularPages = item.information
+        .filter((r) => typeof r?.url === 'string' && Number.isFinite(Number(r.visitsCount)))
+        .map((r) => {
+          let cleanUrl = String(r.url)
+          try {
+            cleanUrl = new URL(r.url).pathname
+          } catch {
+            cleanUrl = cleanUrl.split('?')[0]
+          }
+          return { url: cleanUrl, visits: Number(r.visitsCount) }
+        })
+    }
   }
+
   if (Object.keys(metrics).length === 0) {
     return { metricsAvailable: false, metrics: null, responseShape: 'no supported aggregate fields returned' }
   }
-  return { metricsAvailable: true, metrics }
+
+  const hasBreakdowns = Object.values(breakdowns).some((arr) => arr.length > 0)
+  return {
+    metricsAvailable: true,
+    metrics,
+    ...(hasBreakdowns ? { breakdowns } : {}),
+  }
 }
 
 async function fetchGa4Property(property, credentials, options) {
@@ -273,7 +335,7 @@ async function fetchGa4Property(property, credentials, options) {
 
 async function fetchClarityProject(project) {
   const tokenFingerprint = createHash('sha256').update(project.token).digest('hex')
-  const cacheKey = `clarity:${project.label}:${tokenFingerprint}`
+  const cacheKey = `clarity:${project.label}:${tokenFingerprint}:v2`
   const cached = cacheGet(cacheKey)
   if (cached) return cached
   const empty = { metrics: null, reportingWindow: 'Previous 3 days (UTC)' }
