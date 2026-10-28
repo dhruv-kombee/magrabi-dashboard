@@ -173,15 +173,13 @@ export function AuthGate({ children }: { children: (session: Session, onLogout: 
   useEffect(() => {
     if (!session) return
     const remaining = Math.max(0, session.expiresAt - Date.now())
-    // Browsers clamp setTimeout to a 32-bit signed integer (max ~24.8 days).
-    // Values exceeding 2,147,483,647 ms overflow to 1 ms and fire immediately!
-    const MAX_TIMEOUT_MS = 2_147_483_647
-    const delay = Math.min(remaining + 100, MAX_TIMEOUT_MS)
+    // For long-lived / Remember-Me sessions (greater than 2 hours), do not set a multi-day setTimeout in browser memory.
+    // The server cookie (Max-Age=30d) and /activity endpoint handle long-lived session lifecycles safely.
+    if (remaining > 2 * 3600 * 1000) return
+
     const timer = window.setTimeout(() => {
-      if (Date.now() >= session.expiresAt) {
-        updateSession(null)
-      }
-    }, delay)
+      updateSession(null)
+    }, remaining + 100)
     return () => window.clearTimeout(timer)
   }, [session, updateSession])
 
