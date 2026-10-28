@@ -859,6 +859,7 @@ export function CommerceDashboard({ role, username, permissions, onLogout }: { r
   useEffect(() => {
     if (role !== 'admin' && !permissions.includes('overview') && !permissions.includes('orders')) return
     let isMounted = true
+    const controller = new AbortController()
     const exactKey = `${LIVE_CACHE_KEY}_${brand}_${country}_${start}_${end}_${timezone}`
     try {
       const cached = localStorage.getItem(exactKey)
@@ -870,7 +871,9 @@ export function CommerceDashboard({ role, username, permissions, onLogout }: { r
     }
 
     setLiveLoading(true)
-    fetch(`/api/commerce/orders/summary?brand=${brand}&country=${country}&start=${start}&end=${end}&tz=${timezone}`)
+    fetch(`/api/commerce/orders/summary?brand=${brand}&country=${country}&start=${start}&end=${end}&tz=${timezone}`, {
+      signal: controller.signal,
+    })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
@@ -892,6 +895,7 @@ export function CommerceDashboard({ role, username, permissions, onLogout }: { r
         }
       })
       .catch((err) => {
+        if (err?.name === 'AbortError') return
         if (isMounted) {
           setLiveError(err.message)
           setLiveSaleor((current) => current ? markSnapshotStale(current) : null)
@@ -903,6 +907,7 @@ export function CommerceDashboard({ role, username, permissions, onLogout }: { r
 
     return () => {
       isMounted = false
+      controller.abort()
     }
   }, [brand, country, start, end, timezone, role, permissionsKey])
 
@@ -2747,11 +2752,28 @@ export function CommerceDashboard({ role, username, permissions, onLogout }: { r
               <>
                 <div className={styles.quickPresetsBar}>
                   <span className={styles.quickPresetsLabel}>Quick Periods:</span>
-                  <button type="button" className={`${styles.quickPresetPill} ${currentWindowDays === 1 ? styles.quickPresetPillActive : ''}`} onClick={() => handleQuickPreset(1)}>Today (vs Yesterday)</button>
-                  <button type="button" className={`${styles.quickPresetPill} ${currentWindowDays === 7 ? styles.quickPresetPillActive : ''}`} onClick={() => handleQuickPreset(7)}>1 Week (vs Past Week)</button>
-                  <button type="button" className={`${styles.quickPresetPill} ${currentWindowDays === 14 ? styles.quickPresetPillActive : ''}`} onClick={() => handleQuickPreset(14)}>14 Days (vs Past 14d)</button>
-                  <button type="button" className={`${styles.quickPresetPill} ${currentWindowDays >= 28 && currentWindowDays <= 32 ? styles.quickPresetPillActive : ''}`} onClick={() => handleQuickPreset(30)}>1 Month (vs Previous Month)</button>
+                  <button type="button" className={`${styles.quickPresetPill} ${currentWindowDays === 1 ? styles.quickPresetPillActive : ''}`} onClick={() => handleQuickPreset(1)}>
+                    {liveLoading && currentWindowDays === 1 && <span className={styles.pillSpinner} aria-hidden="true" />}
+                    Today (vs Yesterday)
+                  </button>
+                  <button type="button" className={`${styles.quickPresetPill} ${currentWindowDays === 7 ? styles.quickPresetPillActive : ''}`} onClick={() => handleQuickPreset(7)}>
+                    {liveLoading && currentWindowDays === 7 && <span className={styles.pillSpinner} aria-hidden="true" />}
+                    1 Week (vs Past Week)
+                  </button>
+                  <button type="button" className={`${styles.quickPresetPill} ${currentWindowDays === 14 ? styles.quickPresetPillActive : ''}`} onClick={() => handleQuickPreset(14)}>
+                    {liveLoading && currentWindowDays === 14 && <span className={styles.pillSpinner} aria-hidden="true" />}
+                    14 Days (vs Past 14d)
+                  </button>
+                  <button type="button" className={`${styles.quickPresetPill} ${currentWindowDays >= 28 && currentWindowDays <= 32 ? styles.quickPresetPillActive : ''}`} onClick={() => handleQuickPreset(30)}>
+                    {liveLoading && currentWindowDays >= 28 && currentWindowDays <= 32 && <span className={styles.pillSpinner} aria-hidden="true" />}
+                    1 Month (vs Previous Month)
+                  </button>
                 </div>
+                {liveLoading && (
+                  <div className={styles.loadingProgressBar} role="progressbar" aria-label="Updating data...">
+                    <div className={styles.loadingProgressShimmer} />
+                  </div>
+                )}
                 <button type="button" className={styles.mobileFilterToggle} aria-expanded={mobileFiltersOpen} aria-controls="dashboard-filters" onClick={() => setMobileFiltersOpen((value) => !value)}>
                   <span>Filters &amp; date range</span><span>{mobileFiltersOpen ? 'Close −' : 'Edit +'}</span>
                 </button>
@@ -2840,7 +2862,7 @@ export function CommerceDashboard({ role, username, permissions, onLogout }: { r
             {/* OVERVIEW SECTION */}
             {section === 'overview' && (
               <>
-                <div className={styles.metrics}>
+                <div className={`${styles.metrics} ${liveLoading ? styles.metricsLoading : ''}`}>
                   {/* The only Saleor-backed overview KPI. */}
                   <div className={`${styles.card} ${styles.metric}`}>
                     <div className={styles.metriclabel}>
