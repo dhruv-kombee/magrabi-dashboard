@@ -63,13 +63,32 @@ const saleorSecrets = loadEnvFile(path.join(workspaceDir, '.secrets', 'saleor.en
 const maculaSecrets = loadEnvFile(path.join(workspaceDir, '.secrets', 'macula.env'))
 const grafanaSecrets = loadEnvFile(path.join(workspaceDir, '.secrets', 'grafana.env'))
 const azureSecrets = loadEnvFile(path.join(workspaceDir, '.secrets', 'azure.env'))
-const dashboardAuthSecrets = loadEnvFile(path.join(workspaceDir, '.secrets', 'dashboard-auth.env'))
+let lastDashboardAuthMtime = 0
+let cachedDashboardAuthSecrets = {}
+
+function getDashboardAuthSecrets() {
+  const filePath = path.join(workspaceDir, '.secrets', 'dashboard-auth.env')
+  try {
+    if (fs.existsSync(filePath)) {
+      const stat = fs.statSync(filePath)
+      if (stat.mtimeMs !== lastDashboardAuthMtime) {
+        lastDashboardAuthMtime = stat.mtimeMs
+        cachedDashboardAuthSecrets = loadEnvFile(filePath)
+      }
+    } else {
+      cachedDashboardAuthSecrets = {}
+    }
+  } catch {
+    // Ignore read errors
+  }
+  return cachedDashboardAuthSecrets
+}
 
 /**
  * Get environment variable with priority:
  * 1. process.env (Docker / K8s / Azure App Settings)
  * 2. commerce-intelligence-platform/.env (hot-reloaded on change)
- * 3. .secrets/*.env (local workstation fallbacks)
+ * 3. .secrets/*.env (local workstation fallbacks, hot-reloaded)
  * 4. defaultValue
  */
 export function getEnv(key, defaultValue = '') {
@@ -92,8 +111,9 @@ export function getEnv(key, defaultValue = '') {
   if (azureSecrets[key] !== undefined && azureSecrets[key] !== '') {
     return azureSecrets[key]
   }
-  if (dashboardAuthSecrets[key] !== undefined && dashboardAuthSecrets[key] !== '') {
-    return dashboardAuthSecrets[key]
+  const dashboardAuth = getDashboardAuthSecrets()
+  if (dashboardAuth[key] !== undefined && dashboardAuth[key] !== '') {
+    return dashboardAuth[key]
   }
   return defaultValue
 }
@@ -133,8 +153,21 @@ export const config = {
       return Math.min(365, Math.max(1, Number.isFinite(days) ? days : 30)) * 24 * 60 * 60
     },
   },
-  
-  // Saleor
+
+  // Database configuration for persistent RBAC & audit logs (PostgreSQL / Render / Azure)
+  database: {
+    get url() { return getEnv('DATABASE_URL', getEnv('AUTH_DATABASE_URL', '')) },
+    get isConfigured() { return Boolean(this.url) },
+    get ssl() {
+      const explicit = getEnv('DATABASE_SSL')
+      if (explicit === 'false' || explicit === '0') return false
+      if (explicit === 'true' || explicit === '1') return { rejectUnauthorized: false }
+      if (this.url.includes('render.com') || this.url.includes('postgres.database.azure.com') || this.url.includes('sslmode=require') || this.url.includes('supabase') || this.url.includes('neon.tech')) {
+        return { rejectUnauthorized: false }
+      }
+      return config.isProd ? { rejectUnauthorized: false } : false
+    },
+  },
   saleor: {
     get graphqlUrl() { return getEnv('SALEOR_GRAPHQL_URL', 'https://ecom-app-api.magrabi.com/graphql/') },
     get username() { return getEnv('SALEOR_USERNAME') },

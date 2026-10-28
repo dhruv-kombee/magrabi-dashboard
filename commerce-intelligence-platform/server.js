@@ -4,6 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { handleApiRequest } from './server/router.js'
 import { config } from './server/config.js'
+import { initDatabase, isDatabaseConfigured, closePool } from './server/db.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const distDir = path.join(__dirname, 'dist')
@@ -65,11 +66,20 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(config.port, '0.0.0.0', () => {
   console.log(`[Magrabi Commerce Intelligence] Server running on port ${config.port} (Production Mode)`)
+  if (isDatabaseConfigured()) {
+    initDatabase()
+      .then(() => console.log('[Magrabi Commerce Intelligence] Connected to external PostgreSQL RBAC database.'))
+      .catch((err) => console.error('[Magrabi Commerce Intelligence] Database initialization error:', err?.message || err))
+  }
 })
 
 process.on('SIGTERM', () => {
-  server.close(() => process.exit(0))
+  closePool().finally(() => {
+    server.close(() => process.exit(0))
+  })
 })
 process.on('SIGINT', () => {
-  server.close(() => process.exit(0))
+  closePool().finally(() => {
+    server.close(() => process.exit(0))
+  })
 })

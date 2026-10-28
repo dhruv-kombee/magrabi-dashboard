@@ -1,7 +1,8 @@
 import { createHash, createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto'
 import { promisify } from 'node:util'
 import { config } from './config.js'
-import { DEFAULT_VIEWER_PERMISSIONS, normalizeViewerPermissions, readManagedUsers, VIEWER_PERMISSIONS } from './userStore.js'
+import { DEFAULT_VIEWER_PERMISSIONS, normalizeViewerPermissions, readManagedUsers, readManagedUsersAsync, VIEWER_PERMISSIONS } from './userStore.js'
+import { isDatabaseConfigured } from './db.js'
 
 const scrypt = promisify(scryptCallback)
 const COOKIE_NAME = 'magrabi_ci_session'
@@ -70,6 +71,9 @@ export function configuredUsers() {
 }
 
 export async function authenticateUser(username, password) {
+  if (isDatabaseConfigured()) {
+    try { await readManagedUsersAsync() } catch { /* use current cache */ }
+  }
   const user = configuredUsers().find((candidate) => candidate.username === username)
   if (!user || !await verifyPassword(password, user.passwordHash)) return null
   return { username: user.username, role: user.role, permissions: normalizeViewerPermissions(user.permissions) }

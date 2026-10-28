@@ -12,6 +12,8 @@ import {
   deleteManagedViewer,
   DEFAULT_VIEWER_PERMISSIONS,
   readManagedUsers,
+  readManagedUsersAsync,
+  recordAuditLog,
   saveManagedViewer,
   updateManagedViewerPermissions,
   validateManagedUsername,
@@ -237,6 +239,7 @@ export async function handleApiRequest(req, res) {
     const user = typeof body.username === 'string' ? await authenticateUser(body.username, body.password) : null
     if (!user) {
       limit.recordFailure()
+      await recordAuditLog(body.username, 'LOGIN_FAILED', body.username, {}, req.socket?.remoteAddress)
       sendJson(res, { status: 'ERROR', authenticated: false, error: 'Invalid username or password.' }, 401)
       return true
     }
@@ -245,6 +248,7 @@ export async function handleApiRequest(req, res) {
     const timeoutSeconds = getSessionTimeoutSeconds(rememberMe)
     const now = Date.now()
     setSessionCookie(req, res, createSessionToken(user.username, user.role, now, { rememberMe }), timeoutSeconds)
+    await recordAuditLog(user.username, 'LOGIN_SUCCESS', user.username, { role: user.role }, req.socket?.remoteAddress)
     sendJson(res, { status: 'OK', authenticated: true, username: user.username, role: user.role, permissions: user.permissions, expiresAt: now + timeoutSeconds * 1000, timeoutSeconds })
     return true
   }
@@ -252,6 +256,7 @@ export async function handleApiRequest(req, res) {
   const session = getRequestSession(req)
   if (pathname === '/api/commerce/auth/logout') {
     clearSessionCookie(req, res)
+    await recordAuditLog(session?.username, 'LOGOUT', session?.username, {}, req.socket?.remoteAddress)
     sendJson(res, { status: 'OK', authenticated: false })
     return true
   }
@@ -278,8 +283,13 @@ export async function handleApiRequest(req, res) {
   if (pathname === '/api/commerce/auth/users') {
     if (req.method === 'GET') {
       let managed
-      try { managed = readManagedUsers({ strict: true }).map(({ username, role, permissions }) => ({ username, role, permissions, managed: true })) }
-      catch { sendJson(res, { status: 'ERROR', error: MANAGED_USER_STORAGE_ERROR }, 500); return true }
+      try {
+        const users = await readManagedUsersAsync({ strict: true })
+        managed = users.map(({ username, role, permissions }) => ({ username, role, permissions, managed: true }))
+      } catch {
+        sendJson(res, { status: 'ERROR', error: MANAGED_USER_STORAGE_ERROR }, 500)
+        return true
+      }
       const environment = [
         { username: config.auth.adminUsername, role: 'admin', managed: false },
         config.auth.viewerUsername && config.auth.viewerPasswordHash ? { username: config.auth.viewerUsername, role: 'viewer', permissions: DEFAULT_VIEWER_PERMISSIONS, managed: false } : null,
@@ -301,6 +311,7 @@ export async function handleApiRequest(req, res) {
       try {
         const updated = await updateManagedViewerPermissions(body.username, body.permissions)
         if (!updated) { sendJson(res, { status: 'ERROR', error: 'Viewer account was not found.' }, 404); return true }
+        await recordAuditLog(session.username, 'UPDATE_PERMISSIONS', body.username, { permissions: body.permissions }, req.socket?.remoteAddress)
         sendJson(res, { status: 'OK', updated: true })
       } catch (error) {
         const message = error instanceof TypeError ? error.message : MANAGED_USER_STORAGE_ERROR
@@ -313,6 +324,7 @@ export async function handleApiRequest(req, res) {
       try {
         const deleted = await deleteManagedViewer(body.username)
         if (!deleted) { sendJson(res, { status: 'ERROR', error: 'Viewer account was not found.' }, 404); return true }
+        await recordAuditLog(session.username, 'DELETE_USER', body.username, {}, req.socket?.remoteAddress)
         sendJson(res, { status: 'OK', deleted: true })
       } catch { sendJson(res, { status: 'ERROR', error: MANAGED_USER_STORAGE_ERROR }, 500) }
       return true
@@ -330,7 +342,8 @@ export async function handleApiRequest(req, res) {
         sendJson(res, { status: 'ERROR', error: 'Select valid viewer permissions.' }, 400)
         return true
       }
-      const user = await saveManagedViewer(body.username, await hashPassword(body.password), body.permissions)
+      const user = await saveManagedViewer(body.username, await hashPassword(body.password), body.permissions, body.role)
+      await recordAuditLog(session.username, 'SAVE_USER', body.username, { role: user.role, permissions: user.permissions }, req.socket?.remoteAddress)
       sendJson(res, { status: 'OK', user })
     } catch (error) {
       const message = error instanceof TypeError ? error.message : MANAGED_USER_STORAGE_ERROR
