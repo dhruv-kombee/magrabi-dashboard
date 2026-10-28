@@ -34,7 +34,7 @@ import {
 } from './auth.js'
 
 const queryCache = new Map()
-const CACHE_TTL_MS = 60 * 1000
+const CACHE_TTL_MS = 180 * 1000
 const MANAGED_USER_STORAGE_ERROR = 'Viewer account storage is unavailable. On Render, attach a persistent disk mounted at /var/data; set AUTH_MANAGED_USERS_FILE to /var/data/dashboard-users.json if using a different path.'
 const GET_ROUTES = new Set(['/api/commerce/auth/session', '/api/commerce/auth/users', '/api/commerce/health', '/api/commerce/orders/summary', '/api/commerce/gateways/telemetry', '/api/commerce/traffic/edge', '/api/commerce/infra/apm', '/api/commerce/analytics/summary'])
 const POST_ROUTES = new Set(['/api/commerce/auth/login', '/api/commerce/auth/logout', '/api/commerce/auth/activity', '/api/commerce/auth/users', '/api/commerce/assistant/query', '/api/commerce/alerts/evaluate'])
