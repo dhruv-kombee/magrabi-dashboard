@@ -9,6 +9,7 @@
     "test": "node --test",
     "auth:configure": "node scripts/configure-auth.js",
     "auth:configure:deployment": "node scripts/configure-auth.js --deployment-env",
+    "db:verify": "node scripts/verify-db.js",
     "preview": "vite preview --port 5174",
     "start": "node server.js"
   },
@@ -18,11 +19,13 @@
     "google-auth-library": "^11.3.1",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.9",
+    "pg": "^8.23.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
