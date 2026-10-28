@@ -3454,3 +3454,397 @@
   filter: grayscale(0.15);
 }
 
+/* Microsoft Clarity Rich Analytics Layout */
+.clarityKpiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin: 14px 0 16px;
+}
+
+.clarityKpiCard {
+  background: var(--surface-subtle, #f6f8f7);
+  border: 1px solid var(--line, #e2e8e5);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.clarityKpiLabel {
+  font-size: 10px;
+  color: #728177;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.clarityKpiValue {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text, #142019);
+  line-height: 1.2;
+}
+
+.clarityKpiSub {
+  font-size: 9px;
+  color: #89938c;
+  margin-top: 3px;
+}
+
+.clarityFrictionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin: 12px 0 16px;
+}
+
+.clarityFrictionCard {
+  background: #fff;
+  border: 1px solid var(--line, #e2e8e5);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.clarityFrictionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.clarityFrictionTitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: #26332b;
+}
+
+.clarityFrictionRate {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 2px 0;
+}
+
+.clarityFrictionRateRed {
+  color: #d9383a;
+}
+
+.clarityFrictionRateAmber {
+  color: #d97706;
+}
+
+.clarityFrictionRateGreen {
+  color: #186348;
+}
+
+.clarityFrictionOccurrences {
+  font-size: 10px;
+  color: #728177;
+}
+
+.clarityBreakdownGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line, #e2e8e5);
+}
+
+.clarityBreakdownColumn {
+  display: flex;
+  flex-direction: column;
+}
+
+.clarityBreakdownTitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: #26332b;
+  margin-bottom: 8px;
+}
+
+.clarityBarRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 10px;
+}
+
+.clarityBarLabel {
+  width: 95px;
+  color: #4b5850;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.clarityBarTrack {
+  flex: 1;
+  height: 6px;
+  background: #eaf0ec;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.clarityBarFill {
+  height: 100%;
+  background: #186348;
+  border-radius: 3px;
+}
+
+.clarityBarValue {
+  min-width: 55px;
+  text-align: right;
+  font-weight: 600;
+  color: #26332b;
+}
+
+/* Clarity Top Banner for Customer Journey */
+.clarityAudienceBanner {
+  background: linear-gradient(135deg, #f7faf8 0%, #edf5f0 100%);
+  border: 1px solid #d2e4d9;
+  border-radius: 8px;
+  padding: 16px 18px;
+  margin-bottom: 20px;
+}
+
+.clarityAudienceHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.clarityAudienceTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: #142019;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clarityAudienceSubtitle {
+  font-size: 11px;
+  color: #617367;
+  margin-top: 2px;
+}
+
+.clarityAudienceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.clarityAudienceCard {
+  background: #ffffff;
+  border: 1px solid #e1ebe4;
+  border-radius: 6px;
+  padding: 10px 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.clarityAudienceCardLabel {
+  font-size: 10px;
+  color: #6c7c72;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+}
+
+.clarityAudienceCardValue {
+  font-size: 20px;
+  font-weight: 800;
+  color: #186348;
+  line-height: 1.1;
+}
+
+.clarityAudienceCardNote {
+  font-size: 10px;
+  color: #829288;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.socialBrowserGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.socialBrowserCard {
+  background: var(--surface-subtle, #f6f8f7);
+  border: 1px solid var(--line, #e2e8e5);
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.socialBrowserHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.socialBrowserName {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e2d24;
+}
+
+.socialBrowserValue {
+  font-size: 18px;
+  font-weight: 800;
+  color: #142019;
+  margin: 4px 0 2px;
+}
+
+.socialBrowserAdvice {
+  font-size: 10px;
+  color: #728177;
+  line-height: 1.45;
+  margin-top: 6px;
+}
+
+/* Storefront Language & Catalog Intent Cards */
+.languageStageGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.languageStageCard {
+  background: var(--surface-subtle, #fafbf9);
+  border: 1px solid var(--line, #e2e8e5);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.languageStageCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #edf1ec;
+}
+
+.languageStageCardTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a271f;
+}
+
+.languageBarTrack {
+  display: flex;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #e6ede8;
+  margin-bottom: 12px;
+}
+
+.languageBarAr {
+  background: #186348;
+  transition: width 0.3s ease;
+}
+
+.languageBarEn {
+  background: #0284c7;
+  transition: width 0.3s ease;
+}
+
+.languageLegendRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  color: #47554e;
+  margin-bottom: 8px;
+}
+
+.stageFunnelList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.stageFunnelItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  padding: 6px 8px;
+  background: #ffffff;
+  border: 1px solid #edf1ec;
+  border-radius: 5px;
+}
+
+.stageFunnelName {
+  font-weight: 600;
+  color: #27372d;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stageFunnelStats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: #1b261f;
+}
+
+/* Scroll Depth Engagement */
+.scrollDepthGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.scrollDepthCard {
+  background: #ffffff;
+  border: 1px solid #e2e8e5;
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.scrollDepthTitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: #4b5a51;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.scrollDepthValue {
+  font-size: 22px;
+  font-weight: 800;
+  color: #186348;
+  margin: 6px 0 2px;
+}
+
+.scrollDepthDesc {
+  font-size: 10px;
+  color: #728177;
+  line-height: 1.4;
+}
+
+
